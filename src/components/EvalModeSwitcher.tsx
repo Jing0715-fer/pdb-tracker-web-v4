@@ -325,6 +325,8 @@ export function EvalModeSwitcher({
                           <div className="ml-3 pl-3 border-l-2 border-claude-border-light dark:border-[#2b2926] space-y-1 py-1">
                               {subTargets.map((st) => {
                                 const isSelected = selectedUniprotId === st.uniprotId;
+                                // Prefer gene name (shorter) for sidebar display; fall back to protein name.
+                                const displayName = (st as any).geneName || (st as any).geneNames || st.proteinName || st.uniprotId;
                                 return (
                                   <button
                                     key={st.uniprotId}
@@ -336,11 +338,12 @@ export function EvalModeSwitcher({
                                     }`}
                                   >
                                     <div className="flex items-center justify-between gap-1">
-                                      <div className="min-w-0 flex-1">
-                                        <span className="font-mono text-[10px] text-claude-accent/80 mr-1 flex-shrink-0">
+                                      <div className="min-w-0 flex-1 flex items-baseline gap-1">
+                                        <span className="font-mono text-[10px] text-claude-accent/80 flex-shrink-0">
                                           {st.uniprotId}
                                         </span>
-                                        <span className="truncate">{st.proteinName}</span>                                      </div>
+                                        <span className="truncate overflow-hidden text-ellipsis whitespace-nowrap min-w-0" title={st.proteinName}>{displayName}</span>
+                                      </div>
                                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                                         <span className="text-[9px] text-claude-cryoem">
                                           {st.pdbCount}P

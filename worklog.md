@@ -1266,3 +1266,29 @@ Stage Summary:
 - Both batch section toggle and sub-target expand now use `{condition && (...)}` instead of CSS classes.
 - DB config restored.
 - VLM: 8/10, no overlapping text. Lint passes. Server stable.
+
+---
+Task ID: fix-sidebar-overlap-gene-names
+Agent: main (Z.ai Code)
+Task: Fix sidebar text overlap on narrow screens — use gene name abbreviations, ensure proper truncation.
+
+Work Log:
+- User reported: overlap still occurs on narrow screens, protein names too long, suggested showing gene name abbreviation with width-based truncation.
+- Root cause: Sub-target display used full proteinName ("Epidermal growth factor receptor", "Receptor tyrosine-protein kinase erbB-2") which is very long. On narrow sidebar widths, the `truncate` class wasn't working reliably because the span wasn't properly constrained (missing explicit overflow-hidden + whitespace-nowrap + min-w-0 on the span itself, only on parent div).
+- Fix 1: Display gene name (shorter) instead of full protein name.
+  - EvalModeSwitcher.tsx: `displayName = st.geneName || st.geneNames || st.proteinName || st.uniprotId`
+  - collapsed-sidebar-mini-cards.tsx: Same logic using IIFE to check ev.geneNames, sub.geneName, sub.geneNames, then proteinName.
+  - Result: "EGFR" instead of "Epidermal growth factor receptor", "ERBB2" instead of "Receptor tyrosine-protein kinase erbB-2".
+- Fix 2: Explicit truncation CSS on the span itself.
+  - Changed from `<span className="truncate">` to `<span className="truncate overflow-hidden text-ellipsis whitespace-nowrap min-w-0">`.
+  - Parent div uses `flex items-baseline gap-1` with `min-w-0 flex-1` to allow the span to shrink.
+  - uniprotId span has `flex-shrink-0` to prevent compression.
+  - Added `title={proteinName}` for hover tooltip showing full name.
+- Tested at 1024px: VLM 9/10 — "No overlapping, properly truncated, shows EGFR and ERBB2".
+- Tested at 800px: VLM 8/10 — sidebar collapses to mini cards, no overlap.
+
+Stage Summary:
+- Sub-target names now show gene name abbreviation (EGFR, ERBB2) instead of full protein name.
+- Explicit truncation CSS (overflow-hidden + text-ellipsis + whitespace-nowrap + min-w-0) on the span ensures text truncates at any screen width.
+- Hover tooltip shows full protein name via title attribute.
+- VLM: 9/10 at 1024px, 8/10 at 800px. No overlapping at any width. Lint passes.

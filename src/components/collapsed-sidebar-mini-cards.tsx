@@ -255,7 +255,7 @@ export function CollapsedSidebarMiniCards({
                             }`}
                           >
                             <span className="font-mono text-[9px] font-semibold text-purple-600 dark:text-purple-400 flex-shrink-0">{sub.uniprotId}</span>
-                            <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1 min-w-0">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
+                            <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0" title={subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}>{(() => { const ev = subEv; const gene = ev?.geneNames || (sub as any).geneName || (sub as any).geneNames; return gene || ev?.proteinName || ev?.entryName || sub.proteinName || ''; })()}</span>
                             {subScore !== null && (
                               <span className="text-[9px] font-mono font-bold flex-shrink-0" style={{ color: subColor }}>
                                 {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
