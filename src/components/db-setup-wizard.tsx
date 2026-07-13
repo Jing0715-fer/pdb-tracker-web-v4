@@ -459,22 +459,22 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
                                                     <div className="flex items-center gap-1.5 flex-wrap">
                                                       <code className="text-[11px] font-mono text-foreground break-all">{db.displayPath}</code>
                                                       {db.isActive && (
-                                                        <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                                                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                                                           <CheckCircle2 className="h-2.5 w-2.5" /> 当前
                                                         </Badge>
                                                       )}
                                                       {db.hasSchema === true && (
-                                                        <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                                                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
                                                           {db.tableCount} 表
                                                         </Badge>
                                                       )}
                                                       {db.hasSchema === false && (
-                                                        <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                                                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
                                                           未初始化
                                                         </Badge>
                                                       )}
                                                       {db.hasSchema === null && (
-                                                        <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300" title={db.probeError || '探测失败，请点击刷新按钮重试'}>
+                                                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300" title={db.probeError || '探测失败，请点击刷新按钮重试'}>
                                                           探测失败
                                                         </Badge>
                                                       )}
@@ -565,14 +565,14 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
                       {resultStatus.activeFsPath}
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                      <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                         <CheckCircle2 className="h-2.5 w-2.5" /> 表结构已初始化
                       </Badge>
-                      <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                      <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                         {resultStatus.tableCount} 表
                       </Badge>
                       {!resultStatus.isTest && (
-                        <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
                           <ShieldCheck className="h-2.5 w-2.5" /> 正式数据库
                         </Badge>
                       )}

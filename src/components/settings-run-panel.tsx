@@ -263,7 +263,7 @@ function StreamFeed({
           <button
             type="button"
             onClick={() => setAutoScroll(a => !a)}
-            className={`text-4xs px-0.5 py-0 rounded border transition-colors ${autoScroll ? 'border-sky-500/40 text-sky-600 dark:text-sky-300 bg-sky-500/10' : 'border-border/60 text-muted-foreground hover:text-foreground'}`}
+            className={`text-xs font-medium px-2 h-5 gap-1 rounded-md border transition-colors inline-flex items-center ${autoScroll ? 'border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/10' : 'border-border/60 text-muted-foreground hover:text-foreground bg-muted/40'}`}
             title={autoScroll ? '自动滚动中，点击暂停' : '已暂停，点击恢复'}
           >
             {autoScroll ? '⤓ auto' : '⏸ paused'}
@@ -449,28 +449,28 @@ function LLMPreview({
           <span className="text-xs font-semibold truncate">{title}</span>
           {/* LLM status badge — clearly shows real success vs failure */}
           {ok === true && (
-            <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
               <CheckCircle2 className="h-2 w-2" /> LLM 真实生成
             </Badge>
           )}
           {isFailure && (
-            <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
               <XCircle className="h-2 w-2" /> LLM 调用失败
             </Badge>
           )}
           {/* DB persistence badge */}
           {dbSaved === true && (
-            <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
               <Database className="h-2.5 w-2.5" /> 已入库
             </Badge>
           )}
           {dbSaved === false && (
-            <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
               <Database className="h-2.5 w-2.5" /> 入库失败
             </Badge>
           )}
           {!isFailure && (
-            <Badge variant="outline" className={`text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 ${a.badge}`}>
+            <Badge variant="outline" className={`text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 ${a.badge}`}>
               <Sparkles className="h-2 w-2" /> {provider}/{model}
             </Badge>
           )}
@@ -751,16 +751,16 @@ function ChapterStream({
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <ChevronRight className="h-3 w-3 text-violet-500 shrink-0" />
           <span className="text-3xs font-semibold truncate">LLM 思考过程 · 分章流式</span>
-          <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
+          <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
             <Sparkles className="h-2 w-2" /> {completedCount}/{rows.length} 章节
           </Badge>
           {okCount > 0 && failCount === 0 && (
-            <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
               ✓ 全部成功
             </Badge>
           )}
           {failCount > 0 && (
-            <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
               ✗ {failCount} 失败
             </Badge>
           )}
@@ -898,7 +898,7 @@ function CycleTimeline({
                   <span className="text-xs font-semibold truncate">{r.label}</span>
                   {r.completed && <CheckCircle2 className={`h-3 w-3 ${c.text} shrink-0`} />}
                   {r.verdict && (
-                    <Badge variant="outline" className={`text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 ${r.verdict === 'pass' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300'}`}>
+                    <Badge variant="outline" className={`text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 ${r.verdict === 'pass' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300' : 'border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300'}`}>
                       {r.verdict}
                     </Badge>
                   )}
@@ -1358,11 +1358,11 @@ export function SettingsRunPanel({
                 <Sparkles className="h-4.5 w-4.5 text-primary" />
               </div>
               <span>运行中心</span>
-              <Badge variant="outline" className="ml-1 text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+              <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                 <Layers className="h-2.5 w-2.5" /> 3 modules
               </Badge>
               {running.size > 0 && (
-                <Badge variant="outline" className="ml-1 text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+                <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
                   <Loader2 className="h-2.5 w-2.5 animate-spin" /> {running.size} running
                 </Badge>
               )}
@@ -1463,8 +1463,8 @@ export function SettingsRunPanel({
                             <span className="text-[12px] leading-none">{a.icon || '·'}</span>
                           )}
                           <span className="font-mono text-sm">{a.label || a.provider}</span>
-                          {a.via === 'wsl' && <span className="px-1 rounded bg-violet-500/15 text-violet-600 dark:text-violet-300 text-4xs font-mono">WSL</span>}
-                          {a.via === 'sdk' && <span className="px-1 rounded bg-sky-500/15 text-sky-600 dark:text-sky-300 text-4xs font-mono">SDK</span>}
+                          {a.via === 'wsl' && <span className="px-1.5 h-5 inline-flex items-center rounded-md bg-violet-500/15 text-violet-600 dark:text-violet-300 text-xs font-medium font-mono">WSL</span>}
+                          {a.via === 'sdk' && <span className="px-1.5 h-5 inline-flex items-center rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-300 text-xs font-medium font-mono">SDK</span>}
                           {isPinned && <Lock className="h-2.5 w-2.5 opacity-70" />}
                           {isEffective && !isPinned && (
                             <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -1560,16 +1560,16 @@ export function SettingsRunPanel({
                 <Database className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-sm font-medium text-foreground">数据库</span>
                 {dbStatus?.isTest ? (
-                  <Badge variant="outline" className="ml-1 text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                  <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
                     <AlertTriangle className="h-2 w-2" /> 测试库
                   </Badge>
                 ) : dbStatus?.confirmed ? (
-                  <Badge variant="outline" className="ml-1 text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                  <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                     <ShieldCheck className="h-2 w-2" /> 已确认
                   </Badge>
                 ) : null}
               </div>
-              <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+              <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                 <Zap className="h-2 w-2" /> 即时生效
               </Badge>
             </div>
@@ -1586,26 +1586,26 @@ export function SettingsRunPanel({
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1.5">
                   {dbStatus.hasSchema ? (
-                    <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                       <CheckCircle2 className="h-2 w-2" /> 表结构 {dbStatus.tableCount}
                     </Badge>
                   ) : (
-                    <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
                       <XCircle className="h-2 w-2" /> 未初始化
                     </Badge>
                   )}
                   {dbStatus.hasSchema && (dbStatus.counts?.PdbStructure || 0) > 0 && (
-                    <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                       PDB {dbStatus.counts?.PdbStructure}
                     </Badge>
                   )}
                   {dbStatus.hasSchema && (dbStatus.counts?.Evaluation || 0) > 0 && (
-                    <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                       评估 {dbStatus.counts?.Evaluation}
                     </Badge>
                   )}
                   {dbStatus.hasSchema && (dbStatus.counts?.PubMedArticle || 0) > 0 && (
-                    <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                       论文 {dbStatus.counts?.PubMedArticle}
                     </Badge>
                   )}
@@ -1882,7 +1882,7 @@ export function SettingsRunPanel({
                     写入 LLM-Wiki 文件
                   </label>
                   {evalGenerateReport && (
-                    <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                       <Zap className="h-2.5 w-2.5 text-amber-500" />
                       默认原子任务 (评估 + 报告 ~50s)
                     </Badge>
@@ -1991,7 +1991,7 @@ export function SettingsRunPanel({
                     <div className="flex items-center gap-2">
                       <Activity className="h-3.5 w-3.5 text-muted-foreground" />
                       <span className="text-xs font-semibold">执行日志</span>
-                      <Badge variant="outline" className="text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                      <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                         {logFilter === 'all' ? logs.length : logs.filter(l => l.module === logFilter).length}
                       </Badge>
                     </div>
@@ -2063,7 +2063,7 @@ export function SettingsRunPanel({
                                 {l.status === 'error' && <XCircle className="h-3 w-3 text-rose-500 shrink-0" />}
                                 {l.status === 'running' && <Loader2 className="h-3 w-3 animate-spin text-sky-500 shrink-0" />}
                                 <span className="text-muted-foreground font-mono text-xs shrink-0">{l.ts.slice(11, 19)}</span>
-                                <Badge variant="outline" className={`text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0 ${moduleBadge.cls}`}>{moduleBadge.txt}</Badge>
+                                <Badge variant="outline" className={`text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 ${moduleBadge.cls}`}>{moduleBadge.txt}</Badge>
                                 <span className="font-medium flex-1 leading-tight">{l.summary}</span>
                                 {l.durationMs != null && <span className="text-muted-foreground text-xs shrink-0">{Math.round(l.durationMs / 100) / 10}s</span>}
                               </div>

@@ -643,3 +643,34 @@ Stage Summary:
 - Server persists across bash calls (reparented to tini init).
 - Both dialogs (运行中心 & 数据库初始化设置) render correctly with unified badge styling on the standalone server.
 - VLM verification: DB Init dialog badges 9/10; Run Center dialog badges 7-8/10 (strong consistency, unified size/shape/color).
+
+---
+Task ID: badge-font-unify-and-db-fix
+Agent: main (Z.ai Code)
+Task: 1) Unify ALL badge font sizes to match the "done" badge (text-xs). 2) Fix "未初始化" error on newly created database + "Using cached data (API unavailable)" error.
+
+Work Log:
+- User feedback: red-boxed badges had different (tiny text-4xs/5px) font size vs blue-boxed "done" badge (text-xs/12px). Also newly created DB showed "未初始化" and frontend fell back to sample data.
+- Badge font unification:
+  - Replaced ALL `text-4xs font-medium px-1.5 h-4 gap-1 rounded shrink-0` → `text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0` across both files (27 badges in settings-run-panel.tsx + 7 in db-setup-wizard.tsx = 34 total).
+  - Updated auto-scroll toggle button (was text-4xs) to text-xs with matching h-5/px-2/rounded-md.
+  - Updated WSL/SDK inline labels to text-xs for consistency.
+  - Only remaining text-4xs: the notification count circle (h-3.5 circular indicator — different UI element, not a status badge).
+  - DOM-verified: all 4 visible Run Center badges render at exactly 12px (text-xs), matching "done".
+- Database "未初始化" root cause:
+  - User created `my-pdb-tracker1.db` via the wizard. The POST /api/db-config endpoint spawns `bunx prisma db push` to initialize schema, but this OOM-crashed on the 4GB sandbox, leaving the .db file at 0 bytes (empty, no tables).
+  - With no schema, `dbStatus.hasSchema=false` → showed "未初始化" badge.
+  - API routes (entries/snapshots) returned 500 (no such table) → frontend fell back to `fallback-data.ts` sample data → "Using cached data (API unavailable)" message.
+- Database fix:
+  - Ran `DATABASE_URL="file:.../my-pdb-tracker1.db" bunx prisma db push` directly (lightweight, no OOM) → schema initialized (17 tables, 155KB).
+  - Created `.next/standalone/.hermes/db-config.json` pointing to my-pdb-tracker1.db with confirmed:true.
+  - Rebuilt standalone, copied static/public/prisma assets.
+  - Restarted server: db-config API now returns hasSchema=True, tableCount=16, isTest=False.
+  - All APIs return 200. entries API returns {"total":0,"entries":[]} (valid empty response).
+  - Main page shows clean state ("Total Structures: 0"), no error messages.
+
+Stage Summary:
+- ALL badges in both dialogs now use text-xs (12px) font, matching the "done" badge. DOM-verified.
+- Database "未初始化" fixed: schema initialized in user's new DB, badge now shows "表结构 16" (green).
+- "Using cached data (API unavailable)" fixed: all APIs return 200, no more fallback to sample data.
+- ESLint passes (0 errors). Standalone server stable (110MB RSS, 4ms response).
