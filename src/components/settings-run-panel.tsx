@@ -69,7 +69,6 @@ import {
   Save,
   FileText,
   Zap,
-  ShieldCheck,
   Terminal,
   Lock,
   Layers,
@@ -80,7 +79,6 @@ import {
   FileDown,
   Download,
   Clock,
-  HardDrive,
   FilePlus2,
   FolderOpen,
 } from 'lucide-react';
@@ -1553,65 +1551,51 @@ export function SettingsRunPanel({
           </AnimatePresence>
 
           {/* ── Database config (always visible) ──────────────────────── */}
-          <div className="mt-3 border-t border-border/40 pt-2.5">
-            {/* Title row + status badges — single tight line */}
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5">
-                <Database className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">数据库</span>
-                {dbStatus?.isTest ? (
-                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                    <AlertTriangle className="h-2 w-2" /> 测试库
-                  </Badge>
-                ) : dbStatus?.confirmed ? (
-                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                    <ShieldCheck className="h-2 w-2" /> 已确认
-                  </Badge>
-                ) : null}
-              </div>
-              <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                <Zap className="h-2 w-2" /> 即时生效
-              </Badge>
+          <div className="mt-3 border-t border-border/40 pt-2">
+            {/* Title + active path + schema badges + loaded status — single dense line */}
+            <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+              <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+              <span className="text-sm font-medium text-foreground shrink-0">数据库</span>
+              {dbStatus?.activeFsPath && (
+                <code className="text-xs font-mono text-muted-foreground truncate min-w-0" title={dbStatus.activeFsPath}>
+                  {dbStatus.activeFsPath}
+                </code>
+              )}
+              {dbStatus?.isTest && (
+                <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                  <AlertTriangle className="h-2 w-2" /> 测试库
+                </Badge>
+              )}
+              {dbStatus?.hasSchema ? (
+                <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                  <CheckCircle2 className="h-2 w-2" /> 表结构 {dbStatus.tableCount}
+                </Badge>
+              ) : dbStatus ? (
+                <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                  <XCircle className="h-2 w-2" /> 未初始化
+                </Badge>
+              ) : null}
+              {dbStatus?.hasSchema && (dbStatus.counts?.PdbStructure || 0) > 0 && (
+                <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                  PDB {dbStatus.counts?.PdbStructure}
+                </Badge>
+              )}
+              {dbStatus?.hasSchema && (dbStatus.counts?.Evaluation || 0) > 0 && (
+                <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                  评估 {dbStatus.counts?.Evaluation}
+                </Badge>
+              )}
+              {dbStatus?.hasSchema && (dbStatus.counts?.PubMedArticle || 0) > 0 && (
+                <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                  论文 {dbStatus.counts?.PubMedArticle}
+                </Badge>
+              )}
+              {dbPathStatus && (
+                <span className={`text-xs font-medium ml-auto shrink-0 ${dbPathStatus.startsWith('✓') ? 'text-emerald-600' : 'text-rose-500'}`}>
+                  {dbPathStatus}
+                </span>
+              )}
             </div>
-
-            {/* Active path + schema badges — compact single box */}
-            {dbStatus && (
-              <div className="mb-1.5 rounded-md bg-muted/40 border border-border/40 px-2 py-1">
-                <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                  <HardDrive className="h-2.5 w-2.5 shrink-0" />
-                  <span className="shrink-0">活动路径</span>
-                  <span className="font-mono text-foreground truncate" title={dbStatus.activeFsPath}>
-                    {dbStatus.activeFsPath}
-                  </span>
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {dbStatus.hasSchema ? (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                      <CheckCircle2 className="h-2 w-2" /> 表结构 {dbStatus.tableCount}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
-                      <XCircle className="h-2 w-2" /> 未初始化
-                    </Badge>
-                  )}
-                  {dbStatus.hasSchema && (dbStatus.counts?.PdbStructure || 0) > 0 && (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                      PDB {dbStatus.counts?.PdbStructure}
-                    </Badge>
-                  )}
-                  {dbStatus.hasSchema && (dbStatus.counts?.Evaluation || 0) > 0 && (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                      评估 {dbStatus.counts?.Evaluation}
-                    </Badge>
-                  )}
-                  {dbStatus.hasSchema && (dbStatus.counts?.PubMedArticle || 0) > 0 && (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                      论文 {dbStatus.counts?.PubMedArticle}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Input + switch + refresh — single tight row */}
             <div className="flex items-center gap-1.5">
@@ -1661,12 +1645,6 @@ export function SettingsRunPanel({
                 <FolderOpen className="h-3 w-3 mr-1" /> 选择已有
               </Button>
             </div>
-
-            {dbPathStatus && (
-              <div className={`mt-1 text-xs ${dbPathStatus.startsWith('✓') ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {dbPathStatus}
-              </div>
-            )}
 
             {dbStatus?.isTest && (
               <div className="mt-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">

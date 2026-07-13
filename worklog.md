@@ -801,3 +801,32 @@ Stage Summary:
 - Database section is now compact: path display is single-line (was 2-line), all paddings/margins reduced, input/buttons h-7 (was h-8), bottom buttons h-7.
 - VLM: 8/10 compactness. Lint passes. Server stable.
 - Only the database section was changed; LLM section, tabs, and module cards unchanged.
+
+---
+Task ID: db-section-dense-inline-layout
+Agent: main (Z.ai Code)
+Task: Restructure DB section for higher information density — path inline after title, 表结构 after path, remove 已确认/即时生效, 已加载 on same line.
+
+Work Log:
+- User questioned the necessity of 已确认 (confirmed) and 即时生效 (takes effect immediately) badges:
+  - 已确认 = dbStatus.confirmed — redundant with the "✓ 已加载" status that already shows the DB is active.
+  - 即时生效 = static badge always displayed — it's a default behavior (DB changes apply without restart), not a status that needs constant display. Removed.
+- Restructured the database section from 3 rows (title row / path box / input row) to a denser layout:
+  - MERGED into ONE line: `数据库 [path] [测试库?] [表结构 N] [PDB x] [评估 y] [论文 z] [✓ 已加载]`
+  - Active path now inline directly after "数据库" title (was in a separate muted box with "活动路径" label)
+  - Removed the "活动路径" label entirely (path is self-evident)
+  - 表结构 badge immediately follows the path
+  - 已加载 (dbPathStatus) pushed to end of line with ml-auto (right-aligned)
+  - Removed 已确认 badge (redundant)
+  - Removed 即时生效 badge (redundant default behavior)
+  - Removed the separate path box (bg-muted/40 border) — path is now plain inline code
+- Cleaned up unused imports: ShieldCheck, HardDrive (no longer referenced).
+- Input row and bottom buttons unchanged (already compact from previous task).
+- Rebuilt standalone, deployed. DOM-verified: no "已确认", no "即时生效", no "活动路径" label in dialog.
+- VLM evaluation: Information density 8/10, Layout 9/10 — "path inline after title, 表结构 right after path, redundant badges removed, layout denser yet clear, sequential flow intuitive."
+
+Stage Summary:
+- Database section reduced from ~5 visual rows to ~3 rows (title+path+badges line / input row / buttons row).
+- Removed 2 redundant badges (已确认, 即时生效) and 1 redundant label (活动路径).
+- Path, 表结构, count badges, and 已加载 status all on one dense line.
+- VLM: density 8/10, layout 9/10. Lint passes. Server stable.
