@@ -1597,13 +1597,13 @@ export function SettingsRunPanel({
               )}
             </div>
 
-            {/* Input + switch + refresh — single tight row */}
+            {/* Input + switch + new + select — single tight row */}
             <div className="flex items-center gap-1.5">
               <Input
                 value={dbPath}
                 onChange={e => setDbPath(e.target.value)}
                 placeholder="file:./db/custom.db"
-                className="h-7 text-xs font-mono flex-1"
+                className="h-7 text-xs font-mono flex-1 min-w-0"
               />
               <Button
                 variant="outline"
@@ -1616,40 +1616,27 @@ export function SettingsRunPanel({
                 <span className="ml-1">切换</span>
               </Button>
               <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 p-0 shrink-0"
-                onClick={loadDbPath}
-                title="刷新状态"
-              >
-                <RefreshCw className="h-3 w-3" />
-              </Button>
-            </div>
-
-            {/* New / Select buttons — compact */}
-            <div className="flex gap-1.5 mt-1.5">
-              <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs flex-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
+                className="h-7 text-xs shrink-0 px-2 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                 onClick={() => setDbWizardOpen(true)}
               >
-                <FilePlus2 className="h-3 w-3 mr-1" /> 新建数据库
+                <FilePlus2 className="h-3 w-3" /> 新建
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs flex-1 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
+                className="h-7 text-xs shrink-0 px-2 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
                 onClick={() => setDbWizardOpen(true)}
               >
-                <FolderOpen className="h-3 w-3 mr-1" /> 选择已有
+                <FolderOpen className="h-3 w-3" /> 选择
               </Button>
             </div>
 
             {dbStatus?.isTest && (
               <div className="mt-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                 <AlertTriangle className="h-3 w-3 inline mr-1" />
-                当前使用的是测试数据库（<code className="font-mono">db/custom.db</code>），仅用于功能验证。建议点击「新建数据库」创建正式数据库以保存您的工作数据。
+                当前使用的是测试数据库（<code className="font-mono">db/custom.db</code>），仅用于功能验证。建议点击「新建」创建正式数据库以保存您的工作数据。
               </div>
             )}
           </div>

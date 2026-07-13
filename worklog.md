@@ -830,3 +830,24 @@ Stage Summary:
 - Removed 2 redundant badges (已确认, 即时生效) and 1 redundant label (活动路径).
 - Path, 表结构, count badges, and 已加载 status all on one dense line.
 - VLM: density 8/10, layout 9/10. Lint passes. Server stable.
+
+---
+Task ID: db-section-single-row-buttons
+Agent: main (Z.ai Code)
+Task: Move 新建数据库/选择已有 buttons to the same row as 切换 (right side), remove the redundant refresh button.
+
+Work Log:
+- User identified the refresh button (loadDbPath) as redundant — confirmed: loadDbPath is already called on component mount (useEffect) and after saveDbPath completes. Manual refresh serves no purpose since DB config doesn't change externally. Removed the refresh button.
+- Merged the two separate rows (input+切换+refresh / 新建数据库+选择已有) into ONE row: input + 切换 + 新建 + 选择.
+- Shortened button labels to fit one row: "新建数据库" → "新建", "选择已有" → "选择" (icons already convey the meaning).
+- Removed the mt-1.5 gap that separated the two rows.
+- Input field: added min-w-0 to allow proper truncation when buttons take horizontal space.
+- Updated the test-DB warning text: "新建数据库" → "新建" to match the new button label.
+- Rebuilt standalone, deployed. DOM-verified: has "新建" and "选择" (shortened), no "新建数据库"/"选择已有" (old labels), no "刷新" button.
+- VLM evaluation: 8/10 — "input, 切换, 新建, 选择 all on one row, refresh removed, compact with high information density, clean and space-efficient."
+
+Stage Summary:
+- Database section now has only 2 rows: (1) title+path+badges+status line, (2) input+切换+新建+选择 row.
+- Refresh button removed (redundant — auto-loads on mount and after save).
+- Button labels shortened (新建/选择) to fit single row.
+- VLM: 8/10. Lint passes. Server stable.
