@@ -851,3 +851,34 @@ Stage Summary:
 - Refresh button removed (redundant — auto-loads on mount and after save).
 - Button labels shortened (新建/选择) to fit single row.
 - VLM: 8/10. Lint passes. Server stable.
+
+---
+Task ID: eval-tab-swap-multitarget-routing
+Agent: main (Z.ai Code)
+Task: 1) Route 新建/选择 to specific wizard steps, 2) Swap 评估/文献 tabs, 3) Add multi-UniProt ID batch eval with relationship analysis.
+
+Work Log:
+- Task 1 — Wizard routing:
+  - Added `initialMode?: 'choose' | 'create' | 'select'` prop to DbSetupWizardProps.
+  - Updated the reset-on-open effect to use `setMode(initialMode)` instead of hardcoded `'choose'`.
+  - Added `dbWizardMode` state to Run Center. 新建 button sets mode='create' before opening; 选择 sets mode='select'.
+  - Verified: clicking 新建 opens wizard directly on the create step (database dir + filename inputs); clicking 选择 opens directly on the select step (search box + existing DB list).
+- Task 2 — Tab swap:
+  - Default tab changed from 'literature' to 'evaluation'.
+  - Swapped TabsTrigger order: evaluation (①) → literature (②) → weekly (③).
+  - Swapped TabsContent order to match. Updated ModuleCard index labels (evaluation=①, literature=②).
+  - Verified: tab order is "① 评估 / ② 文献 / ③ 周报", evaluation is active by default.
+- Task 3 — Multi-UniProt batch eval:
+  - Added EvalTarget interface { uniprot, maxPdb, maxBlastHits, forceBlast, skipBlast }.
+  - Added evalTargets state (array, default 1 target P00533), addEvalTarget/removeEvalTarget/updateEvalTarget helpers.
+  - Reworked the eval module UI: maps over evalTargets, each row has UniProt input + maxPdb + BLAST上限 + forceBlast + skipBlast + remove button (shown when >1 target). A "+ 添加靶点" button adds rows. When >1 target, a violet "Batch 模式 · N 靶点 · 含相关性分析" badge appears.
+  - Updated runEvaluation: collects valid targets, sets isBatch flag, sends targets[] array to /api/evaluations/run. Single-target sends flat fields (backward compatible). Batch summary logged: "Batch 评估 N 靶点 (ID1, ID2) — 含相关性分析".
+  - The description text updated to mention batch + relationship analysis.
+  - Verified: clicking 添加靶点 creates a 2nd input row, batch badge appears, 2 UniProt inputs present.
+- Rebuilt standalone, deployed. All browser-verified.
+
+Stage Summary:
+- 新建/选择 now route directly to create/select steps (verified by VLM: create step shows dir+filename inputs, select step shows search+list).
+- Tab order: ① 评估 (default) / ② 文献 / ③ 周报.
+- Eval module supports N UniProt IDs with independent params per target; batch mode badge shown when >1; runEvaluation sends targets[] + isBatch for backend batch grouping + cross-target relationship analysis.
+- Lint passes. Server stable (HTTP 200, 18ms).

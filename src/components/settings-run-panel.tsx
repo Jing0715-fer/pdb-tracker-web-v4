@@ -58,6 +58,8 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
+  Plus,
+  X,
   RefreshCw,
   CalendarClock,
   ChevronDown,
@@ -930,7 +932,7 @@ export function SettingsRunPanel({
   onDbChanged,
 }: { onDbChanged?: () => void } = {}) {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('literature');
+  const [activeTab, setActiveTab] = useState('evaluation');
   const [llmInfo, setLlmInfo] = useState<LlmInfo | null>(null);
   const [chosenProvider, setChosenProvider] = useState<string>(() => loadStoredProvider());
   const [llmCfg, setLlmCfg] = useState<LlmUserConfig>(() => loadStoredCfg());
@@ -954,7 +956,7 @@ export function SettingsRunPanel({
   const [litSkipWikiFiles, setLitSkipWikiFiles] = useState(false);
   const [litExistingReports, setLitExistingReports] = useState<Array<{ date: string; paperCount: number; hasLLMDigest: boolean }>>([]);
 
-  // ② Eval params
+  // ① Eval params — multi-target batch support
   const [evalUniprot, setEvalUniprot] = useState('P00533');
   const [evalForceBlast, setEvalForceBlast] = useState(false);
   const [evalSkipBlast, setEvalSkipBlast] = useState(true);
@@ -969,6 +971,31 @@ export function SettingsRunPanel({
   useEffect(() => {
     try { window.localStorage.setItem('evalMaxBlastHits', String(evalMaxBlastHits)); } catch {}
   }, [evalMaxBlastHits]);
+
+  // Multi-target evaluation state — each target has independent params.
+  // When more than one target is present, the run is treated as a batch
+  // (grouped under EvaluationBatch) and a cross-target relationship
+  // analysis (common structures, similarity) is performed after the
+  // per-target evaluations complete.
+  interface EvalTarget {
+    uniprot: string;
+    maxPdb: number;
+    maxBlastHits: number;
+    forceBlast: boolean;
+    skipBlast: boolean;
+  }
+  const [evalTargets, setEvalTargets] = useState<EvalTarget[]>([
+    { uniprot: 'P00533', maxPdb: 80, maxBlastHits: 50, forceBlast: false, skipBlast: true },
+  ]);
+  const addEvalTarget = useCallback(() => {
+    setEvalTargets(prev => [...prev, { uniprot: '', maxPdb: 80, maxBlastHits: 50, forceBlast: false, skipBlast: true }]);
+  }, []);
+  const removeEvalTarget = useCallback((idx: number) => {
+    setEvalTargets(prev => prev.filter((_, i) => i !== idx));
+  }, []);
+  const updateEvalTarget = useCallback((idx: number, key: keyof EvalTarget, value: any) => {
+    setEvalTargets(prev => prev.map((t, i) => i === idx ? { ...t, [key]: value } : t));
+  }, []);
   // Database path config
   const [dbPath, setDbPath] = useState('file:./db/custom.db');
   /** Full DB status object from `/api/db-config` GET — surfaces active
@@ -979,6 +1006,7 @@ export function SettingsRunPanel({
   const [dbPathSaving, setDbPathSaving] = useState(false);
   const [dbPathStatus, setDbPathStatus] = useState<string | null>(null);
   const [dbWizardOpen, setDbWizardOpen] = useState(false);
+  const [dbWizardMode, setDbWizardMode] = useState<'choose' | 'create' | 'select'>('choose');
 
   const loadDbPath = useCallback(async () => {
     try {
@@ -1203,16 +1231,38 @@ export function SettingsRunPanel({
   };
 
   const runEvaluation = () => {
-    const uid = evalUniprot.trim().toUpperCase();
+    // Collect valid (non-empty) targets from the multi-target list.
+    const valid = evalTargets.filter(t => t.uniprot.trim());
+    if (valid.length === 0) {
+      toast.error('请输入至少一个 UniProt ID');
+      return;
+    }
+    const targets = valid.map(t => ({
+      uniprot: t.uniprot.trim().toUpperCase(),
+      forceBlast: t.forceBlast,
+      skipBlast: t.skipBlast,
+      maxPdb: t.maxPdb,
+      maxBlastHits: t.maxBlastHits,
+    }));
     markRunning('eval');
     evalStream.reset();
-    log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `评估 ${uid} — SSE streaming…` });
+    const isBatch = targets.length > 1;
+    const summary = isBatch
+      ? `Batch 评估 ${targets.length} 靶点 (${targets.map(t => t.uniprot).join(', ')}) — 含相关性分析 — SSE streaming…`
+      : `评估 ${targets[0].uniprot} — SSE streaming…`;
+    log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary });
     evalStream.start('/api/evaluations/run', {
-      uniprot: uid,
-      forceBlast: evalForceBlast,
-      skipBlast: evalSkipBlast,
-      maxPdb: evalMaxPdb,
-        maxBlastHits: evalMaxBlastHits,
+      // Single target → flat fields (backward compatible).
+      // Multiple targets → targets[] array; backend creates a batch + cross analysis.
+      ...(isBatch ? {} : {
+        uniprot: targets[0].uniprot,
+        forceBlast: targets[0].forceBlast,
+        skipBlast: targets[0].skipBlast,
+        maxPdb: targets[0].maxPdb,
+        maxBlastHits: targets[0].maxBlastHits,
+      }),
+      targets,
+      isBatch,
       generateReport: evalGenerateReport,
       saveReportFile: evalSaveReportFile,
       llm: llmBody(),
@@ -1619,7 +1669,7 @@ export function SettingsRunPanel({
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs shrink-0 px-2 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
-                onClick={() => setDbWizardOpen(true)}
+                onClick={() => { setDbWizardMode('create'); setDbWizardOpen(true); }}
               >
                 <FilePlus2 className="h-3 w-3" /> 新建
               </Button>
@@ -1627,7 +1677,7 @@ export function SettingsRunPanel({
                 variant="outline"
                 size="sm"
                 className="h-7 text-xs shrink-0 px-2 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
-                onClick={() => setDbWizardOpen(true)}
+                onClick={() => { setDbWizardMode('select'); setDbWizardOpen(true); }}
               >
                 <FolderOpen className="h-3 w-3" /> 选择
               </Button>
@@ -1645,6 +1695,7 @@ export function SettingsRunPanel({
           <DbSetupWizard
             open={dbWizardOpen}
             allowSkip
+            initialMode={dbWizardMode}
             onClose={() => setDbWizardOpen(false)}
             onComplete={() => {
               setDbWizardOpen(false);
@@ -1660,17 +1711,17 @@ export function SettingsRunPanel({
         <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
             <TabsList className="grid w-full grid-cols-3 h-9 bg-muted/40">
-              <TabsTrigger value="literature" className="text-xs gap-1.5">
-                <BookOpen className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">① 文献</span>
-                <span className="sm:hidden">①</span>
-                {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
-              </TabsTrigger>
               <TabsTrigger value="evaluation" className="text-xs gap-1.5">
                 <FlaskConical className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">② 评估</span>
-                <span className="sm:hidden">②</span>
+                <span className="hidden sm:inline">① 评估</span>
+                <span className="sm:hidden">①</span>
                 {isRunning('eval') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
+              </TabsTrigger>
+              <TabsTrigger value="literature" className="text-xs gap-1.5">
+                <BookOpen className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">② 文献</span>
+                <span className="sm:hidden">②</span>
+                {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="weekly" className="text-xs gap-1.5">
                 <CalendarClock className="h-3.5 w-3.5" />
@@ -1680,12 +1731,121 @@ export function SettingsRunPanel({
               </TabsTrigger>
             </TabsList>
 
-            {/* ═══ Module ① Daily Literature ═══════════════════════════ */}
+            {/* ═══ Module ① Target Evaluation ═══════════════════════════ */}
+            <TabsContent value="evaluation" className="mt-3">
+              <ModuleCard
+                icon={<FlaskConical className="h-4 w-4" />}
+                accent="emerald"
+                index="①"
+                title="蛋白靶点评估 + LLM 可行性报告"
+                endpoint="POST /api/evaluations/run"
+                description="UniProt → 元数据 + 序列 → RCSB 直接 PDB → SIFTS 覆盖率 → NCBI BLASTp 同源 → 评分 → 原子任务包含 LLM 报告生成（写入 Evaluation.report + EvaluationReport 表 + 可选 LLM-Wiki）。支持多个 UniProt ID 批量评估，自动归入 batch，并分析靶点间共有的结构与相关性。"
+              >
+                <div className="space-y-2 mb-3">
+                  {evalTargets.map((t, i) => (
+                    <div key={i} className="flex items-end gap-2 flex-wrap">
+                      <div className="flex-1 min-w-[120px]">
+                        <Field label={evalTargets.length > 1 ? `UniProt ID ${i + 1}` : 'UniProt ID'}>
+                          <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 text-xs font-mono" />
+                        </Field>
+                      </div>
+                      <div className="w-20">
+                        <Field label="maxPdb">
+                          <Input type="number" min={1} max={500} value={t.maxPdb} onChange={e => updateEvalTarget(i, 'maxPdb', parseInt(e.target.value || '80'))} className="h-8 text-xs" />
+                        </Field>
+                      </div>
+                      <div className="w-20">
+                        <Field label="BLAST 上限">
+                          <Input type="number" min={1} max={500} value={t.maxBlastHits} onChange={e => updateEvalTarget(i, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 text-xs" />
+                        </Field>
+                      </div>
+                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制 BLAST" disabled={t.skipBlast} />
+                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过 BLAST" disabled={t.forceBlast} />
+                      {evalTargets.length > 1 && (
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title="移除此靶点">
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addEvalTarget}>
+                      <Plus className="h-3 w-3" /> 添加靶点
+                    </Button>
+                    {evalTargets.length > 1 && (
+                      <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
+                        <Layers className="h-2 w-2" /> Batch 模式 · {evalTargets.length} 靶点 · 含相关性分析
+                      </Badge>
+                    )}
+                    <div className="ml-auto">
+                      <RunButton
+                        running={isRunning('eval')}
+                        onClick={runEvaluation}
+                        onCancel={() => evalStream.cancel()}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <StreamFeed
+                  events={evalStream.state.log}
+                  running={evalStream.state.running}
+                  done={evalStream.state.done}
+                  ok={evalStream.state.ok}
+                  emptyHint="输入 UniProt ID 并点击「执行」启动评估流水线"
+                />
+
+                {/* Per-chapter streamed LLM output (collapsible "thinking process") */}
+                <ChapterStream
+                  events={evalStream.state.log}
+                  running={evalStream.state.running}
+                  done={evalStream.state.done}
+                />
+
+                {/* LLM report inline preview (module ①) — shows real LLM output or failure */}
+                {evalStream.state.done && evalStream.state.result?.report && (
+                  <LLMPreview
+                    content={evalStream.state.result.report.content}
+                    title={`LLM 可行性报告 · ${evalStream.state.result.uniprotInfo?.proteinName || evalStream.state.result.uniprot}`}
+                    provider={evalStream.state.result.report.provider}
+                    model={evalStream.state.result.report.model}
+                    durationMs={evalStream.state.result.report.durationMs}
+                    fallback={evalStream.state.result.report.fallback}
+                    error={evalStream.state.result.report.error}
+                    ok={evalStream.state.result.report.ok}
+                    dbSaved={evalStream.state.result.dbSaved}
+                    chars={evalStream.state.result.report.contentChars}
+                    accent="emerald"
+                  />
+                )}
+
+                <div className="mt-3 flex items-center gap-3 flex-wrap">
+                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                    <Switch checked={evalGenerateReport} onCheckedChange={setEvalGenerateReport} className="scale-90" />
+                    同时生成 LLM 报告
+                  </label>
+                  <label className={`flex items-center gap-2 text-xs cursor-pointer ${evalGenerateReport ? 'text-muted-foreground' : 'text-muted-foreground/40 pointer-events-none'}`}>
+                    <Switch checked={evalSaveReportFile} onCheckedChange={setEvalSaveReportFile} disabled={!evalGenerateReport} className="scale-90" />
+                    写入 LLM-Wiki 文件
+                  </label>
+                  {evalGenerateReport && (
+                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
+                      <Zap className="h-2.5 w-2.5 text-amber-500" />
+                      默认原子任务 (评估 + 报告 ~50s)
+                    </Badge>
+                  )}
+                </div>
+                {/* Recent runs for this module — refreshes after each completed run */}
+                <RunHistoryPanel moduleKey="eval" refreshKey={evalRunCount} limit={5} />
+              </ModuleCard>
+            </TabsContent>
+
+            {/* ═══ Module ② Daily Literature ═══════════════════════════ */}
             <TabsContent value="literature" className="mt-3">
               <ModuleCard
                 icon={<BookOpen className="h-4 w-4" />}
                 accent="sky"
-                index="①"
+                index="②"
                 title="每日结构生物学文献获取"
                 endpoint="POST /api/literature/daily/run"
                 description="双路径 PubMed 检索（Path A: MeSH+方法关键词 / Path B: 高 IF 期刊+方法关键词）→ ±N 天窗口 → 方法筛选（Cryo-EM / X-ray / NMR / AlphaFold）→ 去重排序 → 每篇 LLM 中文研究概要 → 可选执行摘要 → 写入 PubMedArticle + daily-reports 索引。"
@@ -1728,7 +1888,7 @@ export function SettingsRunPanel({
                   emptyHint="点击「执行」启动 PubMed 双路径检索 + LLM 摘要流水线"
                 />
 
-                {/* LLM digest inline preview (module ①) — shows real LLM output or failure */}
+                {/* LLM digest inline preview (module ②) — shows real LLM output or failure */}
                 {litStream.state.done && litStream.state.result && (
                   <LLMPreview
                     content={litStream.state.result.digest}
@@ -1769,94 +1929,6 @@ export function SettingsRunPanel({
                 )}
                 {/* Recent runs for this module — refreshes after each completed run */}
                 <RunHistoryPanel moduleKey="literature" refreshKey={litRunCount} limit={5} />
-              </ModuleCard>
-            </TabsContent>
-
-            {/* ═══ Module ② Target Evaluation ═══════════════════════════ */}
-            <TabsContent value="evaluation" className="mt-3">
-              <ModuleCard
-                icon={<FlaskConical className="h-4 w-4" />}
-                accent="emerald"
-                index="②"
-                title="蛋白靶点评估 + LLM 可行性报告"
-                endpoint="POST /api/evaluations/run"
-                description="UniProt → 元数据 + 序列 → RCSB 直接 PDB → SIFTS 覆盖率 → NCBI BLASTp 同源 → 评分 → 原子任务包含 LLM 报告生成（写入 Evaluation.report + EvaluationReport 表 + 可选 LLM-Wiki）。"
-              >
-                <div className="flex items-end gap-2 mb-3 flex-wrap">
-                  <div className="flex-1 min-w-[140px]">
-                    <Field label="UniProt ID">
-                      <Input value={evalUniprot} onChange={e => setEvalUniprot(e.target.value)} placeholder="P00533" className="h-8 text-xs font-mono" />
-                    </Field>
-                  </div>
-                  <div className="w-20">
-                    <Field label="maxPdb">
-                      <Input type="number" min={1} max={500} value={evalMaxPdb} onChange={e => setEvalMaxPdb(parseInt(e.target.value || '80'))} className="h-8 text-xs" />
-                    </Field>
-                  </div>
-                  <div className="w-20">
-                    <Field label="BLAST 上限">
-                      <Input type="number" min={1} max={500} value={evalMaxBlastHits} onChange={e => setEvalMaxBlastHits(parseInt(e.target.value || '50'))} className="h-8 text-xs" />
-                    </Field>
-                  </div>
-                  <ToggleChip checked={evalForceBlast} onCheckedChange={(v) => { setEvalForceBlast(v); if (v) setEvalSkipBlast(false); }} label="强制 BLAST" disabled={evalSkipBlast} />
-                  <ToggleChip checked={evalSkipBlast} onCheckedChange={(v) => { setEvalSkipBlast(v); if (v) setEvalForceBlast(false); }} label="跳过 BLAST" disabled={evalForceBlast} />
-                  <RunButton
-                    running={isRunning('eval')}
-                    onClick={runEvaluation}
-                    onCancel={() => evalStream.cancel()}
-                  />
-                </div>
-
-                <StreamFeed
-                  events={evalStream.state.log}
-                  running={evalStream.state.running}
-                  done={evalStream.state.done}
-                  ok={evalStream.state.ok}
-                  emptyHint="输入 UniProt ID 并点击「执行」启动评估流水线"
-                />
-
-                {/* Per-chapter streamed LLM output (collapsible "thinking process") */}
-                <ChapterStream
-                  events={evalStream.state.log}
-                  running={evalStream.state.running}
-                  done={evalStream.state.done}
-                />
-
-                {/* LLM report inline preview (module ②) — shows real LLM output or failure */}
-                {evalStream.state.done && evalStream.state.result?.report && (
-                  <LLMPreview
-                    content={evalStream.state.result.report.content}
-                    title={`LLM 可行性报告 · ${evalStream.state.result.uniprotInfo?.proteinName || evalStream.state.result.uniprot}`}
-                    provider={evalStream.state.result.report.provider}
-                    model={evalStream.state.result.report.model}
-                    durationMs={evalStream.state.result.report.durationMs}
-                    fallback={evalStream.state.result.report.fallback}
-                    error={evalStream.state.result.report.error}
-                    ok={evalStream.state.result.report.ok}
-                    dbSaved={evalStream.state.result.dbSaved}
-                    chars={evalStream.state.result.report.contentChars}
-                    accent="emerald"
-                  />
-                )}
-
-                <div className="mt-3 flex items-center gap-3 flex-wrap">
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                    <Switch checked={evalGenerateReport} onCheckedChange={setEvalGenerateReport} className="scale-90" />
-                    同时生成 LLM 报告
-                  </label>
-                  <label className={`flex items-center gap-2 text-xs cursor-pointer ${evalGenerateReport ? 'text-muted-foreground' : 'text-muted-foreground/40 pointer-events-none'}`}>
-                    <Switch checked={evalSaveReportFile} onCheckedChange={setEvalSaveReportFile} disabled={!evalGenerateReport} className="scale-90" />
-                    写入 LLM-Wiki 文件
-                  </label>
-                  {evalGenerateReport && (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                      <Zap className="h-2.5 w-2.5 text-amber-500" />
-                      默认原子任务 (评估 + 报告 ~50s)
-                    </Badge>
-                  )}
-                </div>
-                {/* Recent runs for this module — refreshes after each completed run */}
-                <RunHistoryPanel moduleKey="eval" refreshKey={evalRunCount} limit={5} />
               </ModuleCard>
             </TabsContent>
 

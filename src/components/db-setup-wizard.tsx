@@ -63,6 +63,8 @@ export interface DbSetupWizardProps {
   onClose?: () => void
   /** Whether the user is allowed to skip (only true when DB is already confirmed). */
   allowSkip?: boolean
+  /** Initial step to show when opened. Default 'choose'. */
+  initialMode?: 'choose' | 'create' | 'select'
 }
 
 interface DbListEntry {
@@ -145,7 +147,7 @@ async function postDbConfigWithRetry(body: any, maxRetries = 2): Promise<any> {
   throw lastErr
 }
 
-export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupWizardProps) {
+export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMode = 'choose' }: DbSetupWizardProps) {
   const [mode, setMode] = useState<Mode>('choose')
   const [newDbName, setNewDbName] = useState(DEFAULT_NEW_DB_NAME)
   const [newDbDir, setNewDbDir] = useState(DEFAULT_NEW_DB_DIR)
@@ -160,10 +162,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
   const [dbListSearch, setDbListSearch] = useState('')
   const [selectedDbUrl, setSelectedDbUrl] = useState<string | null>(null)
 
-  // Reset to the choose step every time the wizard is (re)opened.
+  // Reset to the initial step every time the wizard is (re)opened.
   useEffect(() => {
     if (open) {
-      setMode('choose')
+      setMode(initialMode)
       setNewDbName(DEFAULT_NEW_DB_NAME)
       setNewDbDir(DEFAULT_NEW_DB_DIR)
       setExistingPath('')
@@ -173,7 +175,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
       setSelectedDbUrl(null)
       setDbListSearch('')
     }
-  }, [open])
+  }, [open, initialMode])
 
   // Fetch the list of existing databases when entering "select" mode.
   const loadDbList = useCallback(async () => {
