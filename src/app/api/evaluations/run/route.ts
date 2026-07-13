@@ -76,9 +76,38 @@ export async function POST(req: Request) {
       if (directPdbCount === 0) emit({ stage: 'rcsb-direct', level: 'warn', message: `RCSB 返回 0 条`, progress: 28 });
       else emit({ stage: 'rcsb-direct', level: 'success', message: `✓ RCSB 返回 ${directPdbCount} 条真实 PDB`, progress: 24 });
 
-      emit({ stage: 'rcsb-detail', level: 'info', message: `拉取详细元数据`, progress: 28 });
-      const pdbDetails: PdbEntryDetail[] = directPdbCount > 0 ? await fetchPdbEntryDetails(pdbIds) : [];
-      emit({ stage: 'rcsb-detail', level: 'success', message: `✓ 获取 ${pdbDetails.length} 条详细元数据`, progress: 34 });
+      // ── Cache check: skip re-fetch + re-report if params + PDB count unchanged ──
+      let cachedEval: any = null;
+      let pdbDetails: PdbEntryDetail[] = [];
+      let skipReportGeneration = false;
+      try {
+        cachedEval = await db.$queryRaw<any[]>`SELECT uniprotId, maxPdbUsed, blastWasSkipped, pdbCountAtEval, report, scores, coverage FROM Evaluation WHERE uniprotId = ${uniprot}`;
+        cachedEval = (cachedEval as any[])[0] || null;
+      } catch { /* table may not exist */ }
+
+      if (cachedEval
+          && cachedEval.maxPdbUsed === maxPdb
+          && !!cachedEval.blastWasSkipped === (skipBlast && !forceBlast)
+          && cachedEval.pdbCountAtEval === directPdbCount
+          && cachedEval.report) {
+        // Cache hit — same params + same PDB count + existing report. Skip re-fetch.
+        emit({ stage: 'cache-hit', level: 'success', message: `✓ 缓存命中：参数与 PDB 数量未变（maxPdb=${maxPdb}, skipBlast=${skipBlast}, pdbCount=${directPdbCount}），跳过重新获取与报告生成`, progress: 34 });
+        // Load existing PDB structures from DB instead of re-fetching from RCSB
+        try {
+          const existingPdbs = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organisms, authors, ligands, depositDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${uniprot}`;
+          pdbDetails = (existingPdbs as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organisms, authors: e.authors, ligands: e.ligands, depositDate: e.depositDate, releaseDate: e.releaseDate }));
+        } catch { /* ignore */ }
+        skipReportGeneration = true;
+        emit({ stage: 'rcsb-detail', level: 'success', message: `✓ 从数据库加载 ${pdbDetails.length} 条已有 PDB 结构`, progress: 34 });
+      } else {
+        // Cache miss — fetch details from RCSB and generate fresh report
+        if (cachedEval) {
+          emit({ stage: 'cache-miss', level: 'info', message: `参数或 PDB 数量已变化（旧: maxPdb=${cachedEval.maxPdb}, pdbCount=${cachedEval.pdbCountAtEval} → 新: maxPdb=${maxPdb}, pdbCount=${directPdbCount}），重新获取并更新报告`, progress: 28 });
+        }
+        emit({ stage: 'rcsb-detail', level: 'info', message: `拉取详细元数据`, progress: 28 });
+        pdbDetails = directPdbCount > 0 ? await fetchPdbEntryDetails(pdbIds) : [];
+        emit({ stage: 'rcsb-detail', level: 'success', message: `✓ 获取 ${pdbDetails.length} 条详细元数据`, progress: 34 });
+      }
 
       emit({ stage: 'sifts-coverage', level: 'info', message: 'SIFTS 残基覆盖率计算', progress: 38 });
       await sleep(300);
@@ -135,7 +164,11 @@ export async function POST(req: Request) {
       emit({ stage: 'score', level: 'success', message: `overall=${scores.overall.score}/10 (X-ray=${scores.xray.score}/${scores.xray.structures}条, Cryo-EM=${scores.cryoem.score}/${scores.cryoem.structures}条, NMR=${scores.nmr.score}/${scores.nmr.structures}条)`, progress: 62 });
 
       let report: any = undefined;
-      if (generateReport) {
+      if (skipReportGeneration && cachedEval?.report) {
+        // Cache hit — reuse existing report, skip LLM generation
+        report = { ok: true, content: cachedEval.report, provider: '(cached)', model: '(cached)', durationMs: 0, contentChars: cachedEval.report.length, fallback: false, cached: true };
+        emit({ stage: 'report-cached', level: 'success', message: `✓ 使用已有 LLM 报告（缓存）· ${report.contentChars} chars`, progress: 90 });
+      } else if (generateReport) {
         // ── Build COMPRESSED but COMPREHENSIVE data tables from real DB rows ──────
         // Cap at 80 entries per table to keep each LLM prompt < 12k chars (fast).
         const PDB_CAP = 80;
@@ -259,9 +292,10 @@ export async function POST(req: Request) {
           'NMR': { score: scores.nmr.score, rating: scores.nmr.rating, maxScore: 10 },
           'Overall': { score: scores.overall.score, rating: scores.overall.rating, maxScore: 10 },
         });
-        await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, createdAt, updatedAt) VALUES (${uniprot}, ${uniprotInfo.entryName}, ${uniprotInfo.proteinName}, ${uniprotInfo.geneNames}, ${uniprotInfo.organism}, ${uniprotInfo.sequenceLength}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
+        await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${uniprot}, ${uniprotInfo.entryName}, ${uniprotInfo.proteinName}, ${uniprotInfo.geneNames}, ${uniprotInfo.organism}, ${uniprotInfo.sequenceLength}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, ${maxPdb}, ${skipBlast && !forceBlast}, ${directPdbCount}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, maxPdbUsed = excluded.maxPdbUsed, blastWasSkipped = excluded.blastWasSkipped, pdbCountAtEval = excluded.pdbCountAtEval, updatedAt = CURRENT_TIMESTAMP`;
 
-        // Now insert child tables — Evaluation exists, so FOREIGN KEY passes.
+        // Now insert child tables — skip if cache hit (PDB structures already in DB)
+        if (!skipReportGeneration) {
         await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${uniprot}`;
         for (const e of pdbDetails) {
           const isCryoem = (e.method || '').includes('ELECTRON');
@@ -270,11 +304,14 @@ export async function POST(req: Request) {
           const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
           await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${uniprot}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate}, ${e.releaseDate}, ${e.ligands}, ${e.ligands}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms}, ${e.authors}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
         }
+        } // end if (!skipReportGeneration)
 
+        if (!skipReportGeneration) {
         await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${uniprot}`;
         for (const h of blastHits) {
           await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${uniprot}, ${h.pdbId}, ${h.uniprotRef}, ${h.description}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
         }
+        } // end if (!skipReportGeneration) BLAST
 
         if (report?.ok && report.content) {
           await db.skillEvaluationReport.create({
@@ -343,28 +380,48 @@ export async function POST(req: Request) {
           try {
             const bMeta = await fetchUniprotMeta(bUid);
             const bInfo = bMeta ? { uniprotId: bUid, entryName: bMeta.entryName, proteinName: bMeta.proteinName, geneNames: bMeta.geneNames || '—', organism: bMeta.organism || '—', sequenceLength: bMeta.sequenceLength || 0 } : { uniprotId: bUid, entryName: bUid, proteinName: `Unknown`, geneNames: '—', organism: '—', sequenceLength: 0 };
-            const bPdbIds = await fetchPdbIdsForUniprot(bUid, bt.maxPdb || maxPdb);
-            const bPdbDetails: PdbEntryDetail[] = bPdbIds.length > 0 ? await fetchPdbEntryDetails(bPdbIds) : [];
+            const bMaxPdb = bt.maxPdb || maxPdb;
+            const bSkipBlast = !!(bt.skipBlast ?? skipBlast);
+            const bForceBlast = !!(bt.forceBlast ?? forceBlast);
+            const bPdbIds = await fetchPdbIdsForUniprot(bUid, bMaxPdb);
+            const bDirectPdbCount = bPdbIds.length;
+            // Cache check for batch target
+            let bCached: any = null;
+            try { bCached = (await db.$queryRaw<any[]>`SELECT maxPdbUsed, blastWasSkipped, pdbCountAtEval, report FROM Evaluation WHERE uniprotId = ${bUid}`)[0] || null; } catch {}
+            let bPdbDetails: PdbEntryDetail[] = [];
+            let bCacheHit = false;
+            if (bCached && bCached.maxPdbUsed === bMaxPdb && !!bCached.blastWasSkipped === (bSkipBlast && !bForceBlast) && bCached.pdbCountAtEval === bDirectPdbCount) {
+              bCacheHit = true;
+              emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 缓存命中（参数+PDB数未变），跳过重新获取`, progress: 100 });
+              try {
+                const existing = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organisms, authors, ligands, depositDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
+                bPdbDetails = (existing as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organisms, authors: e.authors, ligands: e.ligands, depositDate: e.depositDate, releaseDate: e.releaseDate }));
+              } catch {}
+            } else {
+              bPdbDetails = bDirectPdbCount > 0 ? await fetchPdbEntryDetails(bPdbIds) : [];
+            }
             const bXray = bPdbDetails.filter(e => (e.method || '').includes('X-RAY')).length;
             const bCryoem = bPdbDetails.filter(e => (e.method || '').includes('ELECTRON')).length;
             const bNmr = bPdbDetails.filter(e => (e.method || '').includes('NMR')).length;
             const calcS = (c: number) => Math.min(10, Math.max(1, Math.round(c / 5) + 3));
             const bScores = { xray: { score: calcS(bXray), structures: bXray }, cryoem: { score: calcS(bCryoem), structures: bCryoem }, nmr: { score: calcS(bNmr), structures: bNmr }, overall: { score: Math.min(10, Math.max(1, Math.round((calcS(bXray) + calcS(bCryoem) + calcS(bNmr)) / 3))) } };
-            // Write to DB
+            // Write to DB — skip PDB structure insert if cache hit
             try {
               const bScoresJson = JSON.stringify({ 'X-ray': { score: bScores.xray.score }, 'Cryo-EM': { score: bScores.cryoem.score }, 'NMR': { score: bScores.nmr.score }, 'Overall': { score: bScores.overall.score } });
-              await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, createdAt, updatedAt) VALUES (${bUid}, ${bInfo.entryName}, ${bInfo.proteinName}, ${bInfo.geneNames}, ${bInfo.organism}, ${bInfo.sequenceLength}, 0, ${bScoresJson}, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, scores = excluded.scores, updatedAt = CURRENT_TIMESTAMP`;
-              await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
-              for (const e of bPdbDetails) {
-                const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
-                const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
-                await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${bUid}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate}, ${e.releaseDate}, ${e.ligands}, ${e.ligands}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms}, ${e.authors}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
+              await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${bUid}, ${bInfo.entryName}, ${bInfo.proteinName}, ${bInfo.geneNames}, ${bInfo.organism}, ${bInfo.sequenceLength}, 0, ${bScoresJson}, ${bCacheHit && bCached.report ? bCached.report : null}, ${bMaxPdb}, ${bSkipBlast && !bForceBlast}, ${bDirectPdbCount}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, scores = excluded.scores, maxPdbUsed = excluded.maxPdbUsed, blastWasSkipped = excluded.blastWasSkipped, pdbCountAtEval = excluded.pdbCountAtEval, updatedAt = CURRENT_TIMESTAMP`;
+              if (!bCacheHit) {
+                await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
+                for (const e of bPdbDetails) {
+                  const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
+                  const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
+                  await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${bUid}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate}, ${e.releaseDate}, ${e.ligands}, ${e.ligands}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms}, ${e.authors}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
+                }
               }
             } catch (dbErr: any) {
               emit({ stage: `batch-${bi}`, level: 'error', message: `[Batch ${bi + 1}] DB 写入失败：${dbErr?.message}`, progress: 100 });
             }
-            batchResults.push({ uniprot: bUid, uniprotInfo: bInfo, pdbDetails: bPdbDetails, scores: bScores });
-            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10`, progress: 100 });
+            batchResults.push({ uniprot: bUid, uniprotInfo: bInfo, pdbDetails: bPdbDetails, scores: bScores, cached: bCacheHit });
+            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10${bCacheHit ? ' · 缓存' : ''}`, progress: 100 });
           } catch (err: any) {
             emit({ stage: `batch-${bi}`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} 失败：${err?.message}`, progress: 100 });
           }
@@ -437,26 +494,43 @@ ${overlapSummary}
           }
         }
 
-        // Write batch record to DB
+        // Write batch record to EvaluationBatch + SkillRunRecord
+        const batchTitle = `Batch: ${batchResults.map(r => r.uniprot).join(' + ')}`;
+        const commonPdbIdsJson = JSON.stringify(commonPdbIds);
+        const crossReportContent = crossReport?.ok ? crossReport.content : null;
+        try {
+          // Generate a batchId (cuid-style) since SQLite default doesn't apply with raw insert
+          const batchId = 'batch-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+          // Create EvaluationBatch with cross-report + common PDB IDs
+          await db.$executeRaw`INSERT INTO EvaluationBatch (batchId, title, combinedReport, commonPdbIds, crossReportOk, crossReportProvider, crossReportModel, crossReportDurationMs, crossReportChars, targetCount, createdAt, updatedAt) VALUES (${batchId}, ${batchTitle}, ${crossReportContent}, ${commonPdbIdsJson}, ${crossReport?.ok ?? false}, ${crossReport?.provider || null}, ${crossReport?.model || null}, ${crossReport?.durationMs || 0}, ${crossReport?.contentChars || 0}, ${batchResults.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`;
+          // Link all evaluations to this batch
+          for (const r of batchResults) {
+            try { await db.$executeRaw`UPDATE Evaluation SET batchId = ${batchId} WHERE uniprotId = ${r.uniprot}`; } catch {}
+          }
+          (result as any).batchId = batchId;
+          emit({ stage: 'batch-db', level: 'success', message: `✓ Batch 记录已写入 EvaluationBatch (${batchId}) · 关联 ${batchResults.length} 个靶点`, progress: 100 });
+        } catch (err: any) {
+          emit({ stage: 'batch-db', level: 'error', message: `Batch 记录写入失败：${err?.message}`, progress: 100 });
+        }
         try {
           await db.skillRunRecord.create({
             data: {
               module: 'eval',
               status: 'success',
               summary: `Batch 评估 ${batchResults.length} 靶点 (${batchResults.map(r => r.uniprot).join(', ')}) · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? 'LLM ✓' : 'LLM ✗'}`,
-              details: JSON.stringify({ targets: batchResults.map(r => r.uniprot), commonPdbIds, pdbOverlap, crossReportOk: crossReport?.ok }),
+              details: JSON.stringify({ targets: batchResults.map(r => r.uniprot), commonPdbIds, pdbOverlap, crossReportOk: crossReport?.ok, cached: batchResults.filter(r => r.cached).length }),
               provider: body.llm?.provider || 'auto',
               model: crossReport?.model || '',
               llmOk: crossReport?.ok ?? false,
               durationMs: Date.now() - t0,
-              resultJson: JSON.stringify({ batchResults: batchResults.map(r => ({ uniprot: r.uniprot, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score })), commonPdbIds, crossReportChars: crossReport?.contentChars || 0 }),
+              resultJson: JSON.stringify({ batchResults: batchResults.map(r => ({ uniprot: r.uniprot, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score, cached: r.cached })), commonPdbIds, crossReportChars: crossReport?.contentChars || 0 }),
             },
           });
         } catch { /* ignore */ }
 
-        (result as any).batchResults = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score }));
+        (result as any).batchResults = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score, cached: r.cached }));
         (result as any).crossAnalysis = { commonPdbIds, pdbOverlap, crossReport };
-        emit({ stage: 'batch-done', level: 'success', message: `Batch 完成 · ${batchResults.length} 靶点 · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? '相关性报告 ✓' : '相关性报告 ✗'} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 100 });
+        emit({ stage: 'batch-done', level: 'success', message: `Batch 完成 · ${batchResults.length} 靶点 (${batchResults.filter(r => r.cached).length} 缓存) · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? '相关性报告 ✓' : '相关性报告 ✗'} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 100 });
       }
 
       await sleep(150);

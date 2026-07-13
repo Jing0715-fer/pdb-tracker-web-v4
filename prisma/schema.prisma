@@ -84,6 +84,9 @@ model Evaluation {
   scores         String?
   report         String?
   batchId        String?
+  maxPdbUsed     Int?
+  blastWasSkipped Boolean?
+  pdbCountAtEval Int?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -149,10 +152,18 @@ model EvaluationBlastResult {
 }
 
 model EvaluationBatch {
-  batchId        String   @id @default(cuid())
-  title          String?
-  combinedReport String?
-  createdAt      DateTime @default(now())
+  batchId              String   @id @default(cuid())
+  title                String?
+  combinedReport       String?
+  commonPdbIds         String?
+  crossReportOk        Boolean?
+  crossReportProvider  String?
+  crossReportModel     String?
+  crossReportDurationMs Int?
+  crossReportChars     Int?
+  targetCount          Int?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 }
 
 model EvaluationReport {

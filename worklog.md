@@ -1180,3 +1180,39 @@ Stage Summary:
 - Verified: 2-target batch works end-to-end (EGFR+HER2: 84.7s, cross-report 1865 chars; same-target: 5 common structures detected).
 - z.ai SDK used as LLM provider for all tests.
 - Lint passes. Server stable.
+
+---
+Task ID: batch-cache-and-evaluationbatch-storage
+Agent: main (Z.ai Code)
+Task: 1) Cache check — skip re-fetch if same params + PDB count, 2) Store cross-report + common PDB IDs in EvaluationBatch, 3) Detect new PDB → update report.
+
+Work Log:
+- Schema changes:
+  - Evaluation: added maxPdbUsed (Int), blastWasSkipped (Boolean), pdbCountAtEval (Int) for cache comparison.
+  - EvaluationBatch: added commonPdbIds (String/JSON), crossReportOk, crossReportProvider, crossReportModel, crossReportDurationMs, crossReportChars, targetCount, updatedAt.
+- Cache check logic (primary target):
+  - After RCSB PDB ID fetch, check DB for existing Evaluation with same uniprotId.
+  - Cache hit if: maxPdbUsed === maxPdb AND blastWasSkipped matches AND pdbCountAtEval === directPdbCount AND report exists.
+  - On cache hit: skip RCSB detail fetch (load PDB from DB), skip LLM report generation (reuse cached report), skip PDB/BLAST structure re-insert.
+  - On cache miss (params changed or new PDB count = new structures published): re-fetch details, re-generate LLM report, update DB.
+- Cache check logic (batch targets[1+]):
+  - Same param+PDB count check, but does NOT require report (batch targets may not have individual reports).
+  - On cache hit: load PDB from DB, skip detail fetch.
+- Cross-target relationship report storage:
+  - Generate batchId: 'batch-' + timestamp + random.
+  - INSERT into EvaluationBatch: title, combinedReport (cross-report content), commonPdbIds (JSON array), crossReportOk/Provider/Model/DurationMs/Chars, targetCount.
+  - UPDATE Evaluation SET batchId for all targets in the batch.
+  - Emit success: "✓ Batch 记录已写入 EvaluationBatch (batchId) · 关联 N 个靶点".
+- Tested:
+  - 1st run P00533: fresh fetch + LLM (55.4s).
+  - 2nd run P00533 same params: cache hit, 2.8s (skip fetch + LLM).
+  - Batch P00533+P04626 (fresh): 68s, both evaluated, cross-report 1974 chars, EvaluationBatch written.
+  - Batch P00533+P04626 (2nd run): P04626 cache hit, P00533 cache hit, only cross-report generated (36.8s), EvaluationBatch written.
+
+Stage Summary:
+- Cache check implemented: same maxPdb + skipBlast + pdbCount → skip re-fetch and re-report (55s → 2.8s for single target).
+- Cross-target report + common PDB IDs stored in EvaluationBatch table (combinedReport, commonPdbIds, crossReportOk/Provider/Model/Chars).
+- Evaluation.batchId links targets to their batch.
+- New PDB detection: if RCSB returns different count than pdbCountAtEval → cache miss → re-fetch + re-report.
+- Batch mode: extra targets also cache-checked (skip detail fetch if params+count unchanged).
+- Lint passes. Server stable.
