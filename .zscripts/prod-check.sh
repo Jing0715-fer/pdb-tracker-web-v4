@@ -15,12 +15,10 @@ pkill -9 -f "node server.js" 2>/dev/null
 sleep 1
 
 cd /home/z/my-project/.next/standalone
-NEXT_TELEMETRY_DISABLED=1 \
-NODE_ENV=production \
-HOSTNAME=0.0.0.0 \
-PORT=3000 \
-DATABASE_URL="file:./db/custom.db" \
-nohup node server.js > /home/z/my-project/prod.log 2>&1 &
+# Use setsid + nohup so the process is reparented to init (PID 1) and survives
+# across bash tool calls. The .hermes/db-config.json inside standalone points
+# to db/my-pdb-tracker1.db (the user's confirmed database).
+setsid bash -c 'NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000 node server.js' > /home/z/my-project/prod.log 2>&1 &
 disown
 cd /home/z/my-project
 sleep 3

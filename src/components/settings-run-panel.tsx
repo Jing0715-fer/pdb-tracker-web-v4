@@ -29,7 +29,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Progress } from '@/components/ui/progress';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import {
   Tooltip,
@@ -1685,12 +1684,12 @@ export function SettingsRunPanel({
                 value={dbPath}
                 onChange={e => setDbPath(e.target.value)}
                 placeholder="file:./db/custom.db"
-                className="h-7 text-xs font-mono flex-1 min-w-0"
+                className="h-8 text-xs font-mono flex-1 min-w-0"
               />
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs shrink-0 px-2"
+                className="h-8 text-xs shrink-0 px-2"
                 onClick={saveDbPath}
                 disabled={dbPathSaving}
               >
@@ -1700,7 +1699,7 @@ export function SettingsRunPanel({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs shrink-0 px-2 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
+                className="h-8 text-xs shrink-0 px-2 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                 onClick={() => { setDbWizardMode('create'); setDbWizardOpen(true); }}
               >
                 <FilePlus2 className="h-3 w-3" /> 新建
@@ -1708,7 +1707,7 @@ export function SettingsRunPanel({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-xs shrink-0 px-2 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
+                className="h-8 text-xs shrink-0 px-2 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
                 onClick={() => { setDbWizardMode('select'); setDbWizardOpen(true); }}
               >
                 <FolderOpen className="h-3 w-3" /> 选择
@@ -2073,7 +2072,6 @@ export function SettingsRunPanel({
                   emptyHint="选择 cycle 数并点击「立即触发」启动对抗式周报生成器"
                 />
               </ModuleCard>
-                            <RunHistoryPanel moduleKey="weekly" refreshKey={weeklyRunCount} limit={5} />
               </TabsContent>
           </Tabs>
 
@@ -2140,7 +2138,7 @@ export function SettingsRunPanel({
                       </Button>
                     </div>
                   </div>
-                  <ScrollArea className="max-h-56">
+                  <div className="max-h-72 overflow-y-auto thin-scroll">
                     <div className="px-3 py-2 space-y-2">
                       {logs
                         .filter(l => logFilter === 'all' || l.module === logFilter)
@@ -2180,7 +2178,7 @@ export function SettingsRunPanel({
                         <div className="text-xs text-muted-foreground/60 text-center py-3">无匹配日志</div>
                       )}
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
               </motion.div>
             )}
