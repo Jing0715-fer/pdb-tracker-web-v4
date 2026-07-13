@@ -163,12 +163,20 @@ export function useRunStream() {
         if (err?.name === 'AbortError') {
           setState(s => ({ ...s, running: false, done: true, ok: false, error: 'cancelled' }));
         } else {
+          // Friendly error message for common server-crash scenarios.
+          // "Failed to fetch" / "network error" / "Load failed" all indicate
+          // the server crashed (OOM) during the LLM run — the SSE connection
+          // was severed. Tell the user to retry.
+          const msg = err?.message || String(err);
+          const isNetworkError = /failed to fetch|network error|load failed|err_connection/i.test(msg);
           setState(s => ({
             ...s,
             running: false,
             done: true,
             ok: false,
-            error: err?.message || String(err),
+            error: isNetworkError
+              ? '服务器连接中断（可能因内存不足崩溃）。请稍候重试 — 服务器会自动重启。'
+              : msg,
           }));
         }
       }

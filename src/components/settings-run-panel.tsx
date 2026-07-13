@@ -954,6 +954,8 @@ export function SettingsRunPanel({
   const [litMaxPapers, setLitMaxPapers] = useState(20);
   const [litSkipWikiFiles, setLitSkipWikiFiles] = useState(false);
   const [litExistingReports, setLitExistingReports] = useState<Array<{ date: string; paperCount: number; hasLLMDigest: boolean }>>([]);
+  // Viewing a past day's LLM digest (fetched on history report click)
+  const [litViewingDigest, setLitViewingDigest] = useState<{ date: string; content: string; loading: boolean; error?: string } | null>(null);
 
   // ① Eval params — multi-target batch support
   const [evalUniprot, setEvalUniprot] = useState('P00533');
@@ -1220,6 +1222,7 @@ export function SettingsRunPanel({
   const runLiterature = () => {
     markRunning('lit');
     litStream.reset();
+    setLitViewingDigest(null);
     log({ ts: new Date().toISOString(), module: 'literature', status: 'running', summary: `每日结构生物学文献 ${litDate} (±${litWindowDays}d) — SSE streaming…` });
     litStream.start('/api/literature/daily/run', {
       date: litDate,
@@ -1231,6 +1234,29 @@ export function SettingsRunPanel({
       llm: llmBody(),
     });
   };
+
+  /** Fetch a past day's LLM digest from the literature reports API and show it inline. */
+  const viewLitDigest = useCallback(async (date: string) => {
+    setLitViewingDigest({ date, content: '', loading: true });
+    try {
+      const res = await fetch('/api/literature/daily/reports');
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('application/json')) {
+        setLitViewingDigest({ date, content: '', loading: false, error: '服务器无响应' });
+        return;
+      }
+      const data = await res.json();
+      const reports: any[] = data.reports || [];
+      const found = reports.find((r: any) => (r.weekId || r.date) === date);
+      if (found && found.content) {
+        setLitViewingDigest({ date, content: found.content, loading: false });
+      } else {
+        setLitViewingDigest({ date, content: '', loading: false, error: `该日期 (${date}) 暂无 LLM 摘要存档。请运行文献检索生成摘要后再查看。` });
+      }
+    } catch (err: any) {
+      setLitViewingDigest({ date, content: '', loading: false, error: err?.message || '网络错误' });
+    }
+  }, []);
 
   const runEvaluation = () => {
     // Collect valid (non-empty) targets from the multi-target list.
@@ -1943,23 +1969,23 @@ export function SettingsRunPanel({
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       <FileText className="h-3 w-3" /> 历史报告 ({litExistingReports.length} 天)
                       <span className="normal-case tracking-normal text-muted-foreground/60 flex items-center gap-0.5 ml-1" title="带 ✨ 图标的日期已生成 LLM 摘要">
-                        <Sparkles className="h-2.5 w-2.5 text-purple-400" /> = 有 LLM 摘要
+                        <Sparkles className="h-2.5 w-2.5 text-purple-400" /> = 有 LLM 摘要（点击查看）
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
                       {litExistingReports.slice(0, 30).map(r => {
-                        const isActive = litDate === r.date;
+                        const isActive = litViewingDigest?.date === r.date;
                         return (
                           <button
                             key={r.date}
                             type="button"
-                            onClick={() => { setLitDate(r.date); toast.success(`已加载 ${r.date} 的配置`, { description: `${r.paperCount} 篇文献${r.hasLLMDigest ? ' · 含 LLM 摘要' : ''}` }); }}
+                            onClick={() => viewLitDigest(r.date)}
                             className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border transition-colors ${
                               isActive
                                 ? 'border-sky-500/50 bg-sky-500/10 text-sky-600 dark:text-sky-300'
                                 : 'border-border/60 hover:bg-accent/50 text-muted-foreground hover:text-foreground'
                             }`}
-                            title={`${r.date} — ${r.paperCount} 篇${r.hasLLMDigest ? ' · 有 LLM 摘要' : ''}（点击加载该日期配置）`}
+                            title={`${r.date} — ${r.paperCount} 篇${r.hasLLMDigest ? ' · 有 LLM 摘要' : ''}（点击查看 LLM 摘要）`}
                           >
                             <span className="font-mono">{r.date.slice(5)}</span>
                             <span className="opacity-60">{r.paperCount || '?'}</span>
@@ -1968,6 +1994,34 @@ export function SettingsRunPanel({
                         );
                       })}
                     </div>
+                    {/* Inline digest viewer — shows the fetched LLM digest for the clicked date */}
+                    {litViewingDigest && (
+                      <div className="mt-2 rounded-lg border border-sky-500/30 bg-sky-500/5 overflow-hidden">
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-sky-500/30 bg-sky-500/10">
+                          <div className="flex items-center gap-1.5">
+                            <FileText className="h-3.5 w-3.5 text-sky-600" />
+                            <span className="text-xs font-semibold">LLM 摘要 · {litViewingDigest.date}</span>
+                          </div>
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setLitViewingDigest(null)} title="关闭">
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                        <div className="px-3 py-2 max-h-64 overflow-y-auto thin-scroll text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                          {litViewingDigest.loading ? (
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> 正在加载摘要…
+                            </div>
+                          ) : litViewingDigest.error ? (
+                            <div className="text-amber-600 dark:text-amber-400 text-xs flex items-start gap-1.5">
+                              <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+                              <span>{litViewingDigest.error}</span>
+                            </div>
+                          ) : (
+                            <LazyMarkdown>{litViewingDigest.content}</LazyMarkdown>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* Recent runs for this module — refreshes after each completed run */}
@@ -2028,7 +2082,7 @@ export function SettingsRunPanel({
                         key={c}
                         type="button"
                         onClick={() => setWeeklyCycles(c)}
-                        className={`h-7 px-2 rounded-md text-sm border transition-all ${
+                        className={`h-8 px-2 rounded-md text-xs border transition-all ${
                           weeklyCycles === c
                             ? 'border-primary/50 bg-primary/10 text-foreground font-medium'
                             : 'border-border/60 text-muted-foreground hover:text-foreground hover:border-border'

@@ -60,8 +60,21 @@ export async function POST(req: Request) {
     let digest = '', llmOk = false, llmFallback = false, llmError: string | undefined, llmDurationMs = 0, actualModel = model;
     if (!skipWikiFiles && papers.length > 0) {
       emit({ stage: 'llm-digest', level: 'info', message: `调用 LLM 生成每日精选摘要 (${provider})…`, progress: 74 });
-      const paperTitles = papers.slice(0, 5).map((p, i) => `Paper #${i + 1}: ${p.title} (${p.journal}, PMID:${p.pmid})`).join('\n');
-      const r = await generateText('你是结构生物学领域的资深研究员。请用中文生成一段（150-250 字）结构生物学每日精选执行摘要，概括当日筛选论文的方法学分布与关键发现，使用 Markdown 格式，以 "## YYYY-MM-DD 结构生物学每日精选" 开头。', `日期：${date}\nPubMed 真实检索 ${finalCount} 篇结构生物学论文，方法分布：${Object.entries(methodStats).map(([m, c]) => `${m}=${c}`).join(', ')}。\n代表性论文：\n${paperTitles}`, { maxChars: 1200, llm: body.llm });
+      const paperTitles = papers.slice(0, 10).map((p, i) => `Paper #${i + 1}: ${p.title} (${p.journal}, PMID:${p.pmid})`).join('\n');
+      const systemPrompt = `你是结构生物学领域的资深研究员。请用中文生成一份详细的结构生物学每日精选执行摘要（800-1500 字），使用 Markdown 格式。必须包含以下章节：
+## ${date} 结构生物学每日精选
+### 一、方法学分布概览
+（统计 Cryo-EM / X-ray / NMR / AlphaFold 等方法的比例，分析趋势）
+### 二、重要论文解读
+（挑选 3-5 篇代表性论文，逐篇简要解读其研究内容、方法亮点与科学意义）
+### 三、技术与方法创新
+（总结当日论文中的技术突破或方法学创新点）
+### 四、研究热点与趋势
+（归纳当前结构生物学的研究热点方向）
+### 五、总结
+（一句话概括当日整体情况）`;
+      const userPrompt = `日期：${date}\nPubMed 真实检索 ${finalCount} 篇结构生物学论文，方法分布：${Object.entries(methodStats).map(([m, c]) => `${m}=${c}`).join(', ')}。\n\n代表性论文（前 10 篇）：\n${paperTitles}\n\n请严格按照上述 5 个章节生成详细摘要，每章节至少 2-3 句话，重要论文解读需逐篇分析。`;
+      const r = await generateText(systemPrompt, userPrompt, { maxChars: 4000, llm: body.llm });
       digest = r.content; llmOk = r.ok; llmFallback = r.fallback; llmError = r.error; llmDurationMs = r.durationMs; actualModel = r.model;
       if (r.ok) emit({ stage: 'llm-digest', level: 'success', message: `✓ LLM 真实生成成功 · ${digest.length} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${actualModel}`, progress: 90 });
       else emit({ stage: 'llm-digest', level: 'error', message: `✗ LLM 调用失败：${llmError}（已跳过摘要，无 fallback 伪造文本）`, progress: 90 });

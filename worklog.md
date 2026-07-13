@@ -1008,3 +1008,34 @@ Stage Summary:
 - Execution log now uses native scroll (max-h-72) with visible scrollbar.
 - 502/504: server crashes during LLM runs due to 4GB RAM OOM. prod-check.sh updated with setsid for process persistence. Server auto-restarts on crash. The root cause (memory) cannot be fully fixed in this sandbox.
 - Lint passes. Server stable for normal requests.
+
+---
+Task ID: unify-styles-detailed-digest-history-view-error-handling
+Agent: main (Z.ai Code)
+Task: 1) Unify all 3 modules' data box styles, 2) Make literature LLM digest more detailed, 3) History report click should view LLM digest (not fill params), 4) Explain 502/network error.
+
+Work Log:
+- Issue 1 — Unified input/box styles:
+  - Weekly cycle buttons: h-7 px-2 text-sm → h-8 px-2 text-xs (matches all other inputs).
+  - All Input components already h-8 text-xs. DOM-verified: eval inputs=32px, weekly cycle buttons=32px.
+  - VLM: 8/10 consistency.
+- Issue 2 — Detailed literature LLM digest:
+  - Old prompt: 150-250 字, maxChars:1200, only 5 papers. Very brief.
+  - New prompt: 800-1500 字, maxChars:4000, 10 papers. 5-section structure: 方法学分布概览 / 重要论文解读(逐篇) / 技术与方法创新 / 研究热点与趋势 / 总结. Each section requires 2-3+ sentences. Paper analysis covers research content, method highlights, scientific significance.
+- Issue 3 — History report click views LLM digest:
+  - Added `litViewingDigest` state {date, content, loading, error}.
+  - Added `viewLitDigest(date)` function — fetches /api/literature/daily/reports, finds the date's content, displays inline.
+  - Changed history button onClick from setLitDate to viewLitDigest.
+  - Added inline digest viewer: rounded box with header (LLM 摘要 · date + close button), max-h-64 scrollable content area with LazyMarkdown rendering, loading state (spinner), error state (amber warning with message).
+  - Updated legend: "✨ = 有 LLM 摘要（点击查看）".
+- Issue 4 — 502/network error explanation:
+  - Root cause: Server crashes (OOM) during long LLM runs (eval 96s, weekly 5-15min). When server crashes, SSE connection severs → frontend gets "Failed to fetch"/"network error". Keepalive log confirmed crashes at 07:49 and 08:31.
+  - Fix: Updated use-run-stream.ts catch block to detect network error patterns (/failed to fetch|network error|load failed|err_connection/i) and show friendly message: "服务器连接中断（可能因内存不足崩溃）。请稍候重试 — 服务器会自动重启。"
+  - The server auto-restarts via prod-check.sh (setsid reparent to init). User can retry after restart.
+
+Stage Summary:
+- All 3 modules' input boxes unified to h-8 text-xs (VLM 8/10).
+- Literature LLM digest now 800-1500 字 with 5 detailed sections (was 150-250 字).
+- History report click now fetches and displays LLM digest inline (was just setting date).
+- Network errors now show friendly Chinese message explaining server crash + auto-restart.
+- Lint passes. Server stable.
