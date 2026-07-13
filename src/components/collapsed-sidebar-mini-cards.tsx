@@ -134,7 +134,7 @@ export function CollapsedSidebarMiniCards({
         </Tooltip>
       </div>
       {/* Mini week/eval cards - scrollable */}
-      <div className="flex-1 overflow-y-auto thin-scrollbar sidebar-scroll mt-1 w-full flex flex-col items-center gap-1 px-1">
+      <div className="flex-1 overflow-y-auto thin-scrollbar sidebar-scroll mt-1 w-full flex flex-col items-stretch gap-1.5 px-1">
         {mode === 'weekly' && snapshots.slice(0, 20).map(snap => (
           <HoverCard key={snap.weekId} openDelay={300} closeDelay={100}>
             <HoverCardTrigger asChild>
@@ -225,9 +225,9 @@ export function CollapsedSidebarMiniCards({
                         <div className="min-w-0 flex-1 flex items-center gap-1">
                           <Layers className="h-3 w-3 text-purple-500 flex-shrink-0" />
                           <span className="text-[11px] font-semibold text-claude-text dark:text-[#e8e4dd] truncate">{batch.title || batch.batchId}</span>
-                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300">{batch.subTargetCount}</span>
+                          <span className="text-[9px] font-mono px-1 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 flex-shrink-0">{batch.subTargetCount}</span>
                         </div>
-                        <ChevronDown className={`h-2.5 w-2.5 text-claude-text-muted transition-transform duration-200 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
+                        <ChevronDown className={`h-2.5 w-2.5 text-claude-text-muted transition-transform duration-200 flex-shrink-0 ${isExpanded ? 'rotate-0' : '-rotate-90'}`} />
                       </div>
                       <div className="flex items-center gap-1.5 text-[9px] text-claude-text-muted dark:text-[#6b6560]">
                         <span>{subs.length} sub-targets</span>
@@ -238,8 +238,8 @@ export function CollapsedSidebarMiniCards({
                       </div>
                     </div>
                   </CollapsibleTrigger>
-                  <CollapsibleContent>
-                    <div className="px-2 pb-2 pt-1 space-y-0.5">
+                  <CollapsibleContent className="overflow-hidden">
+                    <div className="px-2 pb-1 pt-1 space-y-1">
                       {subs.map((sub: any) => {
                         const subEv = evaluations.find(e => e.uniprotId === sub.uniprotId) || batchFetchedEvals[sub.uniprotId];
                         const subScore = subEv ? getAvgScore(subEv.scores) : (sub.bestScore || null);
@@ -248,16 +248,16 @@ export function CollapsedSidebarMiniCards({
                           <button
                             key={sub.uniprotId}
                             onClick={(e) => { e.stopPropagation(); setSelectedEvalId(sub.uniprotId); setSelectedBatchId(batch.batchId); setPreviewOpen(true); setMobileSidebarOpen(false); const cachedEval = batchFetchedEvals[sub.uniprotId] || evaluations.find(e => e.uniprotId === sub.uniprotId); if (cachedEval) { setSelectedEval(cachedEval); } else { setSelectedEval(null); } }}
-                            className={`w-full text-left p-1 rounded-md transition-colors duration-150 flex items-center gap-1 ${
+                            className={`w-full text-left px-1.5 py-1 rounded-md transition-colors duration-150 flex items-center gap-1.5 min-h-[24px] ${
                                 selectedEvalId === sub.uniprotId && selectedBatchId === batch.batchId
                                   ? 'bg-purple-100/60 dark:bg-purple-900/20 border border-purple-300/30 dark:border-purple-600/25'
                                   : 'hover:bg-claude-border-light dark:hover:bg-claude-border'
                             }`}
                           >
-                            <span className="font-mono text-[9px] font-semibold text-purple-600 dark:text-purple-400">{sub.uniprotId}</span>
-                            <span className="text-[8px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
+                            <span className="font-mono text-[9px] font-semibold text-purple-600 dark:text-purple-400 flex-shrink-0">{sub.uniprotId}</span>
+                            <span className="text-[9px] text-claude-text-muted dark:text-[#6b6560] truncate flex-1 min-w-0">{subEv ? (subEv.proteinName || subEv.entryName) : (sub.proteinName || '')}</span>
                             {subScore !== null && (
-                              <span className="text-[8px] font-mono font-bold" style={{ color: subColor }}>
+                              <span className="text-[9px] font-mono font-bold flex-shrink-0" style={{ color: subColor }}>
                                 {typeof subScore === 'number' ? subScore.toFixed(1) : subScore}
                               </span>
                             )}

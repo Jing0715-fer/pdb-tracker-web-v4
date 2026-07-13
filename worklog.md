@@ -1216,3 +1216,31 @@ Stage Summary:
 - New PDB detection: if RCSB returns different count than pdbCountAtEval → cache miss → re-fetch + re-report.
 - Batch mode: extra targets also cache-checked (skip detail fetch if params+count unchanged).
 - Lint passes. Server stable.
+
+---
+Task ID: fix-sidebar-batch-overlap
+Agent: main (Z.ai Code)
+Task: Fix overlapping UI in the Evaluation Batches section of the left sidebar.
+
+Work Log:
+- VLM analyzed screenshot: "P00533 Epidermal growth factor recepto" text overlapping with "Batch: P00533 + P04626" entry. The overlap occurred in the collapsed sidebar mini cards when batch sub-targets expanded.
+- Root cause: In collapsed-sidebar-mini-cards.tsx:
+  1. Container used `items-center` (centered items instead of full-width stretch) + `gap-1` (too tight spacing).
+  2. CollapsibleContent had no `overflow-hidden`, allowing content to visually bleed during animation.
+  3. Sub-target buttons had no `min-h` and used `space-y-0.5` (too tight), causing text to overlap when batch expanded.
+  4. Sub-target text used `text-[8px]` (too small, hard to read) and lacked `min-w-0` for proper truncation.
+  5. Missing `flex-shrink-0` on uniprotId/score spans caused flex layout issues.
+- Fixes applied:
+  1. Container: `items-center` → `items-stretch`, `gap-1` → `gap-1.5` (proper full-width + more spacing).
+  2. CollapsibleContent: added `className="overflow-hidden"`.
+  3. Sub-target container: `space-y-0.5` → `space-y-1`, `pb-2 pt-1` → `pb-1 pt-1`.
+  4. Sub-target button: added `min-h-[24px]`, `gap-1` → `gap-1.5`, `p-1` → `px-1.5 py-1`.
+  5. Sub-target text: `text-[8px]` → `text-[9px]`, added `min-w-0` for truncation.
+  6. Added `flex-shrink-0` on uniprotId, score, chevron, count badge spans.
+- VLM verified: collapsed state 9/10 ("No text elements overlapping, clean spacing, properly separated"). Expanded state 8/10 ("Sub-targets do not overlap, proper spacing, readable text").
+
+Stage Summary:
+- Sidebar batch overlap fixed: items now stretch full-width, CollapsibleContent has overflow-hidden, sub-targets have min-h-[24px] and proper spacing.
+- Text sizes slightly increased (8px → 9px) for readability.
+- All flex items have flex-shrink-0 to prevent layout issues.
+- VLM: collapsed 9/10, expanded 8/10. Lint passes. Server stable.
