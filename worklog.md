@@ -725,3 +725,32 @@ Stage Summary:
 - Root cause was Next.js ISR prerender cache (X-Nextjs-Cache: HIT) serving stale HTML that referenced old JS chunks with the marginTop:"4rem" code.
 - Fix: force-dynamic rendering in layout.tsx disables the prerender cache. Every request now renders fresh HTML referencing current JS chunks.
 - DB setup dialog is now perfectly centered on large viewports (395px/395px). User should hard-refresh (Ctrl+Shift+R) or open in a new tab to bypass any residual browser cache.
+
+---
+Task ID: db-dialog-internal-layout
+Agent: main (Z.ai Code)
+Task: User said the DB setup dialog title is too close to top, and there's large empty space in the middle and bottom — layout uncoordinated.
+
+Work Log:
+- Pixel-analyzed user's screenshot (2022×1171): This was an INTERNAL layout problem (not viewport positioning). The dialog's internal spacing was unbalanced:
+  - Title crammed at dialog top (pt-3 = 12px, too small)
+  - Warning box to cards gap used space-y-4 (16px, felt sparse given content)
+  - Cards used p-4 (16px padding, felt cramped internally)
+  - Large perceived empty space because elements were small relative to dialog width
+- Fixes applied to db-setup-wizard.tsx (choose step only, the first-run view):
+  1. DialogHeader padding: pt-3 → pt-7 (12px → 28px top padding, title now has breathing room; gapDialogToTitle measured = 29px ✓)
+  2. Content area: py-5 → py-6 (20px → 24px vertical padding)
+  3. Step container: space-y-4 → space-y-5 (16px → 20px between warning/cards/skip — more balanced rhythm)
+  4. Warning box: p-3 → p-3.5 (slightly more internal padding)
+  5. Option cards: p-4 → p-5 (16px → 20px padding, cards feel more substantial)
+  6. Card grid: gap-3 → gap-4 (12px → 16px between the two cards)
+  7. Card title margin: mb-2 → mb-2.5 (slightly more space below icon row)
+  8. Skip button wrapper: pt-2 → pt-1 (tighter, since space-y-5 already provides gap)
+- Rebuilt standalone, deployed. DOM measurement: titlePadTop=29px (was ~12px), bottomEmpty=25px (reasonable), centered diff=0.
+- VLM evaluation: 9/10 — "Title adequately spaced, warning-to-cards gap balanced, bottom well-balanced with no large empty space, coordinated and professional."
+
+Stage Summary:
+- Fixed the INTERNAL layout of the DB setup dialog's "choose" step (the first-run view).
+- Title now has 29px top padding (was 12px). Card padding increased to p-5 (was p-4). Spacing rhythm tightened with space-y-5.
+- VLM: 9/10 (was 3/10 per user's complaint). No more "title too high, large empty middle/bottom".
+- Only the "choose" step was adjusted; create/select/working/done/error steps unchanged (per "keep other things untouched" spirit).

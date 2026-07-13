@@ -273,7 +273,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && allowSkip && onClose) onClose() }}>
       <DialogContent className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0">
-        <DialogHeader className="px-6 pt-3 pb-5 border-b border-border/50">
+        <DialogHeader className="px-6 pt-7 pb-5 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base leading-none">
             <Database className="h-4 w-4 text-amber-500" />
             数据库初始化设置
@@ -283,7 +283,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
           </DialogDescription>
         </DialogHeader>
 
-        <div className="px-6 py-5 max-h-[70vh] overflow-y-auto">
+        <div className="px-6 py-6 max-h-[70vh] overflow-y-auto">
           <AnimatePresence mode="wait">
             {/* ── Step 1: choose ─────────────────────────────────────── */}
             {mode === 'choose' && (
@@ -292,9 +292,9 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
                 initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
-                className="space-y-4"
+                className="space-y-5"
               >
-                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 flex gap-2.5">
+                <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3.5 flex gap-2.5">
                   <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                     <div className="font-semibold mb-0.5">当前数据库仅供测试</div>
@@ -302,12 +302,12 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <button
                     onClick={() => setMode('create')}
-                    className="group text-left rounded-lg border border-border hover:border-claude-accent/50 hover:bg-claude-accent/5 p-4 transition-all"
+                    className="group text-left rounded-lg border border-border hover:border-claude-accent/50 hover:bg-claude-accent/5 p-5 transition-all"
                   >
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2.5">
                       <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
                         <FilePlus2 className="h-4 w-4 text-emerald-600" />
                       </div>
@@ -320,9 +320,9 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
 
                   <button
                     onClick={() => setMode('select')}
-                    className="group text-left rounded-lg border border-border hover:border-claude-accent/50 hover:bg-claude-accent/5 p-4 transition-all"
+                    className="group text-left rounded-lg border border-border hover:border-claude-accent/50 hover:bg-claude-accent/5 p-5 transition-all"
                   >
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-2.5">
                       <div className="w-8 h-8 rounded-md bg-sky-500/10 flex items-center justify-center">
                         <FolderOpen className="h-4 w-4 text-sky-600" />
                       </div>
@@ -335,7 +335,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
                 </div>
 
                 {allowSkip && onClose && (
-                  <div className="flex justify-end pt-2">
+                  <div className="flex justify-end pt-1">
                     <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onClose}>
                       暂时跳过（继续使用当前数据库）
                     </Button>
