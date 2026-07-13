@@ -691,3 +691,20 @@ Stage Summary:
 - Database Init Settings dialog now vertically centered (was top-aligned with 4rem marginTop). Matches the Run Center dialog's positioning.
 - VLM score: 9/10 for vertical positioning (was "too close to top, cramped, uncoordinated").
 - No logic changes — only removed the inline marginTop/marginBottom override on DialogContent.
+
+---
+Task ID: fix-html-cache-busting
+Agent: main (Z.ai Code)
+Task: User reported the DB dialog positioning fix "still looks the same as before" — root cause was HTML caching, not the CSS fix.
+
+Work Log:
+- Previous fix (removing marginTop:"4rem" from DialogContent) was correct and verified in DOM (91px top/91px bottom, centered). But user still saw old layout.
+- Root cause: Next.js statically prerenders the HTML shell and serves it with `Cache-Control: s-maxage=31536000` (1-year cache) + `x-nextjs-cache: HIT`. The user's browser cached the OLD HTML which referenced OLD JS chunk filenames (containing the marginTop:"4rem" code). Even after rebuild with new chunks, the browser never re-requested the HTML.
+- Fix: Added a `Cache-Control: no-cache, no-store, must-revalidate` header for the "/" route in next.config.ts `headers()`. This forces the browser to always revalidate the HTML, fetching the latest version that references new chunk hashes.
+- Rebuilt standalone, copied assets, reinitialized DB schema, recreated .hermes config.
+- Verified: HTML now serves with `Cache-Control: no-cache, no-store, must-revalidate`. Dialog centered (91px/91px). VLM 8/10. All APIs 200.
+
+Stage Summary:
+- HTML caching was the root cause — user's browser was loading a 1-year-cached HTML referencing old JS chunks with the marginTop fix not yet applied.
+- Added no-cache header for "/" route. Now the browser always gets fresh HTML → fresh JS chunks → the fix is visible.
+- The DB setup dialog is now properly vertically centered (was top-aligned with marginTop:4rem, now default Radix centering).
