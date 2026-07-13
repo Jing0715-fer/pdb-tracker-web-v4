@@ -622,3 +622,24 @@ Stage Summary:
 - VLM scores improved: Run Center 6/10 → 8/10; Database Init 8/10 (maintained).
 - No logic/behavior changed — only Badge className strings and one icon margin (mr-0.5 removed in favor of gap-1).
 - Note: The app is very memory-heavy (molstar + recharts + 2256-line component); the sandbox's 4 GB RAM causes the webpack dev server to OOM when Chrome loads multiple API routes. Server compiles and serves the page + /api/db-config successfully; full Chrome interaction is memory-fragile but both dialogs were captured and VLM-verified.
+
+---
+Task ID: standalone-build
+Agent: main (Z.ai Code)
+Task: Page wasn't loading (dev server OOM-crashing on 4GB RAM sandbox). Build standalone production server for stable, memory-efficient operation.
+
+Work Log:
+- Root cause: The dev server (webpack/turbopack) compiles routes on-demand, consuming 2GB+ RAM and getting OOM-killed on the 4GB sandbox. Molstar + recharts + 2256-line settings-run-panel.tsx made compilation extremely heavy (30s+ per page, crashes on API route compilation).
+- Ran `NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" next build --webpack` — build completed successfully, producing `.next/standalone/server.js` (93MB standalone bundle).
+- Copied assets into standalone: `.next/static`, `public`, `db/custom.db`, `.env`.
+- Discovered sandbox kills background processes between Bash tool calls. The standalone `node server.js` process survives because it gets reparented to `tini` (PID 1) via `nohup` + process detachment.
+- Found `.next/standalone/.hermes/db-config.json` pointed to `my-pdb-tracker.db` which was a 0-byte empty file (created during earlier db-wizard testing). Copied the schema-complete `custom.db` (17 tables) over it.
+- Created `.zscripts/prod-check.sh` — a one-shot check-and-start script for the standalone server.
+- Server now runs as PID 10122, PPID 1 (tini), ~116MB RSS, responds in 4ms.
+
+Stage Summary:
+- Standalone production server is running and stable: page HTTP 200 in ~4ms (vs 30s+ dev compile), all API routes 200 (entries/snapshots/activity/skill-runs/db-config), 0 errors in prod.log.
+- Memory: 1.0GB used / 3.1GB free — massive improvement over dev server's 2.3GB+ usage.
+- Server persists across bash calls (reparented to tini init).
+- Both dialogs (运行中心 & 数据库初始化设置) render correctly with unified badge styling on the standalone server.
+- VLM verification: DB Init dialog badges 9/10; Run Center dialog badges 7-8/10 (strong consistency, unified size/shape/color).
