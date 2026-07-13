@@ -94,3 +94,44 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch evaluation' }, { status: 500 });
   }
 }
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ uniprotId: string }> }
+) {
+  try {
+    const { uniprotId } = await params;
+
+    if (!uniprotId) {
+      return NextResponse.json({ error: 'uniprotId is required' }, { status: 400 });
+    }
+
+    // Verify the evaluation exists first
+    const existing = await db.$queryRaw<any[]>`
+      SELECT uniprotId FROM Evaluation WHERE uniprotId = ${uniprotId}
+    `;
+    if (!existing || existing.length === 0) {
+      return NextResponse.json({ error: 'Evaluation not found' }, { status: 404 });
+    }
+
+    // Delete child rows first to satisfy foreign-key constraints, then the
+    // parent evaluation row. Also remove any persisted skill-eval reports.
+    await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${uniprotId}`;
+    await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${uniprotId}`;
+    await db.$executeRaw`DELETE FROM EvaluationReport WHERE uniprotId = ${uniprotId}`;
+    await db.$executeRaw`DELETE FROM SkillEvaluationReport WHERE uniprotId = ${uniprotId}`;
+    await db.$executeRaw`DELETE FROM Evaluation WHERE uniprotId = ${uniprotId}`;
+
+    return NextResponse.json({
+      success: true,
+      uniprotId,
+      message: `Evaluation ${uniprotId} and all related records deleted`,
+    });
+  } catch (error) {
+    console.error('Error deleting evaluation:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete evaluation', detail: error instanceof Error ? error.message : 'unknown' },
+      { status: 500 }
+    );
+  }
+}

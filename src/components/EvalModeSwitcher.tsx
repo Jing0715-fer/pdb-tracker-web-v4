@@ -8,10 +8,18 @@ import {
   Layers,
   Dna,
   Target,
+  Trash2,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+} from '@/components/ui/context-menu';
 import type { Evaluation, EvalBatch } from '@/lib/pdb-types';
 import type { ComplexGroup, EvalBatchSubTarget } from './pdb-sidebar';
 import { getScoreColor, truncateOrganism } from '@/components/pdb-helpers';
@@ -23,6 +31,7 @@ interface EvalModeSwitcherProps {
   batchSubTargets?: Record<string, EvalBatchSubTarget[]>;
   selectedUniprotId?: string | null;
   onSelectEval?: (uniprotId: string) => void;
+  onDeleteEval?: (uniprotId: string) => void;
   loading?: boolean;
   // Complex group props
   complexGroups?: ComplexGroup[];
@@ -51,6 +60,7 @@ export function EvalModeSwitcher({
   batchSubTargets = {},
   selectedUniprotId = null,
   onSelectEval = () => {},
+  onDeleteEval,
   loading = false,
   // Complex group props (unused in this component, accepted for compatibility)
   complexGroups,
@@ -84,6 +94,10 @@ export function EvalModeSwitcher({
       else next.add(batchId);
       return next;
     });
+    // Notify parent that the batch was selected (so it can open the batch
+    // detail panel). The parent decides whether to also clear the selected
+    // sub-target / individual eval.
+    onSelectBatch?.(batchId);
   };
 
   const filteredEvaluations = useMemo(() => {
@@ -193,7 +207,7 @@ export function EvalModeSwitcher({
                       const pdbCount = evalItem.pdbStructures?.length ?? 0;
                       const blastCount = evalItem.blastResults?.length ?? 0;
 
-                      return (
+                      const evalButton = (
                         <button
                           key={evalItem.uniprotId}
                           onClick={() => onSelectEval(evalItem.uniprotId)}
@@ -244,6 +258,30 @@ export function EvalModeSwitcher({
                             </div>
                           </div>
                         </button>
+                      );
+
+                      // Wrap with right-click context menu only when deletion is wired
+                      if (!onDeleteEval) return evalButton;
+                      return (
+                        <ContextMenu key={evalItem.uniprotId}>
+                          <ContextMenuTrigger asChild>{evalButton}</ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuItem
+                              onClick={() => onSelectEval(evalItem.uniprotId)}
+                            >
+                              <Dna className="h-3.5 w-3.5 mr-2" />
+                              Open
+                            </ContextMenuItem>
+                            <ContextMenuSeparator />
+                            <ContextMenuItem
+                              onClick={() => onDeleteEval(evalItem.uniprotId)}
+                              className="text-red-600 dark:text-red-400 focus:text-red-600 focus:dark:text-red-400"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-2" />
+                              Delete Evaluation
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
                       );
                     })
                   )}
@@ -330,7 +368,15 @@ export function EvalModeSwitcher({
                                 return (
                                   <button
                                     key={st.uniprotId}
-                                    onClick={() => onSelectEval(st.uniprotId)}
+                                    onClick={() => {
+                                      // Keep existing behavior (select the individual eval) but also
+                                      // inform the parent that this is a batch-sub-target click so
+                                      // it can keep the batch context active.
+                                      onSelectEval(st.uniprotId);
+                                      if (onSelectBatchSubTarget) {
+                                        onSelectBatchSubTarget(batch.batchId, st.uniprotId);
+                                      }
+                                    }}
                                     className={`w-full text-left rounded-md px-2.5 py-1.5 transition-all duration-100 text-[11px] claude-focus-ring ${
                                       isSelected
                                         ? 'bg-claude-accent-light dark:bg-[#3d2a22] text-claude-accent font-medium border-l-2 border-claude-accent'

@@ -91,6 +91,10 @@ export interface EvalBatch {
   title: string;
   subTargetCount: number;
   combinedReport: string;
+  commonPdbIds?: string | null;
+  crossReportOk?: boolean | null;
+  crossReportChars?: number | null;
+  targetCount?: number | null;
   createdAt: string;
 }
 

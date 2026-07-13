@@ -34,6 +34,11 @@ const EvalGanttTimeline = dynamic(() => import('@/components/eval-gantt-timeline
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
 });
 
+const BatchPreviewContent = dynamic(() => import('@/components/BatchPreviewContent').then(m => ({ default: m.BatchPreviewContent })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
+
 // StatCard, CircularProgress, sparkline, trend utilities now imported from @/components/ui/stat-card
 
 // ─── Compact Eval Stat Cards ──────────────────────────────────────────────────
@@ -156,6 +161,10 @@ export function EvaluationView({
   onSetEvalSubView,
   onSetEvalDetailTab,
   onSetSelectedEvalStructure,
+  selectedBatchId,
+  batchFetchedEvals,
+  onSelectSubTarget,
+  onOpenBatchReport,
 }: EvaluationViewProps) {
   // Sub-view: toolbar + full-width component
   const currentSubView: string = evalSubView;
@@ -291,36 +300,70 @@ export function EvaluationView({
           <Database className="h-3 w-3 mr-1" />
           Batch Matrix
         </Button>
+        {selectedBatchId && !selectedEvalId && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelectEvalId(null)}
+            className="h-7 px-2.5 text-[11px] text-claude-text-muted ml-auto"
+            title="Exit batch detail"
+          >
+            ← Back to list
+          </Button>
+        )}
       </div>
-      <EvaluationPage
-        evaluation={selectedEval}
-        loading={evalLoading}
-        selectedPdbId={selectedEvalStructure?.pdbId ?? null}
-        onSelectPdb={(pdbId) => {
-          if (!selectedEval) return;
-          // Find the matching EvalRow from pdbStructures or blastResults
-          const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
-          if (structRow) {
-            onSetSelectedEvalStructure({ ...structRow, _type: 'structure' });
-            return;
-          }
-          const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
-          if (blastRow) {
-            onSetSelectedEvalStructure({
-              ...blastRow,
-              _type: 'blast',
-              ifTier: blastRow.ifTier || '',
-              journalIf: blastRow.journalIf ?? null,
-              title: blastRow.title || blastRow.description || null,
-              releaseDate: blastRow.releaseDate || null,
-              pubmedId: blastRow.pubmedId || null,
-              pubmedTitle: blastRow.pubmedTitle || null,
-              pubmedAuthors: blastRow.pubmedAuthors || null,
-              pubmedAbstract: blastRow.pubmedAbstract || null,
-            });
-          }
-        }}
-      />
+      {/* When a batch is selected and no individual sub-target is open, show the
+          batch-level preview (common PDB IDs, cross-target LLM report, sub-target
+          list with their individual reports). Otherwise fall back to the regular
+          individual-eval detail page. */}
+      {selectedBatchId && !selectedEvalId ? (
+        <BatchPreviewContent
+          batchId={selectedBatchId}
+          allEvals={allEvaluations}
+          batchFetchedEvals={batchFetchedEvals || {}}
+          evalBatches={evalBatches}
+          evalBatchSubTargets={batchSubTargets}
+          onSelectSubTarget={(uniprotId) => {
+            if (onSelectSubTarget) {
+              onSelectSubTarget(uniprotId);
+            } else {
+              onSelectEvalId(uniprotId);
+            }
+          }}
+          selectedSubTargetId={null}
+          onOpenBatchReport={onOpenBatchReport}
+        />
+      ) : (
+        <EvaluationPage
+          evaluation={selectedEval}
+          loading={evalLoading}
+          selectedPdbId={selectedEvalStructure?.pdbId ?? null}
+          onSelectPdb={(pdbId) => {
+            if (!selectedEval) return;
+            // Find the matching EvalRow from pdbStructures or blastResults
+            const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
+            if (structRow) {
+              onSetSelectedEvalStructure({ ...structRow, _type: 'structure' });
+              return;
+            }
+            const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
+            if (blastRow) {
+              onSetSelectedEvalStructure({
+                ...blastRow,
+                _type: 'blast',
+                ifTier: blastRow.ifTier || '',
+                journalIf: blastRow.journalIf ?? null,
+                title: blastRow.title || blastRow.description || null,
+                releaseDate: blastRow.releaseDate || null,
+                pubmedId: blastRow.pubmedId || null,
+                pubmedTitle: blastRow.pubmedTitle || null,
+                pubmedAuthors: blastRow.pubmedAuthors || null,
+                pubmedAbstract: blastRow.pubmedAbstract || null,
+              });
+            }
+          }}
+        />
+      )}
     </>
   );
 }

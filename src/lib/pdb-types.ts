@@ -131,6 +131,10 @@ export interface EvalBatch {
   batchId: string;
   title: string | null;
   combinedReport: string | null;
+  commonPdbIds?: string | null; // JSON string array, e.g. '["1ABC","2XYZ"]'
+  crossReportOk?: boolean | null;
+  crossReportChars?: number | null;
+  targetCount?: number | null;
   subTargetCount?: number;
   createdAt: string;
 }

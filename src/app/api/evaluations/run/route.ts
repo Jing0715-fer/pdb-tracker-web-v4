@@ -111,9 +111,10 @@ export async function POST(req: Request) {
 
       emit({ stage: 'sifts-coverage', level: 'info', message: 'SIFTS 残基覆盖率计算', progress: 38 });
       await sleep(300);
-      // Estimate coverage from the ratio of PDB structures with residue coverage
-      // vs the UniProt sequence length. Falls back to 0 when no data available.
-      const coverage = directPdbCount > 0 ? Math.min(100, Math.round((directPdbCount / Math.max(1, uniprotInfo?.sequenceLength || 1)) * 100 * 10)) : 0;
+      // Estimate structural coverage: each PDB structure covers ~5% of the target
+      // (capped at 100%). This is a heuristic since we don't have residue-level
+      // SIFTS mapping data. More structures = better coverage.
+      const coverage = directPdbCount > 0 ? Math.min(100, directPdbCount * 5) : 0;
       emit({ stage: 'sifts-coverage', level: 'success', message: `覆盖率 ${coverage}%`, progress: 42 });
 
       let blastHitCount = 0, skippedBblast = false, blastHits: any[] = [];

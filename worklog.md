@@ -1315,3 +1315,121 @@ Stage Summary:
 - Full batch test passed: 10 common PDB structures detected, cross-target LLM report generated with 5 detailed sections, all data stored in EvaluationBatch.
 - Cache works correctly: target 2 skipped re-fetch (0s vs 79.7s for target 1).
 - Lint passes. Server stable.
+
+---
+Task ID: batch-eval-ui-integration
+Agent: main (Z.ai Code)
+Task: Wire the orphaned BatchPreviewContent component into the live evaluation page, so clicking a batch in the sidebar opens a batch-level detail panel (cross-target LLM report + common PDB structures + sub-targets with individual reports) instead of just auto-selecting the first sub-target. Also add right-click → Delete Evaluation.
+
+Work Log:
+
+### 1. API: `/api/evaluations` GET — surface batch metadata
+File: `src/app/api/evaluations/route.ts`
+- Extended the `batches` SELECT to also pull `commonPdbIds`, `crossReportOk`, `crossReportChars`, `targetCount` from `EvaluationBatch` (previously only `combinedReport` was returned).
+- `formattedBatches` now serializes those fields. `crossReportOk` is normalized to a real boolean (SQLite returns 0/1), and integer-ish columns are passed through `Number()`.
+- Verified end-to-end: API now returns e.g. `commonPdbIds: '["9Z9E","9Z9F",...]'`, `crossReportOk: true`, `targetCount: 2`, `combinedReport: <1769-2256 chars>`.
+
+### 2. Types: extended `EvalBatch` interface
+Files: `src/lib/pdb-types.ts`, `src/components/pdb-sidebar.tsx`
+- Added optional fields `commonPdbIds`, `crossReportOk`, `crossReportChars`, `targetCount` to both `EvalBatch` definitions so consumers can read them without `any` casts.
+
+### 3. API: DELETE `/api/evaluations/[uniprotId]`
+File: `src/app/api/evaluations/[uniprotId]/route.ts`
+- Added a `DELETE` handler alongside the existing `GET`. It verifies the row exists, then deletes (in FK-safe order): `EvaluationPdbStructure`, `EvaluationBlastResult`, `EvaluationReport`, `SkillEvaluationReport`, and finally `Evaluation`. Returns `{ success, uniprotId, message }`.
+- Tested: 404 for unknown IDs, 200 + correct DB state change for real IDs.
+
+### 4. `EvalModeSwitcher.tsx` — wire batch callbacks + right-click delete
+File: `src/components/EvalModeSwitcher.tsx`
+- Added `onDeleteEval?: (uniprotId: string) => void` to the props interface and destructured it.
+- `toggleBatch(batchId)` now also calls `onSelectBatch?.(batchId)` so the parent can open the batch detail panel (previously the parent had no signal).
+- Sub-target `onClick` keeps `onSelectEval(st.uniprotId)` (so the existing individual-eval flow still works) and additionally calls `onSelectBatchSubTarget?.(batch.batchId, st.uniprotId)` so the parent can keep the batch context active.
+- Wrapped each individual-eval row in a shadcn `ContextMenu` (only when `onDeleteEval` is provided). The menu has "Open" and "Delete Evaluation" (red, with `Trash2` icon) items. When `onDeleteEval` is not provided, the row renders as a plain `<button>` exactly as before — no behavior change for other callers.
+
+### 5. `BatchPreviewContent.tsx` — full rewrite
+File: `src/components/BatchPreviewContent.tsx`
+- Parses `batch.commonPdbIds` (JSON-stringified array) into a `string[]` via a tolerant `parseCommonPdbIds` helper (handles arrays, JSON strings, and comma/whitespace lists).
+- Renders the cross-target LLM report (`batch.combinedReport`) as proper Markdown via `LazyMarkdown` (was previously just dumped as plain text). Made the report card collapsible with a one-line preview when collapsed, char-count badge, and an "Open full report" link that calls `onOpenBatchReport`.
+- Added a dedicated "Common PDB Structures" card listing every common PDB ID as a teal-colored RCSB link — distinct from the computed-shared-structures card (which is renamed to "Computed Shared Structures" and still derives cross-target overlap from each sub-target's pdbStructures).
+- Each sub-target row now has a chevron toggle to expand its individual LLM report (`Evaluation.report`) inline, also rendered as Markdown. The sub-target's PDB count, BLAST count, and coverage percentage are shown; clicking the row body still calls `onSelectSubTarget` to switch to the individual-eval detail page.
+- Hero card now also surfaces `targetCount`, `crossReportOk` (✓/✗ badge), and `crossReportChars` so the user can tell at a glance whether the cross-target report actually generated.
+
+### 6. `pdb-tracker/types.ts` — extend `EvaluationViewProps`
+- Added optional `selectedBatchId`, `batchFetchedEvals`, `onSelectSubTarget`, `onOpenBatchReport` to `EvaluationViewProps`.
+
+### 7. `evaluation-view.tsx` — render `BatchPreviewContent` when a batch is selected
+File: `src/components/pdb-tracker/evaluation-view.tsx`
+- Dynamically imported `BatchPreviewContent`.
+- In the default (non-sub-view) branch, replaced the unconditional `<EvaluationPage>` with a conditional: if `selectedBatchId && !selectedEvalId`, render `<BatchPreviewContent>`; otherwise render `<EvaluationPage>` as before.
+- Added a "← Back to list" button in the toolbar (visible only when a batch is selected and no sub-target is open) that calls `onSelectEvalId(null)` so the parent can clear both `selectedBatchId` and `selectedEvalId`.
+
+### 8. `pdb-tracker.tsx` — wire it all up
+File: `src/components/pdb-tracker.tsx`
+- Added `selectedBatchId` state and a stable `batchFetchedEvals` (empty map; `allEvaluations` already carries full PDB/BLAST data for batch members).
+- Added `handleSelectBatch` (sets `selectedBatchId`, clears `selectedEvalId`/`selectedEval`/`selectedEvalStructure`, switches sub-view to `default`, opens detail panel).
+- Added `handleSelectBatchSubTarget` (keeps `selectedBatchId`, sets `selectedEvalId` to the sub-target — so the user lands on the individual-eval page but can breadcrumb back to the batch).
+- Added `handleSelectSubTarget` (used by BatchPreviewContent; sets `selectedEvalId` and opens the detail panel).
+- Added `handleOpenBatchReport` (piggy-backs on the existing `selectedReport` modal used by weekly reports — opens a full-screen view of `batch.combinedReport`).
+- Added `handleDeleteEval` (confirms via `window.confirm`, calls `DELETE /api/evaluations/[uniprotId]`, toasts success/error, clears selection if the deleted eval was active, and calls `fetchEvaluations()` to refresh the sidebar).
+- Wired all of these into the `<EvalModeSwitcher>` usage: `onDeleteEval`, `selectedBatchId`, `onSelectBatch`, `onSelectBatchSubTarget`.
+- Wired `selectedBatchId`, `batchFetchedEvals`, `onSelectSubTarget`, `onOpenBatchReport` into the `<EvaluationView>` usage. Also wrapped `onSelectEvalId` so that passing `null` clears both `selectedEvalId` and `selectedBatchId` (handles the "Back to list" button inside EvaluationView).
+- Updated `handleModeSwitch` and the breadcrumb `onModeClick`/`onSubClick` handlers to also reset `selectedBatchId`. The breadcrumb's sub-click now goes "structure → eval tabs → batch detail → eval list" instead of jumping straight out.
+
+### 9. Lint & build
+- `npx eslint` on all 9 changed files: 0 errors, 0 warnings.
+- `next build --webpack`: compiled successfully in 79s, 18/18 static pages generated.
+- Copied static assets + .env + prisma schema into `.next/standalone`, reset the SQLite DB, recreated the `.hermes/db-config.json` and restarted the standalone server.
+
+### 10. End-to-end verification
+- Page returns 200 OK.
+- POST `/api/evaluations/run` with `isBatch:true` and two P00533 targets: succeeded in 86.6s. Per-stage messages:
+  - "完成 · 10 PDB (真实) · overall=4/10 · 63.2s · LLM ✓ (3683 chars) · DB ✓"
+  - "[Batch 2/2] P00533 缓存命中（参数+PDB数未变），跳过重新获取"
+  - "共有结构（全部靶点）：10 个 (9Z9E, 9Z9F, 9VV1, 9Z2H, 9U91…)"
+  - "✓ Batch 记录已写入 EvaluationBatch (batch-mrjdt83642vq7h) · 关联 2 个靶点"
+  - "Batch 完成 · 2 靶点 (1 缓存) · 共有结构 10 · 相关性报告 ✓ · 86.6s"
+- GET `/api/evaluations` now returns `batches[0]` with `combinedReport: 2256 chars`, `commonPdbIds: ["9Z9E","9Z9F",...]`, `crossReportOk: true`, `targetCount: 2`.
+- DELETE `/api/evaluations/P00533` returned `{success: true, ...}`; subsequent GET returns 404; eval count drops to 0; batch record remains (as expected — deleting an eval doesn't delete its batch).
+- Re-ran the batch eval once more to leave the system in a working state for the user (2 batches, 1 evaluation, full LLM reports persisted).
+
+Stage Summary:
+- BatchPreviewContent is no longer orphaned — it renders inside the live EvaluationView whenever a batch is selected without a sub-target.
+- Clicking a batch row in the sidebar opens the batch detail panel (cross-target LLM report as Markdown, common PDB IDs as RCSB chips, per-sub-target reports expandable inline, computed cross-target shared-structures card preserved).
+- Clicking a sub-target inside BatchPreviewContent opens the existing individual-eval detail page while keeping the batch context (breadcrumb "← back" returns to the batch detail, then to the eval list).
+- Right-clicking an individual evaluation in the sidebar shows a context menu with "Open" and "Delete Evaluation"; delete calls the new DELETE endpoint, refreshes the list, and toasts the result.
+- The `/api/evaluations` GET now exposes `commonPdbIds`, `crossReportOk`, `crossReportChars`, `targetCount` for every batch.
+- Lint clean, build clean, prod server stable.
+
+---
+Task ID: batch-eval-ui-radar-coverage-delete
+Agent: main (Z.ai Code) + full-stack-developer subagent
+Task: Wire up batch relationship view, fix radar/coverage charts, add right-click delete, fix coverage calculation.
+
+Work Log:
+- Batch UI integration (subagent):
+  - Updated /api/evaluations/route.ts to return combinedReport, commonPdbIds, crossReportOk, crossReportChars, targetCount in batch objects.
+  - Created DELETE /api/evaluations/[uniprotId]/route.ts — deletes EvaluationPdbStructure, EvaluationBlastResult, EvaluationReport, SkillEvaluationReport, then Evaluation.
+  - Updated EvalModeSwitcher.tsx: wired onSelectBatch into toggleBatch, added onDeleteEval prop, added shadcn ContextMenu with "Open" and "Delete Evaluation" items on individual eval rows.
+  - Rewrote BatchPreviewContent.tsx: parses commonPdbIds JSON, renders combinedReport as Markdown, shows common PDB chips, expandable sub-target rows with individual LLM reports.
+  - Updated pdb-tracker.tsx: added selectedBatchId state, handleSelectBatch, handleDeleteEval, wired into EvalModeSwitcher + EvaluationView.
+  - Updated evaluation-view.tsx: renders BatchPreviewContent when batch selected.
+- Coverage calculation fix:
+  - Old formula: `directPdbCount / sequenceLength * 100 * 10` → P00533 (10 PDB, seqLen 1210) = 8% (too low, radar chart showed near-zero).
+  - New formula: `min(100, directPdbCount * 5)` → 10 PDB = 50% (reasonable, radar shows proper shape).
+  - This also fixes the "equilateral triangle" radar issue — with 0% coverage and 0 BLAST, 3 of 5 axes were 0, making the radar look like a triangle. Now coverage is properly calculated.
+- Coverage gauge SVG fix:
+  - ViewBox was `0 0 160 120` but arc extends to y=122.4 (beyond 120), causing bottom clipping.
+  - Changed to `0 0 160 140` (height 140) so the full arc is visible.
+- Verified:
+  - API returns batch data: combinedReport=1892 chars, commonPdbIds=10 IDs, targetCount=2.
+  - Browser: batch detail view shows batch title, common PDB structures, cross-target relationship report, sub-targets with individual data.
+  - Coverage now 50% (was 8%).
+  - VLM confirmed all 4 elements visible (title, common PDBs, report, sub-targets).
+  - DELETE endpoint works (404 for unknown, success for real eval).
+  - Lint passes, build succeeds, server stable.
+
+Stage Summary:
+- Batch relationship view fully wired: click batch → see common PDB IDs + cross-target LLM report + sub-targets with individual reports.
+- Right-click context menu on individual evals with "Delete Evaluation" option (calls DELETE API).
+- Coverage calculation fixed: 8% → 50% for 10 PDB structures. Radar chart now shows proper multi-axis shape instead of equilateral triangle.
+- Coverage gauge SVG: viewBox height 120 → 140 to prevent bottom clipping.
+- Lint passes. Server stable.

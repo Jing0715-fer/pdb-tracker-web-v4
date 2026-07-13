@@ -398,6 +398,15 @@ export default function PdbTracker() {
   const [selectedEvalId, setSelectedEvalId] = useState<string | null>(null);
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
   const [evalLoading, setEvalLoading] = useState(true);
+  // Batch detail integration — when a batch is selected (and no individual
+  // sub-target is open) we render BatchPreviewContent in the detail panel.
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  // Lazy per-batch fetched evaluations (full Evaluation objects keyed by
+  // uniprotId). Currently the /api/evaluations endpoint already returns full
+  // data for every evaluation (including batch members) via `allEvaluations`,
+  // so this map is kept as an empty fallback for the BatchPreviewContent
+  // component's optional lookup path.
+  const [batchFetchedEvals] = useState<Record<string, Evaluation>>({});
 
   // Literature data
   const [litStats, setLitStats] = useState<LitStats | null>(null);
@@ -819,6 +828,79 @@ export default function PdbTracker() {
       });
     }
   }, [allEvaluations]);
+
+  // ─── Batch selection handlers ────────────────────────────────────────────
+  // Clicking a batch row in the sidebar opens the batch detail panel (instead
+  // of just auto-selecting the first sub-target). The selectedBatchId is kept
+  // while the user navigates into a sub-target so the "Back to batch" UX works.
+  const handleSelectBatch = useCallback((batchId: string) => {
+    setSelectedBatchId(batchId);
+    setSelectedEvalId(null);
+    setSelectedEval(null);
+    setSelectedEvalStructure(null);
+    setEvalSubView('default');
+    setDetailPanelOpen(true);
+  }, []);
+
+  const handleSelectBatchSubTarget = useCallback((batchId: string, uniprotId: string) => {
+    setSelectedBatchId(batchId);
+    setSelectedEvalId(uniprotId);
+    setSelectedEvalStructure(null);
+    setDetailPanelOpen(true);
+  }, []);
+
+  const handleSelectSubTarget = useCallback((uniprotId: string) => {
+    setSelectedEvalId(uniprotId);
+    setSelectedEvalStructure(null);
+    setDetailPanelOpen(true);
+  }, []);
+
+  // Open a full-screen / modal view of the batch LLM report. We piggy-back on
+  // the existing `selectedReport` state used elsewhere for weekly reports so we
+  // don't need a new piece of UI infrastructure.
+  const handleOpenBatchReport = useCallback((batchId: string, title: string) => {
+    const batch = evalBatches.find(b => b.batchId === batchId);
+    if (!batch) return;
+    setSelectedReport({
+      title: title || batch.title || 'Batch Report',
+      content: batch.combinedReport || '_(No cross-target report was generated for this batch.)_',
+    });
+  }, [evalBatches]);
+
+  // Right-click → Delete Evaluation. Calls the DELETE endpoint, then refreshes
+  // the evaluation list and clears any dangling selection state.
+  const handleDeleteEval = useCallback(async (uniprotId: string) => {
+    const confirmed = window.confirm(
+      `Delete evaluation ${uniprotId}?\n\nThis will permanently remove the evaluation row, its PDB structures, BLAST results, and any saved Skill reports.`
+    );
+    if (!confirmed) return;
+    try {
+      const res = await queuedFetchWithRetry(`/api/evaluations/${uniprotId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.error || `HTTP ${res.status}`);
+      }
+      toast.success(`Deleted evaluation ${uniprotId}`);
+      // Clear selection if we just deleted the currently-selected eval
+      if (selectedEvalId === uniprotId) {
+        setSelectedEvalId(null);
+        setSelectedEval(null);
+        setSelectedEvalStructure(null);
+        setSelectedBatchId(null);
+        setDetailPanelOpen(false);
+      }
+      // Refresh evaluation list (fetchEvaluations is defined above and is a
+      // stable useCallback, so we can safely call it directly).
+      await fetchEvaluations();
+    } catch (err) {
+      console.error('Failed to delete evaluation:', err);
+      toast.error('Failed to delete evaluation', {
+        description: err instanceof Error ? err.message : 'unknown error',
+      });
+    }
+  }, [selectedEvalId, fetchEvaluations]);
 
   const fetchLitStats = useCallback(async () => {
     try {
@@ -1276,6 +1358,7 @@ export default function PdbTracker() {
     setSelectedEvalId(null);
     setSelectedEval(null);
     setSelectedEvalStructure(null);
+    setSelectedBatchId(null);
     setDetailPanelOpen(false);
     setLitIsDetailOpen(false);
     setLitSelectedPaper(null);
@@ -1809,7 +1892,11 @@ export default function PdbTracker() {
           batchSubTargets={batchSubTargets}
           selectedUniprotId={selectedEvalId}
           onSelectEval={(id) => { setSelectedEvalId(id); setDetailPanelOpen(true); setSelectedEvalStructure(null); if (mobile) setMobileMenuOpen(false); }}
+          onDeleteEval={handleDeleteEval}
           loading={evalLoading}
+          selectedBatchId={selectedBatchId}
+          onSelectBatch={(bid) => { handleSelectBatch(bid); if (mobile) setMobileMenuOpen(false); }}
+          onSelectBatchSubTarget={(bid, uid) => { handleSelectBatchSubTarget(bid, uid); if (mobile) setMobileMenuOpen(false); }}
         />
       </div>
     </aside>
@@ -3875,6 +3962,7 @@ export default function PdbTracker() {
             setSelectedEvalId(null);
             setSelectedEval(null);
             setSelectedEvalStructure(null);
+            setSelectedBatchId(null);
             setDetailPanelOpen(false);
           } else if (mode === 'literature') {
             setLitIsDetailOpen(false);
@@ -3890,9 +3978,14 @@ export default function PdbTracker() {
             // If viewing a structure detail, go back to eval tabs; else go back to eval list
             if (selectedEvalStructure) {
               setSelectedEvalStructure(null);
+            } else if (selectedEvalId && selectedBatchId) {
+              // Inside a batch sub-target — go back to batch detail (not all the way out)
+              setSelectedEvalId(null);
+              setSelectedEval(null);
             } else {
               setSelectedEvalId(null);
               setSelectedEval(null);
+              setSelectedBatchId(null);
               setDetailPanelOpen(false);
             }
           } else if (mode === 'literature') {
@@ -4145,10 +4238,26 @@ export default function PdbTracker() {
                     selectedEvalStructure={selectedEvalStructure}
                     evalReportContent={evalReportContent}
                     detailPanelOpen={detailPanelOpen}
-                    onSelectEvalId={setSelectedEvalId}
+                    onSelectEvalId={(id) => {
+                      if (id === null) {
+                        // "Back to list" — clear batch selection too.
+                        setSelectedEvalId(null);
+                        setSelectedEval(null);
+                        setSelectedEvalStructure(null);
+                        setSelectedBatchId(null);
+                        setDetailPanelOpen(false);
+                      } else {
+                        setSelectedEvalId(id);
+                        setDetailPanelOpen(true);
+                      }
+                    }}
                     onSetEvalSubView={setEvalSubView}
                     onSetEvalDetailTab={setEvalDetailTab}
                     onSetSelectedEvalStructure={setSelectedEvalStructure}
+                    selectedBatchId={selectedBatchId}
+                    batchFetchedEvals={batchFetchedEvals}
+                    onSelectSubTarget={handleSelectSubTarget}
+                    onOpenBatchReport={handleOpenBatchReport}
                   />
                 </div>
               )}

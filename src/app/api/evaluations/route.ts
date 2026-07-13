@@ -8,12 +8,16 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const q = searchParams.get('q') || '';
 
-    // Get batches with sub-target counts
+    // Get batches with sub-target counts and cross-target report metadata
     const batches = await db.$queryRaw<any[]>`
       SELECT
         b.batchId,
         b.title,
         b.combinedReport,
+        b.commonPdbIds,
+        b.crossReportOk,
+        b.crossReportChars,
+        b.targetCount,
         b.createdAt,
         CAST(COUNT(e.uniprotId) AS TEXT) as subTargetCount
       FROM EvaluationBatch b
@@ -28,6 +32,10 @@ export async function GET(request: NextRequest) {
       title: decodeJsonEscapes(b.title) || b.batchId || 'Batch',
       subTargetCount: parseInt(b.subTargetCount, 10) || 0,
       combinedReport: b.combinedReport || '',
+      commonPdbIds: b.commonPdbIds || null,
+      crossReportOk: b.crossReportOk === 1 || b.crossReportOk === true,
+      crossReportChars: b.crossReportChars != null ? Number(b.crossReportChars) : null,
+      targetCount: b.targetCount != null ? Number(b.targetCount) : null,
       createdAt: b.createdAt || '',
     }));
 

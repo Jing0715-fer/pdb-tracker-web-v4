@@ -204,8 +204,8 @@ function CoverageGauge({
   return (
     <svg
       width="160"
-      height="120"
-      viewBox="0 0 160 120"
+      height="140"
+      viewBox="0 0 160 140"
       className="eval-breakdown-gauge"
     >
       {/* Background arc */}

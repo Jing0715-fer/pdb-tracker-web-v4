@@ -64,6 +64,11 @@ export interface EvaluationViewProps {
   onSetEvalSubView: (v: 'default' | 'compare' | 'dashboard' | 'timeline' | 'batch') => void;
   onSetEvalDetailTab: (tab: string) => void;
   onSetSelectedEvalStructure: (s: any) => void;
+  // Batch detail integration
+  selectedBatchId?: string | null;
+  batchFetchedEvals?: Record<string, Evaluation>;
+  onSelectSubTarget?: (uniprotId: string) => void;
+  onOpenBatchReport?: (batchId: string, title: string) => void;
 }
 
 // ─── Literature View ─────────────────────────────────────────────────────────
