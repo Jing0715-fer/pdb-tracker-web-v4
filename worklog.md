@@ -882,3 +882,25 @@ Stage Summary:
 - Tab order: ① 评估 (default) / ② 文献 / ③ 周报.
 - Eval module supports N UniProt IDs with independent params per target; batch mode badge shown when >1; runEvaluation sends targets[] + isBatch for backend batch grouping + cross-target relationship analysis.
 - Lint passes. Server stable (HTTP 200, 18ms).
+
+---
+Task ID: eval-single-row-and-history-improvements
+Agent: main (Z.ai Code)
+Task: 1) History report buttons not clickable/openable + explain purple icon, 2) Put 添加靶点/执行/UniProt/maxPdb/BLAST all on one row.
+
+Work Log:
+- Issue 1 — History report buttons:
+  - Root cause: clicking a history report only called setLitDate(r.date) with no feedback — user didn't know anything happened. The reports are demo data (API returns mock dates), so "opening" a report means loading that date's config for re-running.
+  - Fix: Added toast notification on click ("已加载 {date} 的配置 — N 篇文献 · 含 LLM 摘要"). Added active state highlighting (sky-blue border/bg) when the clicked date matches litDate. Updated tooltip to "（点击加载该日期配置）".
+  - Purple ✨ icon: Added a legend in the history header — "✨ = 有 LLM 摘要" inline next to "历史报告 (N 天)" so users understand the icon means the report has an LLM digest.
+- Issue 2 — Single-row layout for eval inputs + buttons:
+  - Root cause: flex-wrap allowed elements to wrap to 2+ rows. ToggleChips had long labels ("强制 BLAST" / "跳过 BLAST"). maxPdb/BLAST inputs were w-20 (80px). 添加靶点 button had text label.
+  - Fix: Removed flex-wrap (no wrapping). Tightened gap-2 → gap-1.5. Shortened ToggleChip labels: "强制 BLAST" → "强制", "跳过 BLAST" → "跳过". Reduced maxPdb/BLAST input width w-20 → w-16. Shortened "BLAST 上限" label → "BLAST". Made 添加靶点 button icon-only (Plus icon, w-8 p-0) with title tooltip. Simplified batch badge to just "Batch" (removed "· N 靶点" text, kept title tooltip).
+  - All elements (UniProt ID, maxPdb, BLAST, 强制, 跳过, +, Batch badge, 执行) now on ONE row.
+  - VLM verified: 8/10 — "ALL on ONE single row".
+- Rebuilt standalone, deployed. Browser-verified.
+
+Stage Summary:
+- History report buttons now give click feedback (toast + active highlight) and have a legend explaining the purple ✨ icon = "有 LLM 摘要".
+- Eval module: all inputs + buttons on one row (UniProt, maxPdb, BLAST, 强制, 跳过, +, Batch, 执行). VLM 8/10.
+- Lint passes. Server stable.

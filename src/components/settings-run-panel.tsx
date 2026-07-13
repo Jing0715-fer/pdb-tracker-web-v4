@@ -1743,48 +1743,48 @@ export function SettingsRunPanel({
               >
                 <div className="space-y-2 mb-3">
                   {evalTargets.map((t, i) => (
-                    <div key={i} className="flex items-end gap-2 flex-wrap">
-                      <div className="flex-1 min-w-[120px]">
+                    <div key={i} className="flex items-end gap-1.5">
+                      <div className="flex-1 min-w-[100px]">
                         <Field label={evalTargets.length > 1 ? `UniProt ID ${i + 1}` : 'UniProt ID'}>
                           <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 text-xs font-mono" />
                         </Field>
                       </div>
-                      <div className="w-20">
+                      <div className="w-16 shrink-0">
                         <Field label="maxPdb">
                           <Input type="number" min={1} max={500} value={t.maxPdb} onChange={e => updateEvalTarget(i, 'maxPdb', parseInt(e.target.value || '80'))} className="h-8 text-xs" />
                         </Field>
                       </div>
-                      <div className="w-20">
-                        <Field label="BLAST 上限">
+                      <div className="w-16 shrink-0">
+                        <Field label="BLAST">
                           <Input type="number" min={1} max={500} value={t.maxBlastHits} onChange={e => updateEvalTarget(i, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 text-xs" />
                         </Field>
                       </div>
-                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制 BLAST" disabled={t.skipBlast} />
-                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过 BLAST" disabled={t.forceBlast} />
+                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制" disabled={t.skipBlast} />
+                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过" disabled={t.forceBlast} />
                       {evalTargets.length > 1 && (
                         <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title="移除此靶点">
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       )}
+                      {i === 0 && (
+                        <>
+                          <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title="添加靶点">
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                          {evalTargets.length > 1 && (
+                            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title="多靶点批量评估 + 相关性分析">
+                              <Layers className="h-2 w-2" /> Batch
+                            </Badge>
+                          )}
+                          <RunButton
+                            running={isRunning('eval')}
+                            onClick={runEvaluation}
+                            onCancel={() => evalStream.cancel()}
+                          />
+                        </>
+                      )}
                     </div>
                   ))}
-                  <div className="flex items-center gap-2">
-                    <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={addEvalTarget}>
-                      <Plus className="h-3 w-3" /> 添加靶点
-                    </Button>
-                    {evalTargets.length > 1 && (
-                      <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
-                        <Layers className="h-2 w-2" /> Batch 模式 · {evalTargets.length} 靶点 · 含相关性分析
-                      </Badge>
-                    )}
-                    <div className="ml-auto">
-                      <RunButton
-                        running={isRunning('eval')}
-                        onClick={runEvaluation}
-                        onCancel={() => evalStream.cancel()}
-                      />
-                    </div>
-                  </div>
                 </div>
 
                 <StreamFeed
@@ -1909,21 +1909,31 @@ export function SettingsRunPanel({
                   <div className="mt-3 pt-3 border-t border-border/40">
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       <FileText className="h-3 w-3" /> 历史报告 ({litExistingReports.length} 天)
+                      <span className="normal-case tracking-normal text-muted-foreground/60 flex items-center gap-0.5 ml-1" title="带 ✨ 图标的日期已生成 LLM 摘要">
+                        <Sparkles className="h-2.5 w-2.5 text-purple-400" /> = 有 LLM 摘要
+                      </span>
                     </div>
                     <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                      {litExistingReports.slice(0, 30).map(r => (
-                        <button
-                          key={r.date}
-                          type="button"
-                          onClick={() => setLitDate(r.date)}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border border-border/60 hover:bg-accent/50 text-muted-foreground hover:text-foreground transition-colors"
-                          title={`${r.date} — ${r.paperCount} 篇${r.hasLLMDigest ? ' (有 LLM 摘要)' : ''}`}
-                        >
-                          <span className="font-mono">{r.date.slice(5)}</span>
-                          <span className="opacity-60">{r.paperCount || '?'}</span>
-                          {r.hasLLMDigest && <Sparkles className="h-2.5 w-2.5 text-purple-400" />}
-                        </button>
-                      ))}
+                      {litExistingReports.slice(0, 30).map(r => {
+                        const isActive = litDate === r.date;
+                        return (
+                          <button
+                            key={r.date}
+                            type="button"
+                            onClick={() => { setLitDate(r.date); toast.success(`已加载 ${r.date} 的配置`, { description: `${r.paperCount} 篇文献${r.hasLLMDigest ? ' · 含 LLM 摘要' : ''}` }); }}
+                            className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border transition-colors ${
+                              isActive
+                                ? 'border-sky-500/50 bg-sky-500/10 text-sky-600 dark:text-sky-300'
+                                : 'border-border/60 hover:bg-accent/50 text-muted-foreground hover:text-foreground'
+                            }`}
+                            title={`${r.date} — ${r.paperCount} 篇${r.hasLLMDigest ? ' · 有 LLM 摘要' : ''}（点击加载该日期配置）`}
+                          >
+                            <span className="font-mono">{r.date.slice(5)}</span>
+                            <span className="opacity-60">{r.paperCount || '?'}</span>
+                            {r.hasLLMDigest && <Sparkles className="h-2.5 w-2.5 text-purple-400" />}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
