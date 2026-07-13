@@ -1612,7 +1612,7 @@ export function SettingsRunPanel({
                       placeholder="cli:hermes | cli:claude | cli:codex | anthropic | openai | (空=auto)"
                       value={llmCfg.provider}
                       onChange={e => setLlmCfg({ ...llmCfg, provider: e.target.value })}
-                      className="h-8 text-xs mt-1 font-mono"
+                      className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                   <div>
@@ -1622,7 +1622,7 @@ export function SettingsRunPanel({
                       placeholder="sk-…"
                       value={llmCfg.apiKey}
                       onChange={e => setLlmCfg({ ...llmCfg, apiKey: e.target.value })}
-                      className="h-8 text-xs mt-1"
+                      className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                   <div>
@@ -1631,7 +1631,7 @@ export function SettingsRunPanel({
                       placeholder="https://api.openai.com/v1"
                       value={llmCfg.baseUrl}
                       onChange={e => setLlmCfg({ ...llmCfg, baseUrl: e.target.value })}
-                      className="h-8 text-xs mt-1"
+                      className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                   <div>
@@ -1640,7 +1640,7 @@ export function SettingsRunPanel({
                       placeholder="claude-sonnet-4-20250514 / gpt-4o-mini"
                       value={llmCfg.model}
                       onChange={e => setLlmCfg({ ...llmCfg, model: e.target.value })}
-                      className="h-8 text-xs mt-1"
+                      className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                   <div>
@@ -1649,7 +1649,7 @@ export function SettingsRunPanel({
                       placeholder="(可选) 系统提示"
                       value={llmCfg.system}
                       onChange={e => setLlmCfg({ ...llmCfg, system: e.target.value })}
-                      className="h-8 text-xs mt-1"
+                      className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                 </div>
@@ -1710,7 +1710,7 @@ export function SettingsRunPanel({
                 value={dbPath}
                 onChange={e => setDbPath(e.target.value)}
                 placeholder="file:./db/custom.db"
-                className="h-8 text-xs font-mono flex-1 min-w-0"
+                className="h-8 px-2 text-xs md:text-xs font-mono flex-1 min-w-0"
               />
               <Button
                 variant="outline"
@@ -1766,21 +1766,21 @@ export function SettingsRunPanel({
 
         {/* ── Tabbed module panels ─────────────────────────────────────── */}
         <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
-            <TabsList className="grid w-full grid-cols-3 h-9 bg-muted/40">
-              <TabsTrigger value="evaluation" className="text-xs gap-1.5">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-2">
+            <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
+              <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
                 <FlaskConical className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">① 评估</span>
                 <span className="sm:hidden">①</span>
                 {isRunning('eval') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
-              <TabsTrigger value="literature" className="text-xs gap-1.5">
+              <TabsTrigger value="literature" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
                 <BookOpen className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">② 文献</span>
                 <span className="sm:hidden">②</span>
                 {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
-              <TabsTrigger value="weekly" className="text-xs gap-1.5">
+              <TabsTrigger value="weekly" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
                 <CalendarClock className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">③ 周报</span>
                 <span className="sm:hidden">③</span>
@@ -1789,7 +1789,7 @@ export function SettingsRunPanel({
             </TabsList>
 
             {/* ═══ Module ① Target Evaluation ═══════════════════════════ */}
-            <TabsContent value="evaluation" className="mt-3">
+            <TabsContent value="evaluation" className="mt-2">
               <ModuleCard
                 icon={<FlaskConical className="h-4 w-4" />}
                 accent="emerald"
@@ -1818,17 +1818,17 @@ export function SettingsRunPanel({
                       )}
                       <div className="w-28 shrink-0">
                         <Field label={evalTargets.length > 1 ? `UniProt ID ${i + 1}` : 'UniProt ID'}>
-                          <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 text-xs font-mono" />
+                          <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
                       <div className="w-16 shrink-0">
                         <Field label="maxPdb">
-                          <Input type="number" min={1} max={500} value={t.maxPdb} onChange={e => updateEvalTarget(i, 'maxPdb', parseInt(e.target.value || '80'))} className="h-8 text-xs" />
+                          <Input type="number" min={1} max={500} value={t.maxPdb} onChange={e => updateEvalTarget(i, 'maxPdb', parseInt(e.target.value || '80'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
                       <div className="w-16 shrink-0">
                         <Field label="BLAST">
-                          <Input type="number" min={1} max={500} value={t.maxBlastHits} onChange={e => updateEvalTarget(i, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 text-xs" />
+                          <Input type="number" min={1} max={500} value={t.maxBlastHits} onChange={e => updateEvalTarget(i, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
                       <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制BLAST" disabled={t.skipBlast} />
@@ -1900,7 +1900,7 @@ export function SettingsRunPanel({
             </TabsContent>
 
             {/* ═══ Module ② Daily Literature ═══════════════════════════ */}
-            <TabsContent value="literature" className="mt-3">
+            <TabsContent value="literature" className="mt-2">
               <ModuleCard
                 icon={<BookOpen className="h-4 w-4" />}
                 accent="sky"
@@ -1911,19 +1911,19 @@ export function SettingsRunPanel({
               >
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
                   <Field label="日期">
-                    <Input type="date" value={litDate} onChange={e => setLitDate(e.target.value)} className="h-8 text-xs" />
+                    <Input type="date" value={litDate} onChange={e => setLitDate(e.target.value)} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                   <Field label="±窗口天数">
-                    <Input type="number" min={0} max={7} value={litWindowDays} onChange={e => setLitWindowDays(parseInt(e.target.value || '3'))} className="h-8 text-xs" />
+                    <Input type="number" min={0} max={7} value={litWindowDays} onChange={e => setLitWindowDays(parseInt(e.target.value || '3'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                   <Field label="Path A 上限">
-                    <Input type="number" min={10} max={1000} value={litMaxPathA} onChange={e => setLitMaxPathA(parseInt(e.target.value || '300'))} className="h-8 text-xs" />
+                    <Input type="number" min={10} max={1000} value={litMaxPathA} onChange={e => setLitMaxPathA(parseInt(e.target.value || '300'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                   <Field label="Path B 上限">
-                    <Input type="number" min={5} max={200} value={litMaxPathB} onChange={e => setLitMaxPathB(parseInt(e.target.value || '50'))} className="h-8 text-xs" />
+                    <Input type="number" min={5} max={200} value={litMaxPathB} onChange={e => setLitMaxPathB(parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                   <Field label="最终入选上限">
-                    <Input type="number" min={1} max={100} value={litMaxPapers} onChange={e => setLitMaxPapers(parseInt(e.target.value || '20'))} className="h-8 text-xs" />
+                    <Input type="number" min={1} max={100} value={litMaxPapers} onChange={e => setLitMaxPapers(parseInt(e.target.value || '20'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                 </div>
 
@@ -2030,7 +2030,7 @@ export function SettingsRunPanel({
             </TabsContent>
 
             {/* ═══ Module ③ PDB Weekly ═════════════════════════════════ */}
-            <TabsContent value="weekly" className="mt-3">
+            <TabsContent value="weekly" className="mt-2">
               <ModuleCard
                 icon={<CalendarClock className="h-4 w-4" />}
                 accent="amber"
@@ -2335,7 +2335,7 @@ function InfoTile({ label, value, icon }: { label: string; value: string; icon?:
       <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
         {icon}{label}
       </Label>
-      <div className="mt-1 h-8 px-2 rounded-md border border-border/60 bg-muted/30 flex items-center font-mono text-xs text-foreground/80 truncate">
+      <div className="mt-1 h-8 px-2 rounded-md border border-border/60 bg-background flex items-center font-mono text-xs text-foreground truncate">
         {value}
       </div>
     </div>

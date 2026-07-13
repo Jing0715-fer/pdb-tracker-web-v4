@@ -1039,3 +1039,29 @@ Stage Summary:
 - History report click now fetches and displays LLM digest inline (was just setting date).
 - Network errors now show friendly Chinese message explaining server crash + auto-restart.
 - Lint passes. Server stable.
+
+---
+Task ID: unify-fonts-and-beautify-tabs
+Agent: main (Z.ai Code)
+Task: Unify all input box fonts/sizes/heights to match ISO Week, beautify 3 tabs, reduce gap below tabs.
+
+Work Log:
+- Unified all Input components to match ISO Week reference style (h-8 px-2 text-xs font-mono):
+  - Added `px-2 font-mono` to all Input className (was missing — shadcn default uses px-3 non-mono).
+  - Added `md:text-xs` to override shadcn's default `md:text-sm` (14px) which was overriding `text-xs` (12px) on desktop. This was the root cause of font size inconsistency — the md: media query had higher specificity.
+  - Updated dbPath input (was missing px-2), eval uniprot input, all LLM config inputs, all literature inputs.
+  - DOM-verified: all inputs now h=32px, fs=12px, pl=8px (px-2). Fully consistent.
+- Unified InfoTile value box: bg-muted/30 text-foreground/80 → bg-background text-foreground (matches input style).
+- Beautified 3 tabs:
+  - TabsList: h-9 bg-muted/40 → h-10 bg-muted/50 rounded-lg p-1 gap-1 (taller, more padding, rounded).
+  - TabsTrigger: added rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all (clear active state with shadow, hover effect).
+  - Tabs gap: gap-3 → gap-2 (tighter).
+  - TabsContent margin: mt-3 → mt-2 (reduced gap below tabs).
+- VLM verified: 8/10 — "tabs have rounded corners + active shadow, gap appropriate, input boxes consistent height/font."
+
+Stage Summary:
+- All input boxes unified: h-8 (32px), text-xs (12px), font-mono, px-2 (8px padding). DOM-verified identical across all 3 modules.
+- Tabs beautified: h-10, rounded-lg, active state with bg-background + shadow-sm, hover effect, font-medium.
+- Gap below tabs reduced: gap-3→gap-2, mt-3→mt-2.
+- InfoTile value boxes match input style (bg-background, text-foreground).
+- VLM: 8/10. Lint passes. Server stable.
