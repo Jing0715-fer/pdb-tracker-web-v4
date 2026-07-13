@@ -1244,3 +1244,25 @@ Stage Summary:
 - Text sizes slightly increased (8px → 9px) for readability.
 - All flex items have flex-shrink-0 to prevent layout issues.
 - VLM: collapsed 9/10, expanded 8/10. Lint passes. Server stable.
+
+---
+Task ID: fix-sidebar-batch-overlap-v2
+Agent: main (Z.ai Code)
+Task: UI text still overlapping in Evaluation Batches sidebar — root cause was CSS max-height animation, not spacing.
+
+Work Log:
+- VLM confirmed: "P04626 Receptor tyrosine-protein kinase" and "P00533 Epidermal growth factor receptor" literally rendered on top of each other (not just close spacing).
+- Root cause: EvalModeSwitcher.tsx used CSS classes `eval-section-expand` (max-height:2000px) / `eval-section-collapse` (max-height:0, opacity:0) for both the batch section and sub-targets. The max-height transition caused content to remain in DOM layout flow and visually overlap during/after animation. `max-height:0` with `overflow:hidden` hides content visually but the element still occupies space in some edge cases, causing overlap with adjacent batch entries.
+- Fix: Replaced CSS class-based show/hide with React conditional rendering (`{isExpanded && (...)}`) for both:
+  1. The entire batch section (`{batchOpen && (...)}`)
+  2. Sub-targets within each batch (`{isExpanded && (...)}`)
+  This uses `display:none` equivalent (element removed from DOM) instead of max-height animation, completely eliminating overlap.
+- Also: Added `flex-shrink-0` to uniprotId span, `gap-1` to flex container, `min-w-0` for truncation.
+- Fixed DB config issue: .hermes config was lost during build, server fell back to db/custom.db (old schema). Recreated .hermes config pointing to my-pdb-tracker1.db with correct schema.
+- VLM verified: "Two separate rows for P00533 and P04626, clearly displayed in own row, no overlapping text." Score: 8/10.
+
+Stage Summary:
+- Overlap fixed by replacing CSS max-height animation with React conditional rendering (display:none equivalent).
+- Both batch section toggle and sub-target expand now use `{condition && (...)}` instead of CSS classes.
+- DB config restored.
+- VLM: 8/10, no overlapping text. Lint passes. Server stable.

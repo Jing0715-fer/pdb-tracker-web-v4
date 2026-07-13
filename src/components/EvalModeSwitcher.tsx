@@ -277,7 +277,8 @@ export function EvalModeSwitcher({
                 <TooltipContent side="right"><p>{batchOpen ? 'Collapse' : 'Expand'} evaluation batches</p></TooltipContent>
               </Tooltip>
 
-              <div className={batchOpen ? 'eval-section-expand' : 'eval-section-collapse'}>
+              {batchOpen && (
+              <div>
                 <div className="space-y-1 px-1 pt-1">
                   {filteredBatches.length === 0 ? (
                     <p className="text-[11px] text-claude-text-muted px-2 py-3 text-center">
@@ -320,8 +321,8 @@ export function EvalModeSwitcher({
                           </button>
 
                           {/* Sub-targets */}
-                          <div className={isExpanded ? 'eval-section-expand' : 'eval-section-collapse'}>
-                            <div className="ml-3 pl-3 border-l-2 border-claude-border-light dark:border-[#2b2926] space-y-0.5 py-1">
+                          {isExpanded && (
+                          <div className="ml-3 pl-3 border-l-2 border-claude-border-light dark:border-[#2b2926] space-y-1 py-1">
                               {subTargets.map((st) => {
                                 const isSelected = selectedUniprotId === st.uniprotId;
                                 return (
@@ -334,13 +335,12 @@ export function EvalModeSwitcher({
                                         : 'hover:bg-claude-border-light dark:hover:bg-[#2b2926] text-claude-text-secondary'
                                     }`}
                                   >
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between gap-1">
                                       <div className="min-w-0 flex-1">
-                                        <span className="font-mono text-[10px] text-claude-accent/80 mr-1">
+                                        <span className="font-mono text-[10px] text-claude-accent/80 mr-1 flex-shrink-0">
                                           {st.uniprotId}
                                         </span>
-                                        <span className="truncate">{st.proteinName}</span>
-                                      </div>
+                                        <span className="truncate">{st.proteinName}</span>                                      </div>
                                       <div className="flex items-center gap-1.5 flex-shrink-0 ml-1">
                                         <span className="text-[9px] text-claude-cryoem">
                                           {st.pdbCount}P
@@ -362,13 +362,14 @@ export function EvalModeSwitcher({
                                 );
                               })}
                             </div>
-                          </div>
+                          )}
                         </div>
                       );
                     })
                   )}
                 </div>
               </div>
+              )}
             </div>
           </>
         )}
