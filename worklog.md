@@ -955,3 +955,28 @@ Stage Summary:
 - ISO Week is now a native week picker (<input type="week">) — users can select any custom week. Reset button clears back to current week. runWeekly sends weekId override.
 - z.ai SDK pill added as a permanent LLM provider option (always visible, sky-blue styled, "SDK" tag). Clicking locks provider to 'zai' for LLM testing via z-ai-web-dev-sdk.
 - Lint passes. Server stable.
+
+---
+Task ID: weekly-weekid-override-and-zai-backend
+Agent: main (Z.ai Code)
+Task: 1) Weekly run ignores custom weekId (still runs W29 when W28 selected), 2) z.ai SDK provider not recognized by backend.
+
+Work Log:
+- Issue 1 — Weekly weekId override:
+  - Root cause: POST /api/pdb-weekly/run always used `const window = isoWeek(new Date())` — ignored body.weekId entirely. Also generateText() was called without passing body.llm config.
+  - Fix: Added `isoWeekFromId(weekId)` helper that computes start/end/report dates from an ISO week id (e.g. "2026-W28" → 2026-07-06 to 2026-07-12). In POST, parse body.weekId (validated as "YYYY-Www" regex), use isoWeekFromId when present, else fall back to current week. Now RCSB fetch + DB writes + LLM prompts all use the custom week.
+  - Verified: POST with weekId="2026-W28" → log shows "启动 pdb-weekly · 2026-W28" and "RCSB 检索 2026-07-06 → 2026-07-12" (week 28 dates, not week 29).
+- Issue 2 — z.ai SDK backend provider:
+  - Root cause: decideProviderOrder treated 'zai' as 'auto' (line 923: `requested === 'zai'` returned all-auto). There was no callZai handler in callAnyLlm, so z.ai was never actually called — it fell through to CLI/anthropic/openai which all failed.
+  - Fix (independent branch, does NOT modify existing CLI/SDK agent logic):
+    1. Added `callZai()` function in llm.ts — uses z-ai-web-dev-sdk (ZAI.create() → chat.completions.create with model glm-4.6, thinking disabled). No API key needed.
+    2. Added `zai` handler block in callAnyLlm (after openai block) — calls callZai, returns result with provider='zai', model='glm-4.6'.
+    3. Updated decideProviderOrder: removed `requested === 'zai'` from the auto-fallback condition; added `auto.push({ id: 'zai', fallback: requested !== 'zai' })` so z.ai is always available as a candidate and is promoted to first when requested.
+  - Also fixed llm config passing: weekly route generateText() now passes `llm: body.llm` (was missing). Literature route generateText() now passes `llm: body.llm` (was missing). Eval route now passes `llm: body.llm` (was only `{ provider, model }`, losing apiKey/baseUrl).
+  - Verified: POST /api/evaluations/run with llm.provider=zai → "✓ LLM 分章生成完成 · 8/8 章节 · 3496 chars · 96.2s · zai/hermes" and "完成 · LLM ✓". z.ai SDK generates real content.
+
+Stage Summary:
+- Weekly module: custom ISO week now correctly applied (W28 → RCSB fetches week 28 dates, DB writes week 28, LLM prompt uses week 28).
+- z.ai SDK: added as independent LLM provider in backend (callZai + handler + provider order). No API key needed. Verified generating real LLM content (8/8 chapters, 3496 chars). Existing CLI/SDK agent logic untouched.
+- All 3 modules (weekly/literature/eval) now correctly pass body.llm config to generateText.
+- Lint passes. Server stable.

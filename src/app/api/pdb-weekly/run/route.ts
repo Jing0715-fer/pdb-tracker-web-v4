@@ -16,6 +16,31 @@ function isoWeek(d: Date) {
   const pad = (n: number) => String(n).padStart(2, '0');
   return { weekId: `${tmp.getUTCFullYear()}-W${pad(weekNo)}`, startDate: start.toISOString().slice(0, 10), endDate: end.toISOString().slice(0, 10), reportDate: report.toISOString().slice(0, 10) };
 }
+/** Compute the week window (start/end/report dates) from an ISO week id like "2026-W28". */
+function isoWeekFromId(weekId: string) {
+  const m = /^(\d{4})-W(\d{2})$/.exec(weekId);
+  if (!m) return isoWeek(new Date());
+  const year = parseInt(m[1], 10);
+  const week = parseInt(m[2], 10);
+  // ISO 8601: week 1 is the week with the year's first Thursday.
+  // Simple algorithm: Jan 4 is always in week 1.
+  const jan4 = new Date(Date.UTC(year, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const week1Monday = new Date(jan4);
+  week1Monday.setUTCDate(jan4.getUTCDate() - (jan4Day - 1));
+  const weekMonday = new Date(week1Monday);
+  weekMonday.setUTCDate(week1Monday.getUTCDate() + (week - 1) * 7);
+  const start = weekMonday;
+  const end = new Date(start); end.setUTCDate(start.getUTCDate() + 6);
+  const report = new Date(end); report.setUTCDate(end.getUTCDate() + 1);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    weekId,
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+    reportDate: report.toISOString().slice(0, 10),
+  };
+}
 export async function GET() {
   const w = isoWeek(new Date());
   let pdbStructureCount = 0, weeklyReportCount = 0;
@@ -27,7 +52,12 @@ export async function POST(req: Request) {
   const maxCycles: 1 | 2 | 3 = ([1, 2, 3].includes(Number(body.maxCycles)) ? Number(body.maxCycles) : 2) as 1 | 2 | 3;
   const provider = body.llm?.provider || 'cli:hermes';
   const model = body.llm?.model || 'hermes';
-  const window = isoWeek(new Date());
+  // Allow custom ISO week override (format "YYYY-Www"). Compute the week's
+  // start/end/report dates from the weekId so RCSB fetch + DB writes target
+  // the correct week. Falls back to current week when not provided.
+  const currentWindow = isoWeek(new Date());
+  const customWeekId: string | undefined = typeof body.weekId === 'string' && /^\d{4}-W\d{2}$/.test(body.weekId) ? body.weekId : undefined;
+  const window = customWeekId ? isoWeekFromId(customWeekId) : currentWindow;
   const { stream, progress, done } = sseStream();
   (async () => {
     const t0 = Date.now();
@@ -141,7 +171,7 @@ ${pdbSummary}
 请严格按照模板生成完整 8 章节报告。`;
         }
 
-        const r = await generateText(systemPrompt, userPrompt, { maxChars: 4000 });
+        const r = await generateText(systemPrompt, userPrompt, { maxChars: 4000, llm: body.llm });
         cycleContent = r.content;
         llmOk = r.ok;
         llmModel = r.model;

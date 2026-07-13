@@ -890,6 +890,25 @@ async function callAnyLlm(
         continue;
       }
     }
+    // ── z.ai SDK (independent branch, no API key needed) ──
+    if (id === 'zai') {
+      try {
+        const t0 = Date.now();
+        const text = await callZai(prompt, cfg.system, cfg.model);
+        return {
+          ok: true,
+          content: text,
+          text,
+          provider: id,
+          model: cfg.model || 'glm-4.6',
+          durationMs: Date.now() - t0,
+          fallback: item.fallback,
+        };
+      } catch (err: any) {
+        errors.push(`zai: ${err?.message ?? String(err)}`);
+        continue;
+      }
+    }
   }
 
   return {
@@ -919,8 +938,10 @@ function decideProviderOrder(requested: string, _model?: string): OrderedProvide
   for (const id of cliIds) auto.push({ id, via: 'wsl', fallback: requested !== id });
   auto.push({ id: 'anthropic', fallback: true });
   auto.push({ id: 'openai', fallback: true });
+  // z.ai SDK — always available as a fallback candidate (independent of CLI/SDK agents)
+  auto.push({ id: 'zai', fallback: requested !== 'zai' });
 
-  if (!requested || requested === 'auto' || requested === 'zai') {
+  if (!requested || requested === 'auto') {
     return auto.map((p) => ({ ...p, fallback: false }));
   }
   // Promote requested to first.
@@ -1045,6 +1066,27 @@ async function callOpenai(prompt: string, system?: string, model?: string): Prom
       ...(system ? [{ role: 'system' as const, content: system }] : []),
       { role: 'user' as const, content: prompt },
     ],
+  });
+  return resp.choices?.[0]?.message?.content || '';
+}
+
+/**
+ * z.ai SDK — independent LLM provider using z-ai-web-dev-sdk.
+ *
+ * This is a SEPARATE branch that does NOT touch the existing CLI/SDK agent
+ * discovery or call logic. It uses the built-in z-ai-web-dev-sdk to call
+ * GLM models. No API key configuration needed — the SDK handles auth
+ * internally. Intended for temporary LLM testing.
+ */
+async function callZai(prompt: string, system?: string, model?: string): Promise<string> {
+  const ZAI = (await import('z-ai-web-dev-sdk')).default;
+  const zai = await ZAI.create();
+  const resp = await zai.chat.completions.create({
+    model: model || 'glm-4.6',
+    messages: [
+      ...(system ? [{ role: 'system' as const, content: system }] : []),
+      { role: 'user' as const, content: prompt }],
+    thinking: { type: 'disabled' as const },
   });
   return resp.choices?.[0]?.message?.content || '';
 }

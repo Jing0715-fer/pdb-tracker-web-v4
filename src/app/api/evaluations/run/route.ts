@@ -177,7 +177,7 @@ export async function POST(req: Request) {
           const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
 
           const t0 = Date.now();
-          const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: { provider, model } });
+          const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
           if (r.ok) {
             perChapterOkCount++;
             chapterContents[ck] = r.content;
