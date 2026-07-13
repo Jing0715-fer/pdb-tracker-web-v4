@@ -674,3 +674,20 @@ Stage Summary:
 - Database "未初始化" fixed: schema initialized in user's new DB, badge now shows "表结构 16" (green).
 - "Using cached data (API unavailable)" fixed: all APIs return 200, no more fallback to sample data.
 - ESLint passes (0 errors). Standalone server stable (110MB RSS, 4ms response).
+
+---
+Task ID: db-dialog-vertical-centering
+Agent: main (Z.ai Code)
+Task: The '数据库初始化设置' (Database Init Settings) dialog had too little space above it (cramped at top), making the page look uncoordinated. Fix the vertical positioning.
+
+Work Log:
+- Root cause: db-setup-wizard.tsx line 275 had `style={{ marginTop: "4rem", marginBottom: "2rem" }}` on DialogContent. This overrode the default Radix dialog vertical centering (top-[50%] translate-y-[-50%]), pushing the dialog toward the top with only ~4rem gap, leaving the layout top-heavy and unbalanced.
+- Fix: Removed the inline `style={{ marginTop: "4rem", marginBottom: "2rem" }}` override, letting the dialog use its default vertical centering (same as the Run Center dialog which looks coordinated).
+- Rebuilt standalone, copied assets, reinitialized DB schema (build reset the standalone dir), recreated .hermes config.
+- Temporarily set confirmed=false to trigger the dialog, captured screenshot, VLM verified positioning: 9/10 — "vertically centered, balanced whitespace above and below, coordinated layout". Top gap now matches bottom gap.
+- Restored confirmed=true config, restarted server. All APIs 200, lint passes.
+
+Stage Summary:
+- Database Init Settings dialog now vertically centered (was top-aligned with 4rem marginTop). Matches the Run Center dialog's positioning.
+- VLM score: 9/10 for vertical positioning (was "too close to top, cramped, uncoordinated").
+- No logic changes — only removed the inline marginTop/marginBottom override on DialogContent.

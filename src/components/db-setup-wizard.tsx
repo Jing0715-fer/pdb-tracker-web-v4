@@ -272,7 +272,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip }: DbSetupW
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && allowSkip && onClose) onClose() }}>
-      <DialogContent className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0" style={{ marginTop: "4rem", marginBottom: "2rem" }}>
+      <DialogContent className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0">
         <DialogHeader className="px-6 pt-3 pb-5 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base leading-none">
             <Database className="h-4 w-4 text-amber-500" />
