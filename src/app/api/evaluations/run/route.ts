@@ -16,12 +16,17 @@ function buildPdbTableFromReal(details: PdbEntryDetail[]): string {
 
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
-  const uniprot = (body.uniprot || 'P00533').trim().toUpperCase();
-  const forceBlast = !!body.forceBlast;
-  const skipBlast = !!body.skipBlast;
-  const maxPdb = Number(body.maxPdb ?? 80);
+  // Support both flat fields (single target) and targets[] array (batch mode).
+  // When targets[] is present, use the first target's params for the primary
+  // evaluation. Batch mode iterates over all targets after the primary.
+  const targets: Array<{ uniprot: string; forceBlast?: boolean; skipBlast?: boolean; maxPdb?: number; maxBlastHits?: number }> = Array.isArray(body.targets) ? body.targets : [];
+  const primaryTarget = targets[0] || {};
+  const uniprot = (body.uniprot || primaryTarget.uniprot || 'P00533').trim().toUpperCase();
+  const forceBlast = !!(body.forceBlast ?? primaryTarget.forceBlast);
+  const skipBlast = !!(body.skipBlast ?? primaryTarget.skipBlast);
+  const maxPdb = Number(body.maxPdb ?? primaryTarget.maxPdb ?? 80);
   // BLAST homolog cap. Default 50 (NCBI BLAST pdbaa typical sensible max). UI-configurable.
-  const maxBlastHits = Number(body.maxBlastHits ?? body.maxBlast ?? 50);
+  const maxBlastHits = Number(body.maxBlastHits ?? primaryTarget.maxBlastHits ?? body.maxBlast ?? 50);
   const generateReport = body.generateReport !== false;
   const saveReportFile = body.saveReportFile !== false;
   // Default to hermes CLI (no z-ai — this app must run without z-ai-web-dev-sdk).

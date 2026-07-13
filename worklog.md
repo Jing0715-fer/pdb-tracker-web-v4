@@ -1124,3 +1124,22 @@ Stage Summary:
 - 4 mock data sources fixed: fallback-data.ts (7 catch blocks), eval buildMockBlastTable, literature/daily/list, eval scores Math.random().
 - E2E verified: no mock data anywhere, all APIs return real (empty) data, Run Center + DB wizard fully functional.
 - Lint passes. Server stable (HTTP 200, 19ms).
+
+---
+Task ID: fix-skipBlast-ignored-in-batch-mode
+Agent: main (Z.ai Code)
+Task: User checked "跳过BLAST" but BLAST still ran. Find and fix the bug.
+
+Work Log:
+- Root cause: In runEvaluation (frontend), batch mode (isBatch=true) did NOT send flat forceBlast/skipBlast fields — only the targets[] array. The backend (evaluations/run/route.ts) only read body.forceBlast/body.skipBlast (flat fields), never body.targets[]. So in batch mode, skipBlast was undefined → !!undefined = false → BLAST always ran.
+- Fix 1 (backend): Updated evaluations/run/route.ts POST handler to read params from targets[0] when targets[] is present, falling back to flat fields: `const forceBlast = !!(body.forceBlast ?? primaryTarget.forceBlast)` etc.
+- Fix 2 (frontend): Updated runEvaluation to ALWAYS send flat fields (from targets[0]) regardless of isBatch, plus the targets[] array. This ensures backward compat and the backend always receives the params.
+- Verified: 
+  - Single target (flat fields only): "BLAST 已跳过 (skipBlast=true)" ✓
+  - Batch mode (targets[] only, no flat fields): "BLAST 已跳过 (skipBlast=true)" ✓ (was running BLAST before fix)
+
+Stage Summary:
+- skipBlast/forceBlast now correctly read from both flat fields AND targets[0] in the backend.
+- Frontend always sends flat fields (from first target) for backward compat.
+- Both single-target and batch modes now respect the skipBlast toggle.
+- Lint passes. Server stable.

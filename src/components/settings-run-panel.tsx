@@ -1281,15 +1281,13 @@ export function SettingsRunPanel({
       : `评估 ${targets[0].uniprot} — SSE streaming…`;
     log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary });
     evalStream.start('/api/evaluations/run', {
-      // Single target → flat fields (backward compatible).
-      // Multiple targets → targets[] array; backend creates a batch + cross analysis.
-      ...(isBatch ? {} : {
-        uniprot: targets[0].uniprot,
-        forceBlast: targets[0].forceBlast,
-        skipBlast: targets[0].skipBlast,
-        maxPdb: targets[0].maxPdb,
-        maxBlastHits: targets[0].maxBlastHits,
-      }),
+      // Always send flat fields (from first target) for backward compat,
+      // plus targets[] array for batch mode.
+      uniprot: targets[0].uniprot,
+      forceBlast: targets[0].forceBlast,
+      skipBlast: targets[0].skipBlast,
+      maxPdb: targets[0].maxPdb,
+      maxBlastHits: targets[0].maxBlastHits,
       targets,
       isBatch,
       generateReport: evalGenerateReport,
