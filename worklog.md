@@ -904,3 +904,28 @@ Stage Summary:
 - History report buttons now give click feedback (toast + active highlight) and have a legend explaining the purple ✨ icon = "有 LLM 摘要".
 - Eval module: all inputs + buttons on one row (UniProt, maxPdb, BLAST, 强制, 跳过, +, Batch, 执行). VLM 8/10.
 - Lint passes. Server stable.
+
+---
+Task ID: eval-layout-restructure
+Agent: main (Z.ai Code)
+Task: Restructure eval module — + button left of UniProt, multi-row alignment, Batch badge in title, full toggle labels, narrower UniProt.
+
+Work Log:
+- Added `headerBadge?: React.ReactNode` prop to ModuleCard. The Badge is rendered inline next to the title (in the flex items-center gap-2 container).
+- Moved the Batch badge from the inline row (was next to 执行) to the ModuleCard headerBadge — now appears next to "① 蛋白靶点评估 + LLM 可行性报告" title. Shows "Batch · N 靶点" with full tooltip.
+- Restructured the target row layout:
+  - Left slot: + (add) button on row 1 (i===0), × (remove) button on rows 2+. Both are h-8 w-8 p-0 — same width so all rows align.
+  - UniProt input: changed from flex-1 (fills remaining space, too wide) to fixed w-28 (112px, enough for "P00533"). shrink-0.
+  - maxPdb: w-16 (was w-20). BLAST: w-16 (was w-20). Both shrink-0.
+  - ToggleChip labels: restored full text "强制BLAST" and "跳过BLAST" (was abbreviated "强制"/"跳过").
+  - 执行 button: only on row 1, pushed right with ml-auto.
+- Row 2+ structure: [× remove] [UniProt ID 2] [maxPdb] [BLAST] [强制BLAST] [跳过BLAST] — all inputs align with row 1's corresponding inputs (same widths, same gap-1.5, same left offset via the w-8 button slot).
+- Rebuilt standalone, deployed. VLM verified: 10/10 — all 4 criteria met (Batch badge in title, row 1 has + + UniProt + params + 执行, row 2 aligned with row 1, full toggle labels).
+
+Stage Summary:
+- + button moved to LEFT of UniProt input (was right).
+- UniProt input narrowed to w-28 (was flex-1 filling all space).
+- Batch badge moved to card title (was inline with buttons).
+- Toggle labels show full "强制BLAST"/"跳过BLAST".
+- Multi-target rows align: × button occupies same slot as + button, all params same width.
+- VLM: 10/10. Lint passes. Server stable.

@@ -1740,11 +1740,26 @@ export function SettingsRunPanel({
                 title="蛋白靶点评估 + LLM 可行性报告"
                 endpoint="POST /api/evaluations/run"
                 description="UniProt → 元数据 + 序列 → RCSB 直接 PDB → SIFTS 覆盖率 → NCBI BLASTp 同源 → 评分 → 原子任务包含 LLM 报告生成（写入 Evaluation.report + EvaluationReport 表 + 可选 LLM-Wiki）。支持多个 UniProt ID 批量评估，自动归入 batch，并分析靶点间共有的结构与相关性。"
+                headerBadge={evalTargets.length > 1 ? (
+                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title="多靶点批量评估 + 相关性分析">
+                    <Layers className="h-2 w-2" /> Batch · {evalTargets.length} 靶点
+                  </Badge>
+                ) : null}
               >
                 <div className="space-y-2 mb-3">
                   {evalTargets.map((t, i) => (
                     <div key={i} className="flex items-end gap-1.5">
-                      <div className="flex-1 min-w-[100px]">
+                      {/* Left slot: + (add) on row 1, remove (×) on rows 2+, placeholder on row 1 if single */}
+                      {i === 0 ? (
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title="添加靶点">
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title="移除此靶点">
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <div className="w-28 shrink-0">
                         <Field label={evalTargets.length > 1 ? `UniProt ID ${i + 1}` : 'UniProt ID'}>
                           <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 text-xs font-mono" />
                         </Field>
@@ -1759,29 +1774,16 @@ export function SettingsRunPanel({
                           <Input type="number" min={1} max={500} value={t.maxBlastHits} onChange={e => updateEvalTarget(i, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 text-xs" />
                         </Field>
                       </div>
-                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制" disabled={t.skipBlast} />
-                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过" disabled={t.forceBlast} />
-                      {evalTargets.length > 1 && (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title="移除此靶点">
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      )}
+                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制BLAST" disabled={t.skipBlast} />
+                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过BLAST" disabled={t.forceBlast} />
                       {i === 0 && (
-                        <>
-                          <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title="添加靶点">
-                            <Plus className="h-3.5 w-3.5" />
-                          </Button>
-                          {evalTargets.length > 1 && (
-                            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title="多靶点批量评估 + 相关性分析">
-                              <Layers className="h-2 w-2" /> Batch
-                            </Badge>
-                          )}
+                        <div className="ml-auto shrink-0">
                           <RunButton
                             running={isRunning('eval')}
                             onClick={runEvaluation}
                             onCancel={() => evalStream.cancel()}
                           />
-                        </>
+                        </div>
                       )}
                     </div>
                   ))}
@@ -2173,6 +2175,7 @@ function ModuleCard({
   endpoint,
   description,
   children,
+  headerBadge,
 }: {
   icon: React.ReactNode;
   accent: keyof typeof ACCENT_CLASSES;
@@ -2181,6 +2184,7 @@ function ModuleCard({
   endpoint: string;
   description: string;
   children: React.ReactNode;
+  headerBadge?: React.ReactNode;
 }) {
   const a = ACCENT_CLASSES[accent];
   return (
@@ -2197,6 +2201,7 @@ function ModuleCard({
                 <span className="text-muted-foreground/60 mr-1">{index}</span>
                 {title}
               </h3>
+              {headerBadge}
             </div>
             <code className="text-xs text-muted-foreground font-mono">{endpoint}</code>
           </div>
