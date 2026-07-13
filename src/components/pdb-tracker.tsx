@@ -865,6 +865,7 @@ export default function PdbTracker() {
       title: title || batch.title || 'Batch Report',
       content: batch.combinedReport || '_(No cross-target report was generated for this batch.)_',
     });
+    setReportModalOpen(true);
   }, [evalBatches]);
 
   // Right-click → Delete Evaluation. Calls the DELETE endpoint, then refreshes
