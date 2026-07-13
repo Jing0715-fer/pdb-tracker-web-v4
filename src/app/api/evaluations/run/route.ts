@@ -94,8 +94,8 @@ export async function POST(req: Request) {
         emit({ stage: 'cache-hit', level: 'success', message: `✓ 缓存命中：参数与 PDB 数量未变（maxPdb=${maxPdb}, skipBlast=${skipBlast}, pdbCount=${directPdbCount}），跳过重新获取与报告生成`, progress: 34 });
         // Load existing PDB structures from DB instead of re-fetching from RCSB
         try {
-          const existingPdbs = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organisms, authors, ligands, depositDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${uniprot}`;
-          pdbDetails = (existingPdbs as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organisms, authors: e.authors, ligands: e.ligands, depositDate: e.depositDate, releaseDate: e.releaseDate }));
+          const existingPdbs = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organism, authors, ligand, depositionDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${uniprot}`;
+          pdbDetails = (existingPdbs as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organism, authors: e.authors, ligands: e.ligand, depositDate: e.depositionDate, releaseDate: e.releaseDate }));
         } catch { /* ignore */ }
         skipReportGeneration = true;
         emit({ stage: 'rcsb-detail', level: 'success', message: `✓ 从数据库加载 ${pdbDetails.length} 条已有 PDB 结构`, progress: 34 });
@@ -394,8 +394,8 @@ export async function POST(req: Request) {
               bCacheHit = true;
               emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 缓存命中（参数+PDB数未变），跳过重新获取`, progress: 100 });
               try {
-                const existing = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organisms, authors, ligands, depositDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
-                bPdbDetails = (existing as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organisms, authors: e.authors, ligands: e.ligands, depositDate: e.depositDate, releaseDate: e.releaseDate }));
+                const existing = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organism, authors, ligand, depositionDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
+                bPdbDetails = (existing as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organism, authors: e.authors, ligands: e.ligand, depositDate: e.depositionDate, releaseDate: e.releaseDate }));
               } catch {}
             } else {
               bPdbDetails = bDirectPdbCount > 0 ? await fetchPdbEntryDetails(bPdbIds) : [];

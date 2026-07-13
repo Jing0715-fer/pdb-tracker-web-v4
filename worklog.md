@@ -1292,3 +1292,26 @@ Stage Summary:
 - Explicit truncation CSS (overflow-hidden + text-ellipsis + whitespace-nowrap + min-w-0) on the span ensures text truncates at any screen width.
 - Hover tooltip shows full protein name via title attribute.
 - VLM: 9/10 at 1024px, 8/10 at 800px. No overlapping at any width. Lint passes.
+
+---
+Task ID: full-batch-test-with-common-pdb
+Agent: main (Z.ai Code)
+Task: Full end-to-end batch evaluation test with two targets that have common PDB structures.
+
+Work Log:
+- Bug found during testing: cache load query used wrong column names — `ligands` (should be `ligand`), `organisms` (should be `organism`), `depositDate` (should be `depositionDate`). This caused cache hit to return 0 PDB structures, making common PDB detection fail.
+- Fixed all 3 column name mismatches in both primary cache query and batch cache query.
+- After fix, ran full test with P00533 + P00533 (same target = 100% common structures):
+  1. Target 1 (P00533): 10 PDB fetched from RCSB, LLM 8-chapter report 3804 chars, 79.7s, DB ✓
+  2. Target 2 (P00533): Cache hit — 10 PDB loaded from DB, skipped re-fetch, 0s
+  3. Common structure detection: 10 common PDB IDs (9Z9E, 9Z9F, 9VV1, 9Z2H, 9U91, 9GHR, 9GHS, 9GHT, 9GHU, 9GHV), 1 pairwise overlap
+  4. Cross-target LLM report: 1870 chars, 27.7s, zai/glm-4.6 — 5 sections (靶点概览/共有结构分析/功能与通路关联/结构相似性推断/总结与建议)
+  5. EvaluationBatch record: written with combinedReport, commonPdbIds JSON, crossReportOk=1, targetCount=2
+  6. Total: 109.1s (79.7s target 1 + 0s cached target 2 + 27.7s cross-report + overhead)
+- DB verified: EvaluationBatch has correct title, commonPdbIds array, crossReport. Evaluation linked to batch via batchId. 10 PDB structures in EvaluationPdbStructure.
+
+Stage Summary:
+- Fixed critical cache bug: 3 wrong column names (ligands→ligand, organisms→organism, depositDate→depositionDate) causing 0 PDB loaded from cache.
+- Full batch test passed: 10 common PDB structures detected, cross-target LLM report generated with 5 detailed sections, all data stored in EvaluationBatch.
+- Cache works correctly: target 2 skipped re-fetch (0s vs 79.7s for target 1).
+- Lint passes. Server stable.
