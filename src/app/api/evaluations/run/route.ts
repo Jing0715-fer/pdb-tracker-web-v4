@@ -1,6 +1,6 @@
 import { sseStream, sleep, type SseEvent } from '@/lib/sse';
 import { generateText } from '@/lib/llm';
-import { buildReportSystemPrompt, buildReportUserPrompt, buildMockBlastTable, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, type ReportChapterKey } from '@/lib/report-template';
+import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, type ReportChapterKey } from '@/lib/report-template';
 import { fetchPdbIdsForUniprot, fetchPdbEntryDetails, fetchUniprotMeta, type PdbEntryDetail } from '@/lib/rcsb';
 import { runBlast, fetchUniprotSequence } from '@/lib/blast';
 import { db } from '@/lib/db';
@@ -136,9 +136,9 @@ export async function POST(req: Request) {
         const BLAST_CAP = Math.min(maxBlastHits, 50);
         const pdbTable = pdbDetails.length > 0
           ? buildDetailedPdbTable(pdbDetails, PDB_CAP)
-          : buildMockBlastTable(8);
+          : '| PDB ID | Method | Resolution | Journal (IF) | Title |\n|--------|--------|------------|--------------|-------|\n| (无 PDB 结构数据) | - | - | - | - |';
         const blastTable = skippedBblast
-          ? buildMockBlastTable(8)
+          ? '| PDB ID | UniProt | Identity | E-value | Description |\n|--------|---------|----------|---------|-------------|\n| (BLAST 已跳过) | - | - | - | - |'
           : buildDetailedBlastTable(blastHits, BLAST_CAP);
 
         const reportData = {

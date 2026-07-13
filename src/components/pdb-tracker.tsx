@@ -10,7 +10,7 @@ import {
   Sparkles, Loader2, ExternalLink, Users, Link2, Copy, Check, Menu,
   Calendar, ArrowRightLeft, LayoutDashboard, Clock, FileDown, Settings,
   Microscope, ArrowUp, RefreshCw, Download, Box, Upload, ChevronLeft,
-  StickyNote, Tag, Trophy, Eye,
+  StickyNote, Tag, Trophy, Eye, AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,7 +43,7 @@ import { useKeyboardShortcuts } from '@/hooks/use-keyboard-shortcuts';
 import { toast } from 'sonner';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { generateBibTeX, generateRIS, generateAPA, generateVancouver, generateMLA, downloadFile } from '@/lib/citation-utils';
-import { FALLBACK_SNAPSHOTS, FALLBACK_ENTRIES, FALLBACK_EVALUATIONS, FALLBACK_LIT_STATS, FALLBACK_LIT_PAPERS, FALLBACK_LIT_REPORTS, FALLBACK_REPORTS } from '@/lib/fallback-data';
+// fallback-data import removed — errors now surface as error messages, not demo data.
 import { EnhancedFooter } from '@/components/enhanced-footer';
 import { WeeklyViewSkeleton, EvaluationViewSkeleton, LiteratureViewSkeleton, ModeTransitionWrapper } from '@/components/enhanced-skeleton';
 import { exportToCSV, exportToJSON, formatPdbEntryForExport, formatEvalForExport, formatLitPaperForExport } from '@/lib/export-utils';
@@ -728,12 +728,9 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch snapshots:', err);
-      setSnapshots(FALLBACK_SNAPSHOTS);
-      if (!selectedSnapshot && FALLBACK_SNAPSHOTS.length > 0) {
-        setSelectedSnapshot(FALLBACK_SNAPSHOTS[0].weekId);
-      }
-      setUsingFallbackData(true);
-      setFetchError(null);
+      setSnapshots([]);
+      setUsingFallbackData(false);
+      setFetchError(`加载快照失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, [selectedSnapshot]);
 
@@ -756,21 +753,9 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch entries:', err);
-      // Filter fallback entries by week/method/q if applicable
-      let fallback = [...FALLBACK_ENTRIES];
-      if (week) fallback = fallback.filter(e => e.weekId === week);
-      if (method && method !== 'all') fallback = fallback.filter(e => e.method === method);
-      if (q) {
-        const ql = q.toLowerCase();
-        fallback = fallback.filter(e =>
-          e.pdbId.toLowerCase().includes(ql) ||
-          (e.title ?? '').toLowerCase().includes(ql) ||
-          (e.organisms ?? '').toLowerCase().includes(ql)
-        );
-      }
-      setEntries(fallback);
-      setUsingFallbackData(true);
-      setFetchError(null);
+      setEntries([]);
+      setUsingFallbackData(false);
+      setFetchError(`加载 PDB 结构失败：${err instanceof Error ? err.message : '网络错误'}`);
     } finally {
       setLoading(false);
       setShowWelcome(false);
@@ -798,12 +783,12 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch evaluations:', err);
-      setEvaluations(FALLBACK_EVALUATIONS);
-      setAllEvaluations(FALLBACK_EVALUATIONS);
+      setEvaluations([]);
+      setAllEvaluations([]);
       setEvalBatches([]);
       setBatchSubTargets({});
-      setUsingFallbackData(true);
-      setFetchError(null);
+      setUsingFallbackData(false);
+      setFetchError(`加载评估数据失败：${err instanceof Error ? err.message : '网络错误'}`);
     } finally {
       setEvalLoading(false);
     }
@@ -847,8 +832,9 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch lit stats:', err);
-      setLitStats(FALLBACK_LIT_STATS);
-      setUsingFallbackData(true);
+      setLitStats(null);
+      setUsingFallbackData(false);
+      setFetchError(`加载文献统计失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, []);
 
@@ -867,17 +853,9 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch lit papers:', err);
-      let fallback = [...FALLBACK_LIT_PAPERS];
-      if (q) {
-        const ql = q.toLowerCase();
-        fallback = fallback.filter(p =>
-          p.title.toLowerCase().includes(ql) ||
-          p.authors.toLowerCase().includes(ql) ||
-          p.journal.toLowerCase().includes(ql)
-        );
-      }
-      setLitPapers(fallback);
-      setUsingFallbackData(true);
+      setLitPapers([]);
+      setUsingFallbackData(false);
+      setFetchError(`加载论文列表失败：${err instanceof Error ? err.message : '网络错误'}`);
     } finally {
       setLitLoading(false);
     }
@@ -895,8 +873,9 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch lit reports:', err);
-      setLitReports(FALLBACK_LIT_REPORTS);
-      setUsingFallbackData(true);
+      setLitReports([]);
+      setUsingFallbackData(false);
+      setFetchError(`加载文献报告失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, []);
 
@@ -912,8 +891,9 @@ export default function PdbTracker() {
       }
     } catch (err) {
       console.error('Failed to fetch reports:', err);
-      setWeeklyReports(FALLBACK_REPORTS);
-      setUsingFallbackData(true);
+      setWeeklyReports([]);
+      setUsingFallbackData(false);
+      setFetchError(`加载周报失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, []);
 
@@ -3992,15 +3972,21 @@ export default function PdbTracker() {
           </>
         )}
 
-        {/* Fallback Data Banner */}
-        {usingFallbackData && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800/40 text-amber-800 dark:text-amber-200 text-xs flex-shrink-0">
-            <Database className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="font-medium">Using cached data (API unavailable)</span>
-            <span className="text-amber-600 dark:text-amber-400">— Displaying sample PDB structures for demonstration</span>
+        {/* Error Banner — shown when API fetch fails */}
+        {fetchError && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs flex-shrink-0">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            <span className="font-medium">数据加载失败</span>
+            <span className="text-rose-600 dark:text-rose-400">— {fetchError}</span>
             <button
-              onClick={() => setUsingFallbackData(false)}
-              className="ml-auto p-0.5 rounded hover:bg-amber-100 dark:hover:bg-amber-800/40 transition-colors"
+              onClick={() => { setFetchError(null); fetchSnapshots(); fetchEntries(); }}
+              className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
+            >
+              重试
+            </button>
+            <button
+              onClick={() => setFetchError(null)}
+              className="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
               aria-label="Dismiss banner"
             >
               <X className="h-3.5 w-3.5" />

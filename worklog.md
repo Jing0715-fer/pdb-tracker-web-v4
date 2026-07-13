@@ -1094,3 +1094,33 @@ Stage Summary:
 - Tab titles expanded: 蛋白靶点评估 / 每日文献检索 / PDB 周报生成 (with mobile fallback to short names).
 - RunHistoryPanel removed from eval + lit (was already removed from weekly). All 3 modules now consistent.
 - Lint passes. Server stable.
+
+---
+Task ID: code-review-remove-mock-data-e2e
+Agent: main (Z.ai Code)
+Task: Remove fallback-data demo data (show error instead), continue code review for mock data, E2E test.
+
+Work Log:
+- Removed ALL fallback-data usage from pdb-tracker.tsx:
+  - 7 catch blocks were setting FALLBACK_* demo data on API failure. Changed to set empty arrays + setFetchError(message) instead.
+  - Replaced "Using cached data (API unavailable) — Displaying sample PDB structures" amber banner with red error banner: "数据加载失败 — {error message}" + 重试 button + dismiss button.
+  - Removed FALLBACK_* imports from fallback-data.ts.
+  - Added AlertTriangle to lucide-react imports.
+- Fixed eval module mock data:
+  - buildMockBlastTable(8) was used when pdbDetails empty or BLAST skipped. Replaced with placeholder markdown tables showing "(无 PDB 结构数据)" / "(BLAST 已跳过)" instead of fake random data.
+  - Removed buildMockBlastTable import (no longer used).
+- Fixed literature/daily/list API (from previous task): now queries LiteratureDigest table instead of returning Math.random() mock data.
+- Fixed evaluations/run scores (from previous task): removed Math.random() from coverage/scores, now derived from real structure counts.
+- Fixed pdb-weekly/run GET (from previous task): removed hardcoded weeklySnapshot:1, now queries real count.
+- E2E verified:
+  - Main page: no "Using cached data" banner, no "Displaying sample" text, no error banner (APIs all return 200 with empty data).
+  - All APIs return real data (empty when DB is fresh): lit/list=0 reports, entries=0 total, evaluations=0 evals, weekly dbCounts all 0.
+  - Run Center: dialog opens, 3 tabs work (① 蛋白靶点评估 / ② 每日文献检索 / ③ PDB 周报生成), z.ai pill visible.
+  - DB wizard routing: 新建 → create step (数据库目录 input), 选择 → select step (database list with 当前/表 badges).
+- Remaining mock data in report-template.ts (buildMockPdbTable/buildMockBlastTable functions): buildMockBlastTable no longer called (import removed). buildMockPdbTable was already unused. These functions still exist in the file but are dead code — not called anywhere.
+
+Stage Summary:
+- ALL demo/sample/mock data removed from active code paths. When APIs fail, user sees a red error banner with the error message + retry button (not fake demo data).
+- 4 mock data sources fixed: fallback-data.ts (7 catch blocks), eval buildMockBlastTable, literature/daily/list, eval scores Math.random().
+- E2E verified: no mock data anywhere, all APIs return real (empty) data, Run Center + DB wizard fully functional.
+- Lint passes. Server stable (HTTP 200, 19ms).
