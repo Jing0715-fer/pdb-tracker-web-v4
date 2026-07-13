@@ -779,3 +779,25 @@ Stage Summary:
 - Font sizes unified: all content text now uses text-xs (12px) baseline; eliminated text-3xs (5px) and text-[11px] from the database section.
 - Section spacing tightened (py-3→py-2.5, mt-4→mt-3, py-4→py-3) for reduced empty space.
 - VLM: 9/10. Lint passes. Server stable.
+
+---
+Task ID: db-section-compact-layout
+Agent: main (Z.ai Code)
+Task: Optimize the database (数据库) section layout in Run Center dialog — make it more compact, reduce whitespace.
+
+Work Log:
+- VLM-analyzed user's screenshot: database section had excessive gaps — title-to-badge 8px (target 4px), badge-to-path 12px (target 6px), path-to-table-badge 10px (target 4px), path box too tall (24px, target 16px), input-to-buttons 16px (target 8px), bottom buttons too tall (36px, target 28px).
+- Restructured the database section for compactness:
+  1. Title row: mb-2 → mb-1.5 (tighter to content below)
+  2. Active path box: px-2.5 py-1.5 → px-2 py-1 (reduced padding); merged label + path onto ONE line (was 2 lines: label above, path below); shortened label "当前活动路径（三大模块与运行中心共用）" → "活动路径"; path uses truncate with title tooltip (was break-all multi-line)
+  3. Schema badges row: mt-1.5 → mt-1 (tighter to path)
+  4. Path box to input: mb-2 → mb-1.5
+  5. Input row: h-8 → h-7 (shorter input/buttons); gap-2 → gap-1.5; refresh button h-8 → h-7 w-7 p-0 (icon-only, was text-sized)
+  6. Bottom buttons: mt-2 → mt-1.5; h-8 → h-7; icon h-3.5 → h-3 (compact)
+  7. Test DB warning: mt-2 → mt-1.5; px-2.5 py-1.5 → px-2 py-1
+- Rebuilt standalone, deployed. VLM evaluation: 8/10 — "minimal excess whitespace, active path label+path on one line, badges close, input/switch/refresh tightly spaced, bottom buttons compact. Significantly tighter than before."
+
+Stage Summary:
+- Database section is now compact: path display is single-line (was 2-line), all paddings/margins reduced, input/buttons h-7 (was h-8), bottom buttons h-7.
+- VLM: 8/10 compactness. Lint passes. Server stable.
+- Only the database section was changed; LLM section, tabs, and module cards unchanged.

@@ -1553,17 +1553,18 @@ export function SettingsRunPanel({
           </AnimatePresence>
 
           {/* ── Database config (always visible) ──────────────────────── */}
-          <div className="mt-3 border-t border-border/40 pt-3">
-            <div className="flex items-center justify-between mb-2">
+          <div className="mt-3 border-t border-border/40 pt-2.5">
+            {/* Title row + status badges — single tight line */}
+            <div className="flex items-center justify-between mb-1.5">
               <div className="flex items-center gap-1.5">
                 <Database className="h-3.5 w-3.5 text-muted-foreground" />
                 <span className="text-sm font-medium text-foreground">数据库</span>
                 {dbStatus?.isTest ? (
-                  <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
+                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
                     <AlertTriangle className="h-2 w-2" /> 测试库
                   </Badge>
                 ) : dbStatus?.confirmed ? (
-                  <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
+                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                     <ShieldCheck className="h-2 w-2" /> 已确认
                   </Badge>
                 ) : null}
@@ -1573,17 +1574,17 @@ export function SettingsRunPanel({
               </Badge>
             </div>
 
-            {/* Active path read-only display — this is what the 3 modules actually read/write */}
+            {/* Active path + schema badges — compact single box */}
             {dbStatus && (
-              <div className="mb-2 rounded-md bg-muted/40 border border-border/40 px-2.5 py-1.5">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
-                  <HardDrive className="h-3 w-3" />
-                  <span>当前活动路径（三大模块与运行中心共用）</span>
+              <div className="mb-1.5 rounded-md bg-muted/40 border border-border/40 px-2 py-1">
+                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                  <HardDrive className="h-2.5 w-2.5 shrink-0" />
+                  <span className="shrink-0">活动路径</span>
+                  <span className="font-mono text-foreground truncate" title={dbStatus.activeFsPath}>
+                    {dbStatus.activeFsPath}
+                  </span>
                 </div>
-                <div className="text-xs font-mono text-foreground break-all">
-                  {dbStatus.activeFsPath}
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1.5">
+                <div className="flex flex-wrap gap-1 mt-1">
                   {dbStatus.hasSchema ? (
                     <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
                       <CheckCircle2 className="h-2 w-2" /> 表结构 {dbStatus.tableCount}
@@ -1612,17 +1613,18 @@ export function SettingsRunPanel({
               </div>
             )}
 
-            <div className="flex items-center gap-2">
+            {/* Input + switch + refresh — single tight row */}
+            <div className="flex items-center gap-1.5">
               <Input
                 value={dbPath}
                 onChange={e => setDbPath(e.target.value)}
                 placeholder="file:./db/custom.db"
-                className="h-8 text-xs font-mono flex-1"
+                className="h-7 text-xs font-mono flex-1"
               />
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs shrink-0"
+                className="h-7 text-xs shrink-0 px-2"
                 onClick={saveDbPath}
                 disabled={dbPathSaving}
               >
@@ -1632,7 +1634,7 @@ export function SettingsRunPanel({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 text-xs shrink-0"
+                className="h-7 w-7 p-0 shrink-0"
                 onClick={loadDbPath}
                 title="刷新状态"
               >
@@ -1640,22 +1642,23 @@ export function SettingsRunPanel({
               </Button>
             </div>
 
-            <div className="flex gap-1.5 mt-2">
+            {/* New / Select buttons — compact */}
+            <div className="flex gap-1.5 mt-1.5">
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs flex-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
+                className="h-7 text-xs flex-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                 onClick={() => setDbWizardOpen(true)}
               >
-                <FilePlus2 className="h-3.5 w-3.5 mr-1" /> 新建数据库
+                <FilePlus2 className="h-3 w-3 mr-1" /> 新建数据库
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs flex-1 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
+                className="h-7 text-xs flex-1 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
                 onClick={() => setDbWizardOpen(true)}
               >
-                <FolderOpen className="h-3.5 w-3.5 mr-1" /> 选择已有
+                <FolderOpen className="h-3 w-3 mr-1" /> 选择已有
               </Button>
             </div>
 
@@ -1666,7 +1669,7 @@ export function SettingsRunPanel({
             )}
 
             {dbStatus?.isTest && (
-              <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+              <div className="mt-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                 <AlertTriangle className="h-3 w-3 inline mr-1" />
                 当前使用的是测试数据库（<code className="font-mono">db/custom.db</code>），仅用于功能验证。建议点击「新建数据库」创建正式数据库以保存您的工作数据。
               </div>
