@@ -1143,3 +1143,40 @@ Stage Summary:
 - Frontend always sends flat fields (from first target) for backward compat.
 - Both single-target and batch modes now respect the skipBlast toggle.
 - Lint passes. Server stable.
+
+---
+Task ID: implement-batch-eval-cross-analysis
+Agent: main (Z.ai Code)
+Task: Implement batch evaluation — iterate all targets, find common structures, generate cross-target relationship LLM report.
+
+Work Log:
+- Root cause: Backend only evaluated targets[0], never iterated remaining targets or did cross-target analysis. The batch mode was frontend-only (sent targets[] but backend ignored it).
+- Implemented batch evaluation in evaluations/run/route.ts:
+  1. Added `isBatch` variable: `const isBatch = !!body.isBatch && targets.length > 1`
+  2. After primary target (targets[0]) evaluation completes, iterate targets[1..N]:
+     - Fetch UniProt metadata, RCSB PDB IDs, PDB details for each
+     - Calculate scores from real structure counts
+     - Write Evaluation + EvaluationPdbStructure to DB
+     - Emit progress messages [Batch 2/2], [Batch 3/3], etc.
+  3. Cross-target relationship analysis:
+     - Build PDB ID sets for all targets
+     - Find common PDB IDs (present in ALL targets)
+     - Find pairwise overlaps (PDB IDs shared by 2+ targets)
+     - Emit summary: "共有结构（全部靶点）：N 个 · 两两重叠：M 对"
+  4. Cross-target LLM report:
+     - System prompt: "你是结构生物学领域的资深研究员。请用中文生成一份靶点间相关性分析报告"
+     - User prompt: target summary (protein name, PDB count, score, top 5 structures per target) + common structure analysis + overlap summary
+     - 5-section report structure: 靶点概览 / 共有结构分析 / 功能与通路关联 / 结构相似性推断 / 总结与建议
+     - maxChars: 4000
+  5. Write batch record to SkillRunRecord with summary "Batch 评估 N 靶点 · 共有结构 M · LLM ✓/✗"
+  6. Add batchResults + crossAnalysis to result object
+- Tested with 2 targets:
+  - P00533 (EGFR) + P04626 (HER2): both evaluated, 10 PDB each, 0 common structures (different PDB IDs), LLM cross-report 1865 chars generated ✓
+  - P00533 + P00533 (same target): 5 common structures detected (9Z9E, 9Z9F, 9VV1, 9Z2H, 9U91), pairwise overlap 1 pair ✓
+- Both tests verified: batch iteration works, common structure detection works, cross-target LLM report generation works.
+
+Stage Summary:
+- Batch evaluation fully implemented: iterates all targets, writes each to DB, finds common/pairwise-overlapping PDB structures, generates cross-target relationship LLM report (5 sections).
+- Verified: 2-target batch works end-to-end (EGFR+HER2: 84.7s, cross-report 1865 chars; same-target: 5 common structures detected).
+- z.ai SDK used as LLM provider for all tests.
+- Lint passes. Server stable.

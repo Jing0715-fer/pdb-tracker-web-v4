@@ -29,6 +29,7 @@ export async function POST(req: Request) {
   const maxBlastHits = Number(body.maxBlastHits ?? primaryTarget.maxBlastHits ?? body.maxBlast ?? 50);
   const generateReport = body.generateReport !== false;
   const saveReportFile = body.saveReportFile !== false;
+  const isBatch = !!body.isBatch && targets.length > 1;
   // Default to hermes CLI (no z-ai — this app must run without z-ai-web-dev-sdk).
   const provider = body.llm?.provider || 'cli:hermes';
   const model = body.llm?.model || 'hermes';
@@ -329,6 +330,135 @@ export async function POST(req: Request) {
         durationMs: Date.now() - t0,
       };
       emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: 100 });
+
+      // ── Batch mode: evaluate remaining targets + cross-target relationship analysis ──
+      if (isBatch && targets.length > 1) {
+        const batchResults: any[] = [{ uniprot, uniprotInfo, pdbDetails, scores, report }];
+        // Evaluate remaining targets (target[0] already done above)
+        for (let bi = 1; bi < targets.length; bi++) {
+          const bt = targets[bi];
+          const bUid = (bt.uniprot || '').trim().toUpperCase();
+          if (!bUid) continue;
+          emit({ stage: `batch-${bi}`, level: 'info', message: `[Batch ${bi + 1}/${targets.length}] 评估 ${bUid}…`, progress: 100 });
+          try {
+            const bMeta = await fetchUniprotMeta(bUid);
+            const bInfo = bMeta ? { uniprotId: bUid, entryName: bMeta.entryName, proteinName: bMeta.proteinName, geneNames: bMeta.geneNames || '—', organism: bMeta.organism || '—', sequenceLength: bMeta.sequenceLength || 0 } : { uniprotId: bUid, entryName: bUid, proteinName: `Unknown`, geneNames: '—', organism: '—', sequenceLength: 0 };
+            const bPdbIds = await fetchPdbIdsForUniprot(bUid, bt.maxPdb || maxPdb);
+            const bPdbDetails: PdbEntryDetail[] = bPdbIds.length > 0 ? await fetchPdbEntryDetails(bPdbIds) : [];
+            const bXray = bPdbDetails.filter(e => (e.method || '').includes('X-RAY')).length;
+            const bCryoem = bPdbDetails.filter(e => (e.method || '').includes('ELECTRON')).length;
+            const bNmr = bPdbDetails.filter(e => (e.method || '').includes('NMR')).length;
+            const calcS = (c: number) => Math.min(10, Math.max(1, Math.round(c / 5) + 3));
+            const bScores = { xray: { score: calcS(bXray), structures: bXray }, cryoem: { score: calcS(bCryoem), structures: bCryoem }, nmr: { score: calcS(bNmr), structures: bNmr }, overall: { score: Math.min(10, Math.max(1, Math.round((calcS(bXray) + calcS(bCryoem) + calcS(bNmr)) / 3))) } };
+            // Write to DB
+            try {
+              const bScoresJson = JSON.stringify({ 'X-ray': { score: bScores.xray.score }, 'Cryo-EM': { score: bScores.cryoem.score }, 'NMR': { score: bScores.nmr.score }, 'Overall': { score: bScores.overall.score } });
+              await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, createdAt, updatedAt) VALUES (${bUid}, ${bInfo.entryName}, ${bInfo.proteinName}, ${bInfo.geneNames}, ${bInfo.organism}, ${bInfo.sequenceLength}, 0, ${bScoresJson}, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, scores = excluded.scores, updatedAt = CURRENT_TIMESTAMP`;
+              await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
+              for (const e of bPdbDetails) {
+                const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
+                const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
+                await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${bUid}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate}, ${e.releaseDate}, ${e.ligands}, ${e.ligands}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms}, ${e.authors}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
+              }
+            } catch (dbErr: any) {
+              emit({ stage: `batch-${bi}`, level: 'error', message: `[Batch ${bi + 1}] DB 写入失败：${dbErr?.message}`, progress: 100 });
+            }
+            batchResults.push({ uniprot: bUid, uniprotInfo: bInfo, pdbDetails: bPdbDetails, scores: bScores });
+            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10`, progress: 100 });
+          } catch (err: any) {
+            emit({ stage: `batch-${bi}`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} 失败：${err?.message}`, progress: 100 });
+          }
+        }
+
+        // ── Cross-target relationship analysis: find common PDB structures ──
+        emit({ stage: 'cross-analysis', level: 'info', message: `分析 ${batchResults.length} 个靶点的共有结构与相关性…`, progress: 100 });
+        const allPdbSets = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
+        // Find PDB IDs present in ALL targets
+        const commonPdbIds = allPdbSets.length > 0
+          ? [...allPdbSets[0].pdbIds].filter(id => allPdbSets.every(s => s.pdbIds.has(id)))
+          : [];
+        // Find PDB IDs shared by at least 2 targets (pairwise overlap)
+        const pdbOverlap: Record<string, string[]> = {};
+        for (let a = 0; a < allPdbSets.length; a++) {
+          for (let b = a + 1; b < allPdbSets.length; b++) {
+            const shared = [...allPdbSets[a].pdbIds].filter(id => allPdbSets[b].pdbIds.has(id));
+            if (shared.length > 0) {
+              pdbOverlap[`${allPdbSets[a].uniprot}↔${allPdbSets[b].uniprot}`] = shared;
+            }
+          }
+        }
+        emit({ stage: 'cross-analysis', level: commonPdbIds.length > 0 ? 'success' : 'info', message: `共有结构（全部靶点）：${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 5).join(', ')}…)` : ''} · 两两重叠：${Object.keys(pdbOverlap).length} 对`, progress: 100 });
+
+        // ── Generate cross-target relationship LLM report ──
+        let crossReport: any = undefined;
+        if (generateReport) {
+          emit({ stage: 'cross-llm', level: 'info', message: `生成靶点间相关性 LLM 分析报告…`, progress: 100 });
+          try {
+            const crossSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份靶点间相关性分析报告，使用 Markdown 格式。分析多个蛋白靶点之间的结构关联性、功能关系、以及共有的结构基础。';
+            const targetSummary = batchResults.map((r, i) => {
+              const top5 = (r.pdbDetails || []).slice(0, 5).map((e: PdbEntryDetail) => `  - ${e.pdbId}: ${e.method} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 50)}`).join('\n');
+              return `靶点 ${i + 1}: ${r.uniprot} (${r.uniprotInfo?.proteinName})\n  PDB 结构数: ${(r.pdbDetails || []).length}\n  评分: overall=${r.scores?.overall?.score}/10\n  代表性结构:\n${top5}`;
+            }).join('\n\n');
+            const overlapSummary = Object.entries(pdbOverlap).length > 0
+              ? Object.entries(pdbOverlap).map(([pair, ids]) => `${pair}: ${ids.length} 个共有结构 (${ids.slice(0, 5).join(', ')})`).join('\n')
+              : '无两两共有结构';
+            const crossUserPrompt = `请分析以下 ${batchResults.length} 个蛋白靶点的结构相关性与功能关系：
+
+${targetSummary}
+
+共有结构分析：
+- 全部靶点共有的结构: ${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 10).join(', ')})` : ''}
+- 两两重叠:
+${overlapSummary}
+
+请按以下结构生成报告：
+## 靶点间相关性分析报告
+
+### 一、靶点概览
+（简述每个靶点的蛋白名称、PDB 结构数量、评分）
+
+### 二、共有结构分析
+（分析共有 PDB 结构的含义 — 这些结构可能揭示靶点间的进化关系或功能关联）
+
+### 三、功能与通路关联
+（基于蛋白名称和结构信息，分析靶点是否在同一信号通路、蛋白家族或功能网络中）
+
+### 四、结构相似性推断
+（从共有结构推断靶点间的结构相似性，讨论对药物设计或交叉研究的意义）
+
+### 五、总结与建议
+（总结靶点间关系，提出后续研究建议）`;
+            const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
+            crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap };
+            if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 相关性分析报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 100 });
+            else emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析 LLM 失败：${r.error}`, progress: 100 });
+          } catch (err: any) {
+            emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析失败：${err?.message}`, progress: 100 });
+          }
+        }
+
+        // Write batch record to DB
+        try {
+          await db.skillRunRecord.create({
+            data: {
+              module: 'eval',
+              status: 'success',
+              summary: `Batch 评估 ${batchResults.length} 靶点 (${batchResults.map(r => r.uniprot).join(', ')}) · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? 'LLM ✓' : 'LLM ✗'}`,
+              details: JSON.stringify({ targets: batchResults.map(r => r.uniprot), commonPdbIds, pdbOverlap, crossReportOk: crossReport?.ok }),
+              provider: body.llm?.provider || 'auto',
+              model: crossReport?.model || '',
+              llmOk: crossReport?.ok ?? false,
+              durationMs: Date.now() - t0,
+              resultJson: JSON.stringify({ batchResults: batchResults.map(r => ({ uniprot: r.uniprot, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score })), commonPdbIds, crossReportChars: crossReport?.contentChars || 0 }),
+            },
+          });
+        } catch { /* ignore */ }
+
+        (result as any).batchResults = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score }));
+        (result as any).crossAnalysis = { commonPdbIds, pdbOverlap, crossReport };
+        emit({ stage: 'batch-done', level: 'success', message: `Batch 完成 · ${batchResults.length} 靶点 · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? '相关性报告 ✓' : '相关性报告 ✗'} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 100 });
+      }
+
       await sleep(150);
       done(result);
     } catch (err: any) {
