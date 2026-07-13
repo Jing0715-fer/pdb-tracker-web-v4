@@ -3,6 +3,11 @@ import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 
+// Disable static prerender caching so the HTML shell always references the
+// latest JS chunk hashes (prevents stale cached HTML after rebuilds).
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Fonts: CSS variable stubs (no Google Fonts - network unavailable)
 const geistSans = { variable: "--font-geist-sans" };
 const geistMono = { variable: "--font-geist-mono" };

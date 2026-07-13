@@ -708,3 +708,20 @@ Stage Summary:
 - HTML caching was the root cause — user's browser was loading a 1-year-cached HTML referencing old JS chunks with the marginTop fix not yet applied.
 - Added no-cache header for "/" route. Now the browser always gets fresh HTML → fresh JS chunks → the fix is visible.
 - The DB setup dialog is now properly vertically centered (was top-aligned with marginTop:4rem, now default Radix centering).
+
+---
+Task ID: fix-html-cache-busting-v2
+Agent: main (Z.ai Code)
+Task: User still saw the DB dialog with wrong (too-low) positioning despite the fix being deployed. Root cause was Next.js ISR prerender cache serving stale HTML.
+
+Work Log:
+- Pixel-measured the user's NEW screenshot (1377×1185): dialog top gap = 670px (56.5%), bottom gap = 399px (33.7%), centeredDiff = +271px. Dialog was pushed too low — NOT centered. This proved the user was seeing a stale/cached version, because my own browser measurement showed perfect centering (395px/395px, diff=0).
+- Root cause: Even after adding `Cache-Control: no-cache, no-store, must-revalidate` header for "/" route in next.config.ts, Next.js was still serving the page as `X-Nextjs-Cache: HIT` (ISR prerender cache). The static prerender of the HTML shell was cached at the Next.js layer, referencing OLD JS chunk filenames that still contained the `marginTop: "4rem"` code. The browser got fresh HTML per the no-cache header, but that "fresh" HTML was actually Next.js's stale prerender.
+- Fix: Added `export const dynamic = 'force-dynamic'` and `export const revalidate = 0` to src/app/layout.tsx (Server Component — page.tsx is 'use client' so it cannot host these exports). This forces Next.js to render the HTML shell on-demand for every request instead of serving a cached prerender.
+- Verified: response headers no longer have `X-Nextjs-Cache: HIT` (now dynamically rendered), `Cache-Control: no-cache, no-store, must-revalidate` present, no ETag. Browser measurement on 1377×1185 viewport: topGap=395, bottomGap=395, centeredDiff=0 (perfectly centered).
+- Rebuilt standalone, copied assets, reinitialized DB schema, recreated .hermes config (confirmed=true).
+
+Stage Summary:
+- Root cause was Next.js ISR prerender cache (X-Nextjs-Cache: HIT) serving stale HTML that referenced old JS chunks with the marginTop:"4rem" code.
+- Fix: force-dynamic rendering in layout.tsx disables the prerender cache. Every request now renders fresh HTML referencing current JS chunks.
+- DB setup dialog is now perfectly centered on large viewports (395px/395px). User should hard-refresh (Ctrl+Shift+R) or open in a new tab to bypass any residual browser cache.
