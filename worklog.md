@@ -754,3 +754,28 @@ Stage Summary:
 - Title now has 29px top padding (was 12px). Card padding increased to p-5 (was p-4). Spacing rhythm tightened with space-y-5.
 - VLM: 9/10 (was 3/10 per user's complaint). No more "title too high, large empty middle/bottom".
 - Only the "choose" step was adjusted; create/select/working/done/error steps unchanged (per "keep other things untouched" spirit).
+
+---
+Task ID: run-center-layout-optimization
+Agent: main (Z.ai Code)
+Task: Optimize Run Center dialog content layout — unify font sizes/fonts, reduce empty space, remove "Hermes docs" link (bottom-left) and "Hermes CLI" text (bottom-right).
+
+Work Log:
+- Removed the entire footer section (lines 2089-2103 of settings-run-panel.tsx): deleted the "Hermes docs" link (<a>) and the "SSE 实时流式 · 并行执行 · 自动 provider 检测 · Hermes CLI 优先" status text. Removed now-unused ExternalLink import.
+- Unified font sizes in the database section (was inconsistent mix of text-3xs 5px / text-[11px] / text-xs):
+  - "当前活动路径" label: text-3xs → text-xs, icon h-2 → h-3
+  - Active path value: text-[11px] → text-xs
+  - Test DB warning box: text-3xs → text-xs, icon h-2.5 → h-3
+  - "新建数据库"/"选择已有" buttons: text-[11px] → text-xs, h-7 → h-8, icon h-3 → h-3.5
+- Reduced section spacing to tighten layout:
+  - LLM provider bar: py-3 → py-2.5
+  - Database section: mt-4 pt-4 → mt-3 pt-3
+  - Tabbed module panels: py-4 → py-3
+- Rebuilt standalone, deployed. DOM-verified: no "Hermes docs", no "Hermes CLI", no footer text in dialog.
+- VLM evaluation: 9/10 — footer removed, font sizes consistent (clear hierarchy: title 16-18px > labels 14px > body 13px > badges 12px), empty space significantly reduced, professional and coordinated.
+
+Stage Summary:
+- Footer completely removed (Hermes docs link + Hermes CLI/SSE status text).
+- Font sizes unified: all content text now uses text-xs (12px) baseline; eliminated text-3xs (5px) and text-[11px] from the database section.
+- Section spacing tightened (py-3→py-2.5, mt-4→mt-3, py-4→py-3) for reduced empty space.
+- VLM: 9/10. Lint passes. Server stable.

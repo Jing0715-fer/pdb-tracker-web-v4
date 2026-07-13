@@ -58,7 +58,6 @@ import {
   Loader2,
   CheckCircle2,
   XCircle,
-  ExternalLink,
   RefreshCw,
   CalendarClock,
   ChevronDown,
@@ -1374,7 +1373,7 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── LLM provider status bar — 2-column compact layout ──────────── */}
-        <div className="px-6 py-3 border-b border-border/60 bg-muted/20">
+        <div className="px-6 py-2.5 border-b border-border/60 bg-muted/20">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
               <div className="flex items-center gap-1.5 shrink-0">
@@ -1554,7 +1553,7 @@ export function SettingsRunPanel({
           </AnimatePresence>
 
           {/* ── Database config (always visible) ──────────────────────── */}
-          <div className="mt-4 border-t border-border/40 pt-4">
+          <div className="mt-3 border-t border-border/40 pt-3">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-1.5">
                 <Database className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1577,11 +1576,11 @@ export function SettingsRunPanel({
             {/* Active path read-only display — this is what the 3 modules actually read/write */}
             {dbStatus && (
               <div className="mb-2 rounded-md bg-muted/40 border border-border/40 px-2.5 py-1.5">
-                <div className="flex items-center gap-1.5 text-3xs text-muted-foreground mb-0.5">
-                  <HardDrive className="h-2 w-2" />
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-0.5">
+                  <HardDrive className="h-3 w-3" />
                   <span>当前活动路径（三大模块与运行中心共用）</span>
                 </div>
-                <div className="text-[11px] font-mono text-foreground break-all">
+                <div className="text-xs font-mono text-foreground break-all">
                   {dbStatus.activeFsPath}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1.5">
@@ -1645,18 +1644,18 @@ export function SettingsRunPanel({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-[11px] flex-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
+                className="h-8 text-xs flex-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                 onClick={() => setDbWizardOpen(true)}
               >
-                <FilePlus2 className="h-3 w-3 mr-1" /> 新建数据库
+                <FilePlus2 className="h-3.5 w-3.5 mr-1" /> 新建数据库
               </Button>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-7 text-[11px] flex-1 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
+                className="h-8 text-xs flex-1 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
                 onClick={() => setDbWizardOpen(true)}
               >
-                <FolderOpen className="h-3 w-3 mr-1" /> 选择已有
+                <FolderOpen className="h-3.5 w-3.5 mr-1" /> 选择已有
               </Button>
             </div>
 
@@ -1667,8 +1666,8 @@ export function SettingsRunPanel({
             )}
 
             {dbStatus?.isTest && (
-              <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-3xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                <AlertTriangle className="h-2.5 w-2.5 inline mr-1" />
+              <div className="mt-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
+                <AlertTriangle className="h-3 w-3 inline mr-1" />
                 当前使用的是测试数据库（<code className="font-mono">db/custom.db</code>），仅用于功能验证。建议点击「新建数据库」创建正式数据库以保存您的工作数据。
               </div>
             )}
@@ -1690,7 +1689,7 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── Tabbed module panels ─────────────────────────────────────── */}
-        <div className="px-6 py-4 max-h-[calc(92vh-280px)] overflow-y-auto">
+        <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
             <TabsList className="grid w-full grid-cols-3 h-9 bg-muted/40">
               <TabsTrigger value="literature" className="text-xs gap-1.5">
@@ -2086,21 +2085,6 @@ export function SettingsRunPanel({
           </AnimatePresence>
         </div>
 
-        {/* ── Footer ─────────────────────────────────────────────────── */}
-        <div className="px-6 py-3 border-t border-border/60 bg-muted/20 flex items-center justify-between gap-2">
-          <a
-            href="https://hermes-agent.nousresearch.com/docs"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1 transition-colors"
-          >
-            <ExternalLink className="h-3 w-3" /> Hermes docs
-          </a>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground/60">
-            <ShieldCheck className="h-3 w-3" />
-            <span>SSE 实时流式 · 并行执行 · 自动 provider 检测 · Hermes CLI 优先</span>
-          </div>
-        </div>
       </DialogContent>
     </Dialog>
   );
