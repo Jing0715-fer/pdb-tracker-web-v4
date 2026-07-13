@@ -1,22 +1,31 @@
 /**
  * GET /api/literature/daily/list
  *
- * Lists previously generated daily literature reports. Returns recent dates
- * with paper counts for the Skills panel's "历史报告" strip.
+ * Lists previously generated daily literature reports from the LiteratureDigest
+ * table. Returns dates with paper counts and LLM digest availability for the
+ * Run Center's "历史报告" strip.
  */
+import { db } from '@/lib/db';
+
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const today = new Date();
-  const reports: Array<{ date: string; paperCount: number; hasLLMDigest: boolean }> = [];
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    reports.push({
-      date: d.toISOString().slice(0, 10),
-      paperCount: 12 + Math.floor(Math.random() * 18),
-      hasLLMDigest: i % 2 === 0,
-    });
+  try {
+    const rows = await db.$queryRaw<any[]>`
+      SELECT date, paperCount, llmOk
+      FROM LiteratureDigest
+      ORDER BY date DESC
+      LIMIT 30
+    `;
+    const reports = (rows as any[]).map(r => ({
+      date: r.date,
+      paperCount: r.paperCount || 0,
+      hasLLMDigest: r.llmOk === 1 || r.llmOk === true,
+    }));
+    return Response.json({ reports });
+  } catch {
+    // Table might not exist yet (fresh DB) — return empty list.
+    return Response.json({ reports: [] });
   }
-  return Response.json({ reports });
 }

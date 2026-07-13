@@ -76,7 +76,9 @@ export async function POST(req: Request) {
 
       emit({ stage: 'sifts-coverage', level: 'info', message: 'SIFTS 残基覆盖率计算', progress: 38 });
       await sleep(300);
-      const coverage = 60 + Math.floor(Math.random() * 35);
+      // Estimate coverage from the ratio of PDB structures with residue coverage
+      // vs the UniProt sequence length. Falls back to 0 when no data available.
+      const coverage = directPdbCount > 0 ? Math.min(100, Math.round((directPdbCount / Math.max(1, uniprotInfo?.sequenceLength || 1)) * 100 * 10)) : 0;
       emit({ stage: 'sifts-coverage', level: 'success', message: `覆盖率 ${coverage}%`, progress: 42 });
 
       let blastHitCount = 0, skippedBblast = false, blastHits: any[] = [];
@@ -109,11 +111,16 @@ export async function POST(req: Request) {
       emit({ stage: 'score', level: 'info', message: '综合可成药性评分', progress: 56 });
       await sleep(300);
       const scoreRating = (s: number) => s >= 8 ? '优' : s >= 6 ? '良' : s >= 4 ? '中' : '差';
+      // Derive scores from actual structure counts: more structures → higher score.
+      const xrayCount = pdbDetails.filter(e => (e.method || '').includes('X-RAY')).length;
+      const cryoemCount = pdbDetails.filter(e => (e.method || '').includes('ELECTRON')).length;
+      const nmrCount = pdbDetails.filter(e => (e.method || '').includes('NMR')).length;
+      const calcScore = (count: number, max: number = 10) => Math.min(max, Math.max(1, Math.round(count / 5) + 3));
       const scores = {
-        xray: { score: 7 + Math.floor(Math.random() * 3), rating: '', structures: pdbDetails.filter(e => (e.method || '').includes('X-RAY')).length },
-        cryoem: { score: 6 + Math.floor(Math.random() * 3), rating: '', structures: pdbDetails.filter(e => (e.method || '').includes('ELECTRON')).length },
-        nmr: { score: 3 + Math.floor(Math.random() * 4), rating: '', structures: pdbDetails.filter(e => (e.method || '').includes('NMR')).length },
-        overall: { score: 7 + Math.floor(Math.random() * 2), rating: '' },
+        xray: { score: calcScore(xrayCount), rating: '', structures: xrayCount },
+        cryoem: { score: calcScore(cryoemCount), rating: '', structures: cryoemCount },
+        nmr: { score: calcScore(nmrCount), rating: '', structures: nmrCount },
+        overall: { score: Math.min(10, Math.max(1, Math.round((calcScore(xrayCount) + calcScore(cryoemCount) + calcScore(nmrCount)) / 3))), rating: '' },
       };
       scores.xray.rating = scoreRating(scores.xray.score);
       scores.cryoem.rating = scoreRating(scores.cryoem.score);
