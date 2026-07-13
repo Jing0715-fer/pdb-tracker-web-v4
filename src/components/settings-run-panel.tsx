@@ -1072,6 +1072,9 @@ export function SettingsRunPanel({
   const [weeklyWindow, setWeeklyWindow] = useState<{ weekId: string; reportDate: string; startDate: string; endDate: string } | null>(null);
   const [weeklyDbCounts, setWeeklyDbCounts] = useState<{ pdbStructure: number; weeklySnapshot: number; weeklyReport: number } | null>(null);
   const [weeklyCycles, setWeeklyCycles] = useState<1 | 2 | 3>(2);
+  // Custom ISO week override — when set, the weekly run targets this week
+  // instead of the server-detected current week. Format: "YYYY-Www" (e.g. "2026-W28").
+  const [weeklyCustomWeek, setWeeklyCustomWeek] = useState<string>('');
 
   const weeklyStream = useRunStream();
   const litStream = useRunStream();
@@ -1272,8 +1275,13 @@ export function SettingsRunPanel({
   const runWeekly = (maxCycles: 1 | 2 | 3) => {
     markRunning('weekly');
     weeklyStream.reset();
-    log({ ts: new Date().toISOString(), module: 'weekly', status: 'running', summary: `触发本周 PDB 周报 (${weeklyWindow?.weekId || '?'}) • ${maxCycles}-cycle • SSE stream active… (预计 5–15 min)` });
-    weeklyStream.start('/api/pdb-weekly/run', { maxCycles, llm: llmBody() });
+    const weekLabel = weeklyCustomWeek || weeklyWindow?.weekId || '?';
+    log({ ts: new Date().toISOString(), module: 'weekly', status: 'running', summary: `触发 PDB 周报 (${weekLabel}) • ${maxCycles}-cycle • SSE stream active… (预计 5–15 min)` });
+    weeklyStream.start('/api/pdb-weekly/run', {
+      maxCycles,
+      ...(weeklyCustomWeek ? { weekId: weeklyCustomWeek } : {}),
+      llm: llmBody(),
+    });
   };
 
   /* ── completion hooks ───────────────────────────────────────────────── */
@@ -1461,9 +1469,8 @@ export function SettingsRunPanel({
             </div>
           </div>
 
-          {/* provider pills */}
-          {llmInfo?.available && llmInfo.available.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1.5">
+          {/* provider pills — always show at least auto + z.ai SDK; backend providers appended when available */}
+          <div className="mt-2 flex flex-wrap gap-1.5">
               <button
                 type="button"
                 onClick={() => pickProvider(AUTO_PROVIDER)}
@@ -1477,7 +1484,7 @@ export function SettingsRunPanel({
                 <Sparkles className="h-2 w-2" />
                 <span>auto</span>
               </button>
-              {llmInfo.available.map((a, i) => {
+              {llmInfo?.available && llmInfo.available.length > 0 && llmInfo.available.map((a, i) => {
                 const isPinned = chosenProvider === a.provider;
                 const isEffective = effectiveProviderId === a.provider;
                 // Hover-only tooltip: provider name (left), then full bin path (right).
@@ -1529,8 +1536,33 @@ export function SettingsRunPanel({
                   </TooltipProvider>
                 );
               })}
+              {/* z.ai SDK — temporary option for LLM testing using z-ai-web-dev-sdk */}
+              <TooltipProvider delayDuration={250}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => pickProvider('zai')}
+                      className={`group inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                        chosenProvider === 'zai'
+                          ? 'border-primary/50 bg-primary/10 text-foreground shadow-sm'
+                          : 'border-sky-500/40 bg-sky-500/5 text-sky-600 dark:text-sky-300 hover:border-sky-500/60'
+                      }`}
+                      title="z.ai SDK (z-ai-web-dev-sdk) — 临时 LLM 测试选项"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span className="font-mono text-sm">z.ai</span>
+                      <span className="px-1.5 h-5 inline-flex items-center rounded-md bg-sky-500/15 text-sky-600 dark:text-sky-300 text-xs font-medium font-mono">SDK</span>
+                      {chosenProvider === 'zai' && <Lock className="h-2.5 w-2.5 opacity-70" />}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-xs whitespace-pre-line text-left">
+                    <div className="font-mono text-xs">z.ai SDK (z-ai-web-dev-sdk)</div>
+                    <div className="text-xs text-muted-foreground mt-1">临时 LLM 测试选项，使用内置 z-ai-web-dev-sdk 调用 GLM 模型。无需额外 API Key 配置。</div>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </div>
-          )}
 
           <div className="mt-1.5 text-xs text-muted-foreground/60">
             {chosenProvider === AUTO_PROVIDER
@@ -1955,8 +1987,26 @@ export function SettingsRunPanel({
                 description="web-v3 进程内 2-step 对抗式生成器：fetch → backfill → PubMed → Generator → Critic-Scientific → (Synthesis) → 写 DB。复用当前选中的 LLM 提供方。SSE 流式推送进度，页面不会冻结。预计耗时 5–15 分钟。"
               >
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-                  <InfoTile label="ISO Week" value={weeklyWindow?.weekId || '…'} icon={<CalendarClock className="h-3 w-3" />} />
-                  <InfoTile label="报告日期" value={weeklyWindow?.reportDate || '…'} />
+                  <div>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
+                      <CalendarClock className="h-3 w-3" />ISO Week
+                    </Label>
+                    <div className="mt-1 flex items-center gap-1">
+                      <input
+                        type="week"
+                        value={weeklyCustomWeek || (weeklyWindow?.weekId || '')}
+                        onChange={e => setWeeklyCustomWeek(e.target.value)}
+                        className="h-8 px-2 rounded-md border border-border/60 bg-background text-xs font-mono text-foreground flex-1 min-w-0"
+                        title="自定义选择 ISO 周（留空则使用当前周）"
+                      />
+                      {weeklyCustomWeek && (
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => setWeeklyCustomWeek('')} title="重置为当前周">
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  <InfoTile label="报告日期" value={weeklyCustomWeek ? `${weeklyCustomWeek}-5` : (weeklyWindow?.reportDate || '…')} />
                   <InfoTile label="起始" value={weeklyWindow?.startDate || '…'} />
                   <InfoTile label="结束 (RCSB)" value={weeklyWindow?.endDate || '…'} />
                 </div>

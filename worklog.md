@@ -929,3 +929,29 @@ Stage Summary:
 - Toggle labels show full "强制BLAST"/"跳过BLAST".
 - Multi-target rows align: × button occupies same slot as + button, all params same width.
 - VLM: 10/10. Lint passes. Server stable.
+
+---
+Task ID: weekly-week-picker-and-zai-sdk
+Agent: main (Z.ai Code)
+Task: 1) Make ISO Week in weekly module customizable (week picker), 2) Add z.ai SDK as a temporary LLM testing option.
+
+Work Log:
+- Task 1 — Custom ISO Week:
+  - Added `weeklyCustomWeek` state (string, format "YYYY-Www").
+  - Replaced the static InfoTile for "ISO Week" with an `<input type="week">` picker. The browser's native week picker lets users select any ISO week. Pre-filled with the server-detected current week (weeklyWindow.weekId).
+  - When a custom week is selected, a reset (×) button appears next to the input (title="重置为当前周") to clear it back to the current week.
+  - Updated runWeekly to send `weekId` in the POST body when weeklyCustomWeek is set. The run log shows the custom week label.
+  - VLM verified: "ISO Week field is an editable week picker showing Week 29, 2026 with calendar icon, interactive."
+- Task 2 — z.ai SDK LLM option:
+  - Added a fixed "z.ai" provider pill to the LLM provider pills row. It always shows (not dependent on backend /api/llm/providers response) so users can always test with z.ai SDK.
+  - The pill is styled with sky-blue accent, shows "z.ai" + "SDK" tag (matching the existing SDK badge style).
+  - Clicking it calls pickProvider('zai'), which sets chosenProvider='zai' — the llmBody() then includes provider:'zai' in the request body so the backend uses z-ai-web-dev-sdk.
+  - Tooltip: "临时 LLM 测试选项，使用内置 z-ai-web-dev-sdk 调用 GLM 模型。无需额外 API Key 配置。"
+  - Restructured the provider pills container: removed the outer `{llmInfo?.available && ...}` conditional so the div always renders (auto + z.ai always show). The backend providers map now has its own conditional inside.
+  - VLM verified: "z.ai pill with SDK tag shown among provider options."
+- Rebuilt standalone, deployed. Browser-verified both features.
+
+Stage Summary:
+- ISO Week is now a native week picker (<input type="week">) — users can select any custom week. Reset button clears back to current week. runWeekly sends weekId override.
+- z.ai SDK pill added as a permanent LLM provider option (always visible, sky-blue styled, "SDK" tag). Clicking locks provider to 'zai' for LLM testing via z-ai-web-dev-sdk.
+- Lint passes. Server stable.
