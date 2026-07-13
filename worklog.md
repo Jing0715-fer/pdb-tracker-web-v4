@@ -1065,3 +1065,32 @@ Stage Summary:
 - Gap below tabs reduced: gap-3→gap-2, mt-3→mt-2.
 - InfoTile value boxes match input style (bg-background, text-foreground).
 - VLM: 8/10. Lint passes. Server stable.
+
+---
+Task ID: db-gap-history-digest-tabs-historypanel
+Agent: main (Z.ai Code)
+Task: 1) Add gap between DB title and input, 2) Fix history digest always showing "no digest", 3) Expand tab titles, 4) Remove RunHistoryPanel from eval+lit.
+
+Work Log:
+- Issue 1 — DB title/input gap: Changed DB title row `mb-1.5` (6px) → `mb-3` (12px). DOM-verified: gap = 12px.
+- Issue 2 — History digest "no digest" bug:
+  - Root cause: /api/literature/daily/reports was querying the WeeklyReport table (reportType='literature-daily'), but the literature module writes digests to the LiteratureDigest table. WeeklyReport was always empty for literature → all dates returned no content.
+  - Fix: Rewrote the API to query LiteratureDigest table (SELECT date, paperCount, digest, llmOk, llmProvider, llmModel). Returns an array of {date, content, hasLLMDigest, ...}.
+  - Updated viewLitDigest in frontend to handle array response (Array.isArray(data) ? data : data.reports).
+  - Verified: inserted test record → API returns it → clicking 07-11 shows "2026-07-11 结构生物学每日精选" digest content inline.
+- Issue 3 — Tab titles expanded:
+  - "① 评估" → "① 蛋白靶点评估" (desktop) / "① 评估" (mobile)
+  - "② 文献" → "② 每日文献检索" (desktop) / "② 文献" (mobile)
+  - "③ 周报" → "③ PDB 周报生成" (desktop) / "③ 周报" (mobile)
+  - DOM-verified: all 3 expanded titles visible.
+- Issue 4 — RunHistoryPanel removed from eval and literature:
+  - Removed `<RunHistoryPanel moduleKey="eval">` from evaluation module.
+  - Removed `<RunHistoryPanel moduleKey="literature">` from literature module.
+  - Now all 3 modules (eval/lit/weekly) have no RunHistoryPanel — the shared execution log at the bottom covers all modules.
+
+Stage Summary:
+- DB title→input gap increased to 12px (was 6px).
+- History report click now fetches from LiteratureDigest table (was querying empty WeeklyReport). Digest content displays inline.
+- Tab titles expanded: 蛋白靶点评估 / 每日文献检索 / PDB 周报生成 (with mobile fallback to short names).
+- RunHistoryPanel removed from eval + lit (was already removed from weekly). All 3 modules now consistent.
+- Lint passes. Server stable.

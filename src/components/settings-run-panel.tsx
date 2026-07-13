@@ -1246,7 +1246,8 @@ export function SettingsRunPanel({
         return;
       }
       const data = await res.json();
-      const reports: any[] = data.reports || [];
+      // API returns an array of reports (or {reports: [...]} for backward compat)
+      const reports: any[] = Array.isArray(data) ? data : (data.reports || []);
       const found = reports.find((r: any) => (r.weekId || r.date) === date);
       if (found && found.content) {
         setLitViewingDigest({ date, content: found.content, loading: false });
@@ -1660,7 +1661,7 @@ export function SettingsRunPanel({
           {/* ── Database config (always visible) ──────────────────────── */}
           <div className="mt-3 border-t border-border/40 pt-2">
             {/* Title + active path + schema badges + loaded status — single dense line */}
-            <div className="flex items-center gap-1.5 flex-wrap mb-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap mb-3">
               <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
               <span className="text-sm font-medium text-foreground shrink-0">数据库</span>
               {dbStatus?.activeFsPath && (
@@ -1770,20 +1771,20 @@ export function SettingsRunPanel({
             <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
               <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
                 <FlaskConical className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">① 评估</span>
-                <span className="sm:hidden">①</span>
+                <span className="hidden sm:inline">① 蛋白靶点评估</span>
+                <span className="sm:hidden">① 评估</span>
                 {isRunning('eval') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="literature" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
                 <BookOpen className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">② 文献</span>
-                <span className="sm:hidden">②</span>
+                <span className="hidden sm:inline">② 每日文献检索</span>
+                <span className="sm:hidden">② 文献</span>
                 {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="weekly" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
                 <CalendarClock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">③ 周报</span>
-                <span className="sm:hidden">③</span>
+                <span className="hidden sm:inline">③ PDB 周报生成</span>
+                <span className="sm:hidden">③ 周报</span>
                 {isRunning('weekly') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
             </TabsList>
@@ -1894,8 +1895,6 @@ export function SettingsRunPanel({
                     </Badge>
                   )}
                 </div>
-                {/* Recent runs for this module — refreshes after each completed run */}
-                <RunHistoryPanel moduleKey="eval" refreshKey={evalRunCount} limit={5} />
               </ModuleCard>
             </TabsContent>
 
@@ -2024,8 +2023,6 @@ export function SettingsRunPanel({
                     )}
                   </div>
                 )}
-                {/* Recent runs for this module — refreshes after each completed run */}
-                <RunHistoryPanel moduleKey="literature" refreshKey={litRunCount} limit={5} />
               </ModuleCard>
             </TabsContent>
 
