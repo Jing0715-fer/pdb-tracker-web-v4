@@ -1853,3 +1853,37 @@ Stage Summary:
 - DB config fixed: my-pdb-tracker.db with schema initialized.
 - Tour state reset for user to re-experience.
 - Lint passes. Server stable.
+
+---
+
+## 2026-07-14 · 第 N 轮 — Tour Overlay 重构 + 多序列评估支持
+
+### 本轮目标
+
+1. 重写 `src/components/tour-overlay.tsx`：引导 tooltip 从右下角固定改为靠近被高亮元素的浮动小卡片（centered 模式回退到右下角）。
+2. 重排 `TOUR_STEPS` 顺序，新增 DB wizard / Run Center 弹窗集成与三个模块 tab 切换钩子。
+3. 在 `src/hooks/use-tour.ts` 增加 `onOpenDbWizard` / `onCloseDbWizard` / `onSwitchEval` / `onSwitchLit` / `onSwitchWeekly` 回调，按新顺序触发 step enter/exit 动作。
+4. 在 `src/components/settings-run-panel.tsx` 评估模块的「序列输入」模式支持多序列（空行分隔），多序列时发送 `sequences` 数组。
+5. 在 `src/app/api/evaluations/run/route.ts` 接收 `sequences` 数组，逐条 BLAST + 独立报告 + 跨序列相关性分析报告（mirror batch 模式）；保留对单 `sequence` 字符串的向后兼容。
+
+### 完成的核心改动
+
+| 文件 | 改动 |
+|------|------|
+| `src/components/tour-overlay.tsx` | **完全重写**：TOUR_STEPS 9 步重排（欢迎→模式切换→数据库配置→运行中心→评估→文献→周报→搜索→开始）；新 tooltip 宽 320px、紧凑卡片；位置算法 `computeTooltipPos` 默认放在 spotlight 右下（gap 14px），溢出视口时自动翻转左/上/右下角；带 caret 小箭头指向高亮元素；centered 模式回退到视口右下角（`transform: translate(-100%, -100%)`） |
+| `src/hooks/use-tour.ts` | 新增 `onOpenDbWizard` / `onCloseDbWizard` / `onSwitchEval` / `onSwitchLit` / `onSwitchWeekly` 回调；重写 step enter/exit handler：step 2 进入开 DB wizard、退出关 DB wizard；step 3 进入时先关 DB wizard 再开 Run Center、退出关 Run Center；step 4/5/6 切换 Run Center tab；finish 时同时关闭 DB wizard 与 Run Center |
+| `src/components/pdb-tracker.tsx` | `useTour({...})` 调用扩展：`onOpenDbWizard: () => setDbWizardOpen(true)`、`onCloseDbWizard: () => setDbWizardOpen(false)`、新增 `onSwitchEval/Lit/Weekly` 直接 `setRunCenterTab(...)` |
+| `src/components/settings-run-panel.tsx` | 1) textarea placeholder 改为多序列示例（"支持多序列输入，用空行分隔..."）；2) 下方计数提示动态显示「N 条序列 · 共 M aa · 多序列批量模式（含跨序列分析）」；3) `runEvaluation` 在 sequence 模式下用 `/\n\s*\n+/` 分割空行得到序列数组，多序列发送 `sequences: string[]`，单序列保留 `sequence: string` 向后兼容 |
+| `src/app/api/evaluations/run/route.ts` | 抽取 `evaluateOneSequence(rawSequence, seqType, seqIndex, seqTotal)` 闭包辅助函数（每条序列独立：转录 DNA→AA、BLAST pdbaa→nr 回退、UniProt 元数据查找、评分、单次 LLM 报告、DB 写入）；**修复原 TDZ bug**（原 `seqId` 在 line 220 引用、line 345 才声明，会抛 ReferenceError）；新增 multi-sequence 分支：`body.inputMode === 'sequence' && Array.isArray(body.sequences)` 时循环调用 helper、收集结果、生成跨序列相关性 LLM 报告（mirror UniProt batch 模式的 cross-analysis）、写入 `EvaluationBatch` 表；single-sequence 分支保留 `body.sequence` 字符串兼容 |
+
+### 验证
+
+- **ESLint**：`npx eslint src/components/tour-overlay.tsx src/hooks/use-tour.ts src/components/pdb-tracker.tsx src/components/settings-run-panel.tsx src/app/api/evaluations/run/route.ts` → 0 errors / 0 warnings。
+- **Build**：`NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" next build --webpack` → 成功（修复了一处 `commonPdbIds` 重复声明编译错误后通过）。
+- **Deploy**：standalone + static + public + .env + prisma/schema.prisma + .hermes/db-config.json 全部就位；`setsid -f` 启动 `node server.js` → `curl http://localhost:3000/` 返回 200，HTML 含 "PDB Structure Tracker"。
+
+### 已知遗留
+
+- 服务器初次启动时 Prisma 报 `no such table: PdbStructure`（DB 文件尚未初始化）— 这是预期的，DB Setup Wizard 第一次访问时会创建库结构并重启 Prisma client。
+- `buildReportSystemPrompt` / `buildReportUserPrompt` / `buildPdbTableFromReal` 是预存的未使用 import / 函数（非本轮引入），ESLint 未报错所以未清理。
+

@@ -1308,26 +1308,59 @@ export function SettingsRunPanel({
 
   const runEvaluation = () => {
     if (evalInputMode === 'sequence') {
-      // Sequence-based evaluation: no UniProt ID, use sequence directly for BLAST
-      const seq = evalSequence.trim();
-      if (!seq || seq.length < 10) {
-        toast.error('请输入有效的序列（至少 10 个残基）');
+      // Sequence-based evaluation: no UniProt ID, use sequence(s) directly for BLAST.
+      // Multi-sequence mode: split by blank line (one or more empty lines between
+      // sequences). Each non-empty chunk is one sequence. When more than one
+      // sequence is provided, the backend loops through them and produces a
+      // cross-sequence comparison report (similar to batch mode).
+      const rawSeqs = evalSequence
+        .split(/\n\s*\n+/) // split on blank-line separators
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+      if (rawSeqs.length === 0) {
+        toast.error('请输入至少一条有效序列');
+        return;
+      }
+      // Basic length validation per sequence.
+      const tooShort = rawSeqs.find(s => s.replace(/\s/g, '').length < 10);
+      if (tooShort) {
+        toast.error('每条序列至少需要 10 个残基');
         return;
       }
       markRunning('eval');
       evalStream.reset();
-      const seqLabel = evalSeqType === 'dna' ? `DNA序列(${seq.length}nt)→转录→AA` : `AA序列(${seq.length}aa)`;
-      log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `序列评估 ${seqLabel} — BLASTp 搜索 — SSE streaming…` });
-      evalStream.start('/api/evaluations/run', {
-        inputMode: 'sequence',
-        sequence: seq,
-        sequenceType: evalSeqType,
-        maxBlastHits: evalTargets[0]?.maxBlastHits || 50,
-        maxLitCount: evalMaxLitCount,
-        generateReport: evalGenerateReport,
-        saveReportFile: evalSaveReportFile,
-        llm: llmBody(),
-      });
+      if (rawSeqs.length === 1) {
+        // Single sequence — backward compatible single-string payload.
+        const seq = rawSeqs[0].replace(/\s/g, '');
+        const seqLabel = evalSeqType === 'dna' ? `DNA序列(${seq.length}nt)→转录→AA` : `AA序列(${seq.length}aa)`;
+        log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `序列评估 ${seqLabel} — BLASTp 搜索 — SSE streaming…` });
+        evalStream.start('/api/evaluations/run', {
+          inputMode: 'sequence',
+          sequence: seq,
+          sequenceType: evalSeqType,
+          maxBlastHits: evalTargets[0]?.maxBlastHits || 50,
+          maxLitCount: evalMaxLitCount,
+          generateReport: evalGenerateReport,
+          saveReportFile: evalSaveReportFile,
+          llm: llmBody(),
+        });
+      } else {
+        // Multiple sequences — send as `sequences` array; backend runs BLAST
+        // for each + generates a cross-sequence comparison report.
+        const cleaned = rawSeqs.map(s => s.replace(/\s/g, '').toUpperCase());
+        const seqLabel = evalSeqType === 'dna' ? `DNA序列` : 'AA序列';
+        log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `多序列批量评估 (${cleaned.length} 条 ${seqLabel}) — 每条独立 BLASTp + 跨序列相关性分析 — SSE streaming…` });
+        evalStream.start('/api/evaluations/run', {
+          inputMode: 'sequence',
+          sequenceType: evalSeqType,
+          sequences: cleaned,
+          maxBlastHits: evalTargets[0]?.maxBlastHits || 50,
+          maxLitCount: evalMaxLitCount,
+          generateReport: evalGenerateReport,
+          saveReportFile: evalSaveReportFile,
+          llm: llmBody(),
+        });
+      }
       return;
     }
     // Collect valid (non-empty) targets from the multi-target list.
@@ -1897,12 +1930,20 @@ export function SettingsRunPanel({
                       <textarea
                         value={evalSequence}
                         onChange={e => setEvalSequence(e.target.value)}
-                        placeholder={evalSeqType === 'dna' ? 'ATGGCGAGC...（DNA 序列，自动转录为氨基酸后进行 BLASTp）' : 'MAGSCKLP...（氨基酸序列，直接进行 BLASTp）'}
+                        placeholder={evalSeqType === 'dna'
+                          ? '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nATGGCGAGC...\n\nATGTTACGT...'
+                          : '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nMAGSCKLP...\n\nMKLTVFGV...'}
                         className="mt-1 w-full h-24 px-2 py-1.5 rounded-md border border-border/60 bg-background text-xs font-mono resize-y thin-scroll"
                         spellCheck={false}
                       />
                       <p className="text-3xs text-muted-foreground mt-0.5">
-                        {evalSequence.trim().length > 0 ? `${evalSequence.trim().length} ${evalSeqType === 'dna' ? 'nt' : 'aa'}` : `输入${evalSeqType === 'dna' ? 'DNA' : '氨基酸'}序列进行 BLASTp 同源搜索`}
+                        {evalSequence.trim().length > 0
+                          ? (() => {
+                              const cnt = evalSequence.split(/\n\s*\n+/).map(s => s.trim()).filter(s => s.length > 0).length;
+                              const totalLen = evalSequence.replace(/\s/g, '').length;
+                              return `${cnt} 条序列 · 共 ${totalLen} ${evalSeqType === 'dna' ? 'nt' : 'aa'}${cnt > 1 ? ' · 多序列批量模式（含跨序列分析）' : ''}`;
+                            })()
+                          : `输入${evalSeqType === 'dna' ? 'DNA' : '氨基酸'}序列进行 BLASTp 同源搜索（多序列用空行分隔）`}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">

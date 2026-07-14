@@ -15,12 +15,22 @@ export interface UseTourOptions {
   mounted: boolean;
   refs?: TourRefs;
   autoStartDelay?: number;
+  /** Called when a step with onEnter='openDbWizard' is entered. */
+  onOpenDbWizard?: () => void;
+  /** Called when a step with onExit='closeDbWizard' is left. */
+  onCloseDbWizard?: () => void;
   /** Called when a step with onEnter='openRunCenter' is entered. */
   onOpenRunCenter?: () => void;
   /** Called when a step with onExit='closeRunCenter' is left. */
   onCloseRunCenter?: () => void;
-  /** Called to switch the Run Center tab (for steps 5-7). */
+  /** Called to switch the Run Center tab (for module steps). */
   onSwitchTab?: (tab: string) => void;
+  /** Called when a step with onEnter='switchEval' is entered. */
+  onSwitchEval?: () => void;
+  /** Called when a step with onEnter='switchLit' is entered. */
+  onSwitchLit?: () => void;
+  /** Called when a step with onEnter='switchWeekly' is entered. */
+  onSwitchWeekly?: () => void;
 }
 
 export interface UseTourReturn {
@@ -35,13 +45,27 @@ export interface UseTourReturn {
 function buildSteps(refs?: TourRefs): TourStepConfig[] {
   return TOUR_STEPS.map((step, i) => {
     let targetRef: TourStepConfig['targetRef'];
+    // Step index 1 = 模式切换 → spotlight mode switcher
     if (i === 1) targetRef = refs?.modeSwitcherRef;
+    // Step index 7 = 搜索与快捷键 → spotlight search box
     else if (i === 7) targetRef = refs?.searchRef;
     return { ...step, targetRef };
   });
 }
 
-export function useTour({ mounted, refs, autoStartDelay = 1500, onOpenRunCenter, onCloseRunCenter }: UseTourOptions): UseTourReturn {
+export function useTour({
+  mounted,
+  refs,
+  autoStartDelay = 1500,
+  onOpenDbWizard,
+  onCloseDbWizard,
+  onOpenRunCenter,
+  onCloseRunCenter,
+  onSwitchTab,
+  onSwitchEval,
+  onSwitchLit,
+  onSwitchWeekly,
+}: UseTourOptions): UseTourReturn {
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const autoStartedRef = useRef(false);
@@ -65,38 +89,73 @@ export function useTour({ mounted, refs, autoStartDelay = 1500, onOpenRunCenter,
     } catch { /* ignore */ }
   }, [mounted, autoStartDelay]);
 
-  // Handle step enter/exit actions
+  // Handle step enter/exit actions. The new step order:
+  //   0: 欢迎 (centered)
+  //   1: 模式切换 (spotlight)
+  //   2: 数据库配置 (open DB wizard on enter, close on exit)
+  //   3: 运行中心 (close DB wizard, open Run Center on enter; close Run Center on exit)
+  //   4: 评估模块 (switch Run Center tab to evaluation)
+  //   5: 文献模块 (switch Run Center tab to literature)
+  //   6: 周报模块 (switch Run Center tab to weekly)
+  //   7: 搜索与快捷键 (spotlight)
+  //   8: 开始使用 (centered)
   useEffect(() => {
     if (!tourActive) return;
     const step = TOUR_STEPS[tourStep];
     if (!step) return;
 
-    // Exit previous step
+    // ── Exit previous step actions ──
     if (prevStepRef.current >= 0 && prevStepRef.current !== tourStep) {
       const prevStep = TOUR_STEPS[prevStepRef.current];
+      if (prevStep?.onExit === 'closeDbWizard' && onCloseDbWizard) {
+        onCloseDbWizard();
+      }
       if (prevStep?.onExit === 'closeRunCenter' && onCloseRunCenter) {
         onCloseRunCenter();
       }
     }
 
-    // Enter current step
-    if (step.onEnter === 'openRunCenter' && onOpenRunCenter) {
-      onOpenRunCenter();
+    // ── Enter current step actions ──
+    if (step.onEnter === 'openDbWizard' && onOpenDbWizard) {
+      onOpenDbWizard();
     }
-
-    // Switch Run Center tab for module-specific steps (5-7 = indices 4-6)
-    if (onSwitchTab) {
-      if (tourStep === 4) onSwitchTab('evaluation');   // Step 5: 评估模块
-      else if (tourStep === 5) onSwitchTab('literature'); // Step 6: 文献模块
-      else if (tourStep === 6) onSwitchTab('weekly');    // Step 7: 周报模块
+    if (step.onEnter === 'openRunCenter') {
+      // Step 3 (运行中心): close DB wizard first (left over from step 2), then
+      // open the Run Center dialog.
+      if (onCloseDbWizard) onCloseDbWizard();
+      if (onOpenRunCenter) onOpenRunCenter();
+    }
+    if (step.onEnter === 'switchEval') {
+      if (onSwitchEval) onSwitchEval();
+      else if (onSwitchTab) onSwitchTab('evaluation');
+    }
+    if (step.onEnter === 'switchLit') {
+      if (onSwitchLit) onSwitchLit();
+      else if (onSwitchTab) onSwitchTab('literature');
+    }
+    if (step.onEnter === 'switchWeekly') {
+      if (onSwitchWeekly) onSwitchWeekly();
+      else if (onSwitchTab) onSwitchTab('weekly');
     }
 
     prevStepRef.current = tourStep;
-  }, [tourActive, tourStep, onOpenRunCenter, onCloseRunCenter, onSwitchTab]);
+  }, [
+    tourActive,
+    tourStep,
+    onOpenDbWizard,
+    onCloseDbWizard,
+    onOpenRunCenter,
+    onCloseRunCenter,
+    onSwitchTab,
+    onSwitchEval,
+    onSwitchLit,
+    onSwitchWeekly,
+  ]);
 
   // Clean up on finish
   const finishTour = useCallback(() => {
     // Close any open dialogs
+    if (onCloseDbWizard) onCloseDbWizard();
     if (onCloseRunCenter) onCloseRunCenter();
     setTourActive(false);
     setTourStep(0);
@@ -107,7 +166,7 @@ export function useTour({ mounted, refs, autoStartDelay = 1500, onOpenRunCenter,
     toast('引导已完成', {
       description: '随时点击右上角「帮助」按钮重新查看引导。',
     });
-  }, [onCloseRunCenter]);
+  }, [onCloseDbWizard, onCloseRunCenter]);
 
   const startTour = useCallback(() => {
     setTourActive(true);

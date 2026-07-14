@@ -1065,9 +1065,14 @@ export default function PdbTracker() {
       modeSwitcherRef: modeTabContainerRef,
       searchRef: searchWrapRef,
     },
+    onOpenDbWizard: () => setDbWizardOpen(true),
+    onCloseDbWizard: () => setDbWizardOpen(false),
     onOpenRunCenter: () => { setRunCenterOpen(true); setRunCenterTab('evaluation'); },
     onCloseRunCenter: () => setRunCenterOpen(false),
     onSwitchTab: (tab) => setRunCenterTab(tab),
+    onSwitchEval: () => setRunCenterTab('evaluation'),
+    onSwitchLit: () => setRunCenterTab('literature'),
+    onSwitchWeekly: () => setRunCenterTab('weekly'),
   });
 
   // Run Center controlled state (for tour integration)

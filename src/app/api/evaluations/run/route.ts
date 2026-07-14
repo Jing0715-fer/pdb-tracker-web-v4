@@ -133,21 +133,40 @@ export async function POST(req: Request) {
     const t0 = Date.now();
     const emit = (e: SseEvent) => progress(e);
     try {
-      // ── Sequence input mode: BLAST directly with provided sequence ──
-      if (body.inputMode === 'sequence' && body.sequence) {
-        let sequence = String(body.sequence).trim().toUpperCase().replace(/\s/g, '');
-        const seqType = body.sequenceType === 'dna' ? 'dna' : 'aa';
-        emit({ stage: 'init', level: 'info', message: `启动序列评估 · ${seqType === 'dna' ? 'DNA' : 'AA'} 序列 (${sequence.length} ${seqType === 'dna' ? 'nt' : 'aa'})`, progress: 2 });
-        await sleep(300);
+      // ── Helper: evaluate ONE sequence (used by both single & multi-sequence modes) ──
+      // Returns the full per-sequence result object. All log messages are
+      // prefixed with `[序列 i/N]` when seqTotal > 1 so the SSE feed can show
+      // which sequence is being processed.
+      const evaluateOneSequence = async (
+        rawSequence: string,
+        seqType: 'aa' | 'dna',
+        seqIndex: number,
+        seqTotal: number,
+      ): Promise<{
+        seqId: string;
+        uniprotInfo: any;
+        pdbDetails: PdbEntryDetail[];
+        blastHits: any[];
+        scores: any;
+        coverage: number;
+        report: any;
+        usedNrFallback: boolean;
+        ok: boolean;
+        error?: string;
+      }> => {
+        const prefix = seqTotal > 1 ? `[序列 ${seqIndex}/${seqTotal}] ` : '';
+        // Generate a stable seqId up front (fixes prior TDZ bug where seqId
+        // was referenced before its declaration).
+        const seqId = `SEQ_${Date.now().toString(36)}_${seqIndex}`;
+        let sequence = String(rawSequence).trim().toUpperCase().replace(/\s/g, '');
+        emit({ stage: 'init', level: 'info', message: `${prefix}启动序列评估 · ${seqType === 'dna' ? 'DNA' : 'AA'} 序列 (${sequence.length} ${seqType === 'dna' ? 'nt' : 'aa'})`, progress: 2 });
+        await sleep(200);
 
         // Transcribe DNA to amino acid sequence
         if (seqType === 'dna') {
-          emit({ stage: 'transcribe', level: 'info', message: `DNA → 氨基酸转录中…`, progress: 5 });
-          // Remove non-coding characters, translate codons
+          emit({ stage: 'transcribe', level: 'info', message: `${prefix}DNA → 氨基酸转录中…`, progress: 5 });
           const cleanDna = sequence.replace(/[^ATGC]/g, '');
           const codonTable: Record<string, string> = {
-            'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
-            'ATT':'I','ATC':'I','ATA':'I','ATG':'M','GTT':'V','GTC':'V','GTA':'V','GTG':'V',
             'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
             'ATT':'I','ATC':'I','ATA':'I','ATG':'M','GTT':'V','GTC':'V','GTA':'V','GTG':'V',
             'TCT':'S','TCC':'S','TCA':'S','TCG':'S','CCT':'P','CCC':'P','CCA':'P','CCG':'P',
@@ -165,45 +184,44 @@ export async function POST(req: Request) {
             aaSeq += aa;
           }
           sequence = aaSeq;
-          emit({ stage: 'transcribe', level: 'success', message: `转录完成: ${cleanDna.length}nt → ${aaSeq.length}aa`, progress: 10 });
+          emit({ stage: 'transcribe', level: 'success', message: `${prefix}转录完成: ${cleanDna.length}nt → ${aaSeq.length}aa`, progress: 10 });
         }
 
-        // Run BLASTp with the sequence — first against pdbaa (PDB), fallback to nr if no hits or <95% identity
-        emit({ stage: 'blast', level: 'info', message: `BLASTp 同源检索 — pdbaa 数据库（序列 ${sequence.length}aa, 上限 ${maxBlastHits}）`, progress: 15 });
+        // Run BLASTp — pdbaa first, fallback to nr if no hits or top identity < 95%
+        emit({ stage: 'blast', level: 'info', message: `${prefix}BLASTp 同源检索 — pdbaa 数据库（序列 ${sequence.length}aa, 上限 ${maxBlastHits}）`, progress: 15 });
         let blastHits: any[] = [];
         let usedNrFallback = false;
         try {
-          const blastPromise = runBlast(sequence, maxBlastHits, (msg) => { emit({ stage: 'blast', level: 'info', message: msg, progress: 20 }); });
+          const blastPromise = runBlast(sequence, maxBlastHits, (msg) => { emit({ stage: 'blast', level: 'info', message: `${prefix}${msg}`, progress: 20 }); });
           const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('BLAST 超时（180s）')), 180000));
           blastHits = await Promise.race([blastPromise, timeoutPromise]);
           const topIdentity = blastHits.length > 0 ? blastHits[0].identity : 0;
           if (blastHits.length === 0) {
-            emit({ stage: 'blast', level: 'warn', message: `pdbaa 数据库无命中，回退搜索 nr 数据库…`, progress: 25 });
+            emit({ stage: 'blast', level: 'warn', message: `${prefix}pdbaa 数据库无命中，回退搜索 nr 数据库…`, progress: 25 });
           } else if (topIdentity < 95) {
-            emit({ stage: 'blast', level: 'warn', message: `pdbaa 最高同源度 ${topIdentity}% < 95%，回退搜索 nr 数据库…`, progress: 25 });
+            emit({ stage: 'blast', level: 'warn', message: `${prefix}pdbaa 最高同源度 ${topIdentity}% < 95%，回退搜索 nr 数据库…`, progress: 25 });
           } else {
-            emit({ stage: 'blast', level: 'success', message: `pdbaa 命中 ${blastHits.length}/${maxBlastHits} 条同源（最高 identity=${topIdentity}% · ${blastHits[0].pdbId}）`, progress: 40 });
+            emit({ stage: 'blast', level: 'success', message: `${prefix}pdbaa 命中 ${blastHits.length}/${maxBlastHits} 条同源（最高 identity=${topIdentity}% · ${blastHits[0].pdbId}）`, progress: 40 });
           }
-          // Fallback to nr database if no hits or top identity < 95%
           if (blastHits.length === 0 || topIdentity < 95) {
-            emit({ stage: 'blast-nr', level: 'info', message: `BLASTp 同源检索 — nr 数据库（非冗余库, 上限 ${maxBlastHits}）`, progress: 28 });
+            emit({ stage: 'blast-nr', level: 'info', message: `${prefix}BLASTp 同源检索 — nr 数据库（非冗余库, 上限 ${maxBlastHits}）`, progress: 28 });
             try {
-              const nrPromise = runBlastDb(sequence, maxBlastHits, 'nr', (msg) => { emit({ stage: 'blast-nr', level: 'info', message: msg, progress: 30 }); });
+              const nrPromise = runBlastDb(sequence, maxBlastHits, 'nr', (msg) => { emit({ stage: 'blast-nr', level: 'info', message: `${prefix}${msg}`, progress: 30 }); });
               const nrTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('BLAST nr 超时（180s）')), 180000));
               const nrHits = await Promise.race([nrPromise, nrTimeout]);
               if (nrHits.length > 0) {
                 usedNrFallback = true;
                 blastHits = nrHits;
-                emit({ stage: 'blast-nr', level: 'success', message: `nr 命中 ${nrHits.length}/${maxBlastHits} 条同源（最高 identity=${nrHits[0].identity}% · ${nrHits[0].uniprotRef}）`, progress: 40 });
+                emit({ stage: 'blast-nr', level: 'success', message: `${prefix}nr 命中 ${nrHits.length}/${maxBlastHits} 条同源（最高 identity=${nrHits[0].identity}% · ${nrHits[0].uniprotRef}）`, progress: 40 });
               } else {
-                emit({ stage: 'blast-nr', level: 'warn', message: `nr 数据库也无命中`, progress: 40 });
+                emit({ stage: 'blast-nr', level: 'warn', message: `${prefix}nr 数据库也无命中`, progress: 40 });
               }
             } catch (nrErr: any) {
-              emit({ stage: 'blast-nr', level: 'error', message: `nr 搜索失败：${nrErr?.message}`, progress: 40 });
+              emit({ stage: 'blast-nr', level: 'error', message: `${prefix}nr 搜索失败：${nrErr?.message}`, progress: 40 });
             }
           }
         } catch (err: any) {
-          emit({ stage: 'blast', level: 'error', message: `BLAST pdbaa 失败：${err?.message}`, progress: 40 });
+          emit({ stage: 'blast', level: 'error', message: `${prefix}BLAST pdbaa 失败：${err?.message}`, progress: 40 });
         }
 
         // Convert BLAST hits to PDB-like details for scoring and report
@@ -215,28 +233,21 @@ export async function POST(req: Request) {
         }));
 
         // ── Fetch UniProt metadata from the top BLAST hit ──
-        // For pdbaa hits: use PDB ID to look up UniProt accession via RCSB entity API
-        // For nr hits: the accession itself may be a UniProt ID or NCBI protein accession
         let uniprotInfo: any = { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length };
         if (blastHits.length > 0) {
           const topHit = blastHits[0];
-          emit({ stage: 'uniprot-lookup', level: 'info', message: `从最高同源性命中 (${usedNrFallback ? topHit.uniprotRef : topHit.pdbId}, identity=${topHit.identity}%) 查找 UniProt 元数据…`, progress: 42 });
+          emit({ stage: 'uniprot-lookup', level: 'info', message: `${prefix}从最高同源性命中 (${usedNrFallback ? topHit.uniprotRef : topHit.pdbId}, identity=${topHit.identity}%) 查找 UniProt 元数据…`, progress: 42 });
           try {
             let uniprotAcc: string | null = null;
             if (usedNrFallback) {
-              // nr database hit — the accession may be a UniProt ID (e.g. sp|P00533|)
-              // or NCBI protein accession (e.g. WP_123456789.1)
               const acc = topHit.uniprotRef;
-              // Try to extract UniProt ID from description (format: "sp|P00533|EGFR_HUMAN ...")
               const uniMatch = (topHit.description || '').match(/sp\|([A-Z0-9]+)\|/);
               if (uniMatch) {
                 uniprotAcc = uniMatch[1];
               } else if (/^[A-NR-Z][0-9][A-Z0-9]{3}[0-9]/i.test(acc) || /^([A-Z0-9]{6,10})$/i.test(acc)) {
-                // Looks like a UniProt accession (e.g. P00533, Q8IVF2)
                 uniprotAcc = acc;
               } else {
-                // Try NCBI protein → UniProt mapping via UniProt search API
-                emit({ stage: 'uniprot-lookup', level: 'info', message: `通过 NCBI accession ${acc} 搜索 UniProt…`, progress: 44 });
+                emit({ stage: 'uniprot-lookup', level: 'info', message: `${prefix}通过 NCBI accession ${acc} 搜索 UniProt…`, progress: 44 });
                 const uniSearchRes = await fetch(`https://rest.uniprot.org/uniprotkb/search?query=xref:${acc}&fields=accession&format=json&size=1`, { signal: AbortSignal.timeout(15000) });
                 if (uniSearchRes.ok) {
                   const uniSearchData = await uniSearchRes.json();
@@ -244,7 +255,6 @@ export async function POST(req: Request) {
                 }
               }
             } else {
-              // pdbaa hit — use RCSB entity API to find UniProt accession
               const rcsbRes = await fetch(`https://data.rcsb.org/rest/v1/core/polymer_entity/${topHit.pdbId}/1`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
               if (rcsbRes.ok) {
                 const rcsbData = await rcsbRes.json();
@@ -253,7 +263,7 @@ export async function POST(req: Request) {
               }
             }
             if (uniprotAcc) {
-              emit({ stage: 'uniprot-lookup', level: 'info', message: `找到 UniProt accession: ${uniprotAcc}，获取元数据…`, progress: 44 });
+              emit({ stage: 'uniprot-lookup', level: 'info', message: `${prefix}找到 UniProt accession: ${uniprotAcc}，获取元数据…`, progress: 44 });
               const meta = await fetchUniprotMeta(uniprotAcc);
               if (meta) {
                 uniprotInfo = {
@@ -267,15 +277,15 @@ export async function POST(req: Request) {
                   blastPdbId: topHit.pdbId,
                   blastSource: usedNrFallback ? 'nr' : 'pdbaa',
                 };
-                emit({ stage: 'uniprot-lookup', level: 'success', message: `UniProt 元数据: ${meta.proteinName} · ${meta.organism} · ${meta.sequenceLength}aa (BLAST identity=${topHit.identity}% via ${usedNrFallback ? 'nr' : 'pdbaa'})`, progress: 46 });
+                emit({ stage: 'uniprot-lookup', level: 'success', message: `${prefix}UniProt 元数据: ${meta.proteinName} · ${meta.organism} · ${meta.sequenceLength}aa (BLAST identity=${topHit.identity}% via ${usedNrFallback ? 'nr' : 'pdbaa'})`, progress: 46 });
               } else {
-                emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 元数据获取失败 (${uniprotAcc})`, progress: 46 });
+                emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}UniProt 元数据获取失败 (${uniprotAcc})`, progress: 46 });
               }
             } else {
-              emit({ stage: 'uniprot-lookup', level: 'warn', message: `未找到关联的 UniProt accession`, progress: 46 });
+              emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}未找到关联的 UniProt accession`, progress: 46 });
             }
           } catch (err: any) {
-            emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 查找失败: ${err?.message}`, progress: 46 });
+            emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}UniProt 查找失败: ${err?.message}`, progress: 46 });
           }
         }
 
@@ -296,12 +306,12 @@ export async function POST(req: Request) {
         scores.cryoem.rating = scoreRating(scores.cryoem.score);
         scores.nmr.rating = scoreRating(scores.nmr.score);
         scores.overall.rating = scoreRating(scores.overall.score);
-        emit({ stage: 'score', level: 'success', message: `overall=${scores.overall.score}/10 (X-ray=${scores.xray.score}/${xrayCount}条, Cryo-EM=${scores.cryoem.score}/${cryoemCount}条, NMR=${scores.nmr.score}/${nmrCount}条)`, progress: 50 });
+        emit({ stage: 'score', level: 'success', message: `${prefix}overall=${scores.overall.score}/10 (X-ray=${scores.xray.score}/${xrayCount}条, Cryo-EM=${scores.cryoem.score}/${cryoemCount}条, NMR=${scores.nmr.score}/${nmrCount}条)`, progress: 50 });
 
-        // Generate report
+        // Generate report (single-call — shorter than 8-chapter UniProt mode)
         let report: any = undefined;
         if (generateReport) {
-          emit({ stage: 'llm-report', level: 'info', message: `生成 LLM 报告 (${provider})…`, progress: 55 });
+          emit({ stage: 'llm-report', level: 'info', message: `${prefix}生成 LLM 报告 (${provider})…`, progress: 55 });
           try {
             const litInfo = await buildLiteratureInfo(pdbDetails, maxLitCount);
             const pdbTable = pdbDetails.length > 0
@@ -310,7 +320,6 @@ export async function POST(req: Request) {
             const blastTable = buildDetailedBlastTable(blastHits, maxBlastHits);
             const topPdbs = pdbDetails.slice(0, 10).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)}`).join('\n');
             const litBlock = litInfo.count > 0 ? `\n\n相关 PubMed 文献（共 ${litInfo.count} 篇，按 IF 降序）：\n${litInfo.text}` : '\n\n（无 PubMed 文献数据）';
-            const sysPrompt = buildReportSystemPrompt();
             const userPrompt = `Generate a Chinese protein structure feasibility report for:
 
 UniProt: ${uniprotInfo.uniprotId !== seqId ? uniprotInfo.uniprotId : '(序列输入模式 — 无直接 UniProt ID)'}
@@ -329,46 +338,237 @@ ${pdbTable}
 ${blastTable}${litBlock}
 
 请基于 BLAST 同源搜索结果和 UniProt 元数据生成评估报告。重点分析输入序列与已知蛋白的同源性、结构特征、功能推断。`;
-
-            // Use single-call report (not 8-chapter) for sequence mode to save memory
             const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白序列评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 序列概述、## BLAST 同源结构分析、## 可成药性评估、## 实验建议、## 总结。';
             const r = await generateText(bSysPrompt, userPrompt, { maxChars: 2000, llm: body.llm });
             report = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, fallback: false };
-            if (r.ok) emit({ stage: 'llm-report', level: 'success', message: `LLM 报告已生成 · ${report.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 90 });
-            else emit({ stage: 'llm-report', level: 'error', message: `LLM 报告失败：${r.error}`, progress: 90 });
+            if (r.ok) emit({ stage: 'llm-report', level: 'success', message: `${prefix}LLM 报告已生成 · ${report.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 90 });
+            else emit({ stage: 'llm-report', level: 'error', message: `${prefix}LLM 报告失败：${r.error}`, progress: 90 });
           } catch (err: any) {
-            emit({ stage: 'llm-report', level: 'error', message: `LLM 生成失败：${err?.message}`, progress: 90 });
+            emit({ stage: 'llm-report', level: 'error', message: `${prefix}LLM 生成失败：${err?.message}`, progress: 90 });
           }
         }
 
         // Write to DB
-        const seqId = `SEQ_${Date.now().toString(36)}`;
         try {
           const scoresJson = JSON.stringify({ 'X-ray': { score: scores.xray.score, rating: scores.xray.rating }, 'Cryo-EM': { score: scores.cryoem.score, rating: scores.cryoem.rating }, 'NMR': { score: scores.nmr.score, rating: scores.nmr.rating }, 'Overall': { score: scores.overall.score, rating: scores.overall.rating } });
           await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${seqId}, ${uniprotInfo.entryName}, ${uniprotInfo.proteinName}, ${uniprotInfo.geneNames}, ${uniprotInfo.organism}, ${uniprotInfo.sequenceLength}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, 0, false, ${pdbDetails.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
-          // Insert BLAST hits as PDB structures
           await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${seqId}`;
           for (const e of pdbDetails) {
             const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
             const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
             await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${seqId}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate || null}, ${e.releaseDate}, ${e.ligands || ''}, ${e.ligands || ''}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms || ''}, ${e.authors || ''}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
           }
-          // Insert BLAST results
           await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${seqId}`;
           for (const h of blastHits) {
             await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${seqId}, ${h.pdbId}, ${h.uniprotRef || ''}, ${h.description || ''}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
           }
-          emit({ stage: 'write-db', level: 'success', message: `已写入 Evaluation + ${pdbDetails.length} PDB + ${blastHits.length} BLAST`, progress: 95 });
+          emit({ stage: 'write-db', level: 'success', message: `${prefix}已写入 Evaluation + ${pdbDetails.length} PDB + ${blastHits.length} BLAST`, progress: 95 });
         } catch (err: any) {
-          emit({ stage: 'write-db', level: 'error', message: `DB 写入失败：${err?.message}`, progress: 95 });
+          emit({ stage: 'write-db', level: 'error', message: `${prefix}DB 写入失败：${err?.message}`, progress: 95 });
         }
 
-        const result = { uniprot: seqId, uniprotInfo, directPdbCount: 0, pdbPersisted: pdbDetails.length, blastHitCount: blastHits.length, coverage, scores, report, dbSaved: true, durationMs: Date.now() - t0 };
-        emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${blastHits.length} BLAST 同源 · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : ''}`, progress: 100 });
+        return { seqId, uniprotInfo, pdbDetails, blastHits, scores, coverage, report, usedNrFallback, ok: true };
+      };
+
+      // ── Multi-sequence mode: body.inputMode === 'sequence' && Array.isArray(body.sequences) ──
+      // Loops through each sequence, runs BLAST + per-sequence report, then
+      // generates a cross-sequence comparison report (mirrors batch mode for
+      // UniProt IDs).
+      if (body.inputMode === 'sequence' && Array.isArray(body.sequences) && body.sequences.length > 0) {
+        const seqType: 'aa' | 'dna' = body.sequenceType === 'dna' ? 'dna' : 'aa';
+        const rawSeqs: string[] = (body.sequences as any[])
+          .filter((s) => typeof s === 'string' && s.replace(/\s/g, '').length >= 10)
+          .map((s) => String(s));
+        if (rawSeqs.length === 0) {
+          emit({ stage: 'error', level: 'error', message: `未提供有效序列（每条至少 10 个残基）`, progress: 100 });
+          await sleep(50);
+          done({ ok: false, error: 'no valid sequences' });
+          return;
+        }
+        const isMulti = rawSeqs.length > 1;
+        emit({ stage: 'init', level: 'info', message: `启动多序列批量评估 · ${rawSeqs.length} 条 ${seqType === 'dna' ? 'DNA' : 'AA'} 序列 — 每条独立 BLASTp${isMulti ? ' + 跨序列相关性分析' : ''} — SSE streaming…`, progress: 2 });
+        await sleep(300);
+
+        const seqResults: any[] = [];
+        for (let i = 0; i < rawSeqs.length; i++) {
+          try {
+            const r = await evaluateOneSequence(rawSeqs[i], seqType, i + 1, rawSeqs.length);
+            seqResults.push(r);
+            emit({ stage: `seq-${i + 1}-done`, level: 'success', message: `[序列 ${i + 1}/${rawSeqs.length}] ${r.seqId} 完成 · ${r.blastHits.length} BLAST 同源 · overall=${r.scores.overall.score}/10${r.report?.ok ? ` · LLM ✓ (${r.report.contentChars} chars)` : ''}`, progress: 100 });
+          } catch (err: any) {
+            emit({ stage: `seq-${i + 1}-done`, level: 'error', message: `[序列 ${i + 1}/${rawSeqs.length}] 失败：${err?.message}`, progress: 100 });
+            seqResults.push({ seqId: `SEQ_ERR_${i + 1}`, ok: false, error: err?.message || String(err), pdbDetails: [], blastHits: [], scores: { overall: { score: 0 } }, coverage: 0, report: undefined, uniprotInfo: { proteinName: `Sequence ${i + 1} (failed)` } });
+          }
+        }
+
+        // ── Cross-sequence comparison report (only when more than 1 sequence) ──
+        let crossReport: any = undefined;
+        if (isMulti) {
+          // Find common PDB IDs across sequences (pairwise + intersection of all).
+          const allPdbSets = seqResults.map(r => ({ seqId: r.seqId, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
+          const commonPdbIds = allPdbSets.length > 0
+            ? [...allPdbSets[0].pdbIds].filter(id => allPdbSets.every(s => s.pdbIds.has(id)))
+            : [];
+          const pdbOverlap: Record<string, string[]> = {};
+          for (let a = 0; a < allPdbSets.length; a++) {
+            for (let b = a + 1; b < allPdbSets.length; b++) {
+              const shared = [...allPdbSets[a].pdbIds].filter(id => allPdbSets[b].pdbIds.has(id));
+              if (shared.length > 0) {
+                pdbOverlap[`${allPdbSets[a].seqId}↔${allPdbSets[b].seqId}`] = shared;
+              }
+            }
+          }
+          emit({ stage: 'cross-analysis', level: commonPdbIds.length > 0 ? 'success' : 'info', message: `跨序列共有结构（全部序列）：${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 5).join(', ')}…)` : ''} · 两两重叠：${Object.keys(pdbOverlap).length} 对`, progress: 100 });
+
+          if (generateReport) {
+            emit({ stage: 'cross-llm', level: 'info', message: `生成跨序列相关性 LLM 分析报告…`, progress: 100 });
+            try {
+              const crossSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份跨序列相关性分析报告，使用 Markdown 格式。分析多条蛋白序列之间的结构关联性、功能关系、以及共有的结构基础。';
+              const seqSummary = seqResults.map((r, i) => {
+                const top5 = (r.pdbDetails || []).slice(0, 5).map((e: PdbEntryDetail) => `  - ${e.pdbId}: ${e.method} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 50)}`).join('\n');
+                const s = r.scores as any;
+                return `序列 ${i + 1}: ${r.seqId} (${r.uniprotInfo?.proteinName || 'Unknown'})
+  序列长度: ${r.uniprotInfo?.sequenceLength || '?'} aa
+  BLAST 同源数: ${(r.blastHits || []).length}
+  评分: overall=${s?.overall?.score || '?'}/10 (X-ray=${s?.xray?.score || '?'}/${s?.xray?.structures || 0}条, Cryo-EM=${s?.cryoem?.score || '?'}/${s?.cryoem?.structures || 0}条, NMR=${s?.nmr?.score || '?'}/${s?.nmr?.structures || 0}条)
+  代表性结构:
+${top5 || '  （无 BLAST 命中）'}`;
+              }).join('\n\n');
+              const overlapSummary = Object.entries(pdbOverlap).length > 0
+                ? Object.entries(pdbOverlap).map(([pair, ids]) => {
+                    const idDetails = ids.slice(0, 10).map(id => {
+                      const det = seqResults.flatMap(r => r.pdbDetails || []).find(e => e.pdbId === id);
+                      return `  - ${id}: ${det?.method || 'N/A'} | ${det?.resolution != null ? det.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(det?.title || '').slice(0, 60)}`;
+                    }).join('\n');
+                    return `${pair}: ${ids.length} 个共有结构\n${idDetails}`;
+                  }).join('\n')
+                : '无两两共有结构';
+              // Aggregate literature across all sequences (cap at maxLitCount, IF desc).
+              const allSeqPdbs: PdbEntryDetail[] = seqResults.flatMap(r => r.pdbDetails || []);
+              const crossLit = await buildLiteratureInfo(allSeqPdbs, maxLitCount);
+              const crossLitBlock = crossLit.count > 0
+                ? `\n\n相关 PubMed 文献（聚合全部 ${seqResults.length} 条序列，共 ${crossLit.count} 篇，按 IF 降序）：\n${crossLit.text}`
+                : '\n\n（无 PubMed 文献数据）';
+              const commonPdbDetails = commonPdbIds.length > 0
+                ? commonPdbIds.slice(0, 15).map(id => {
+                    const det = seqResults.flatMap(r => r.pdbDetails || []).find(e => e.pdbId === id);
+                    return `  - ${id}: ${det?.method || 'N/A'} | ${det?.resolution != null ? det.resolution.toFixed(1) + 'Å' : 'N/A'} | ${det?.journal || 'N/A'} (${det?.journalIf != null ? det.journalIf.toFixed(1) : 'N/A'}) | ${(det?.title || '').slice(0, 60)}`;
+                  }).join('\n')
+                : '（无共有结构）';
+              const crossUserPrompt = `请分析以下 ${seqResults.length} 条蛋白序列的结构相关性与功能关系：
+
+${seqSummary}
+
+共有结构分析：
+- 全部序列共有的结构: ${commonPdbIds.length} 个
+${commonPdbDetails}
+- 两两重叠:
+${overlapSummary}${crossLitBlock}
+
+请按以下结构生成报告：
+## 跨序列相关性分析报告
+
+### 一、序列概览
+（简述每条序列的蛋白名称、BLAST 同源结构数量、评分）
+
+### 二、共有结构分析
+（分析共有 PDB 结构的含义 — 这些结构可能揭示序列间的进化关系或功能关联）
+
+### 三、功能与通路关联
+（基于蛋白名称和结构信息，分析序列是否在同一蛋白家族或功能网络中）
+
+### 四、结构相似性推断
+（从共有结构推断序列间的结构相似性，讨论对药物设计或交叉研究的意义）
+
+### 五、文献综合
+（结合相关文献区块中的 PMID 列表，简述跨序列文献证据，引用 PMID 编号）
+
+### 六、总结与建议
+（总结序列间关系，提出后续研究建议）`;
+              const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
+              crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
+              if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 跨序列相关性报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: 100 });
+              else emit({ stage: 'cross-llm', level: 'error', message: `✗ 跨序列相关性 LLM 失败：${r.error}`, progress: 100 });
+            } catch (err: any) {
+              emit({ stage: 'cross-llm', level: 'error', message: `✗ 跨序列相关性分析失败：${err?.message}`, progress: 100 });
+            }
+          }
+
+          // Write batch record to EvaluationBatch + SkillRunRecord
+          const batchTitle = `Multi-Seq: ${seqResults.length} sequences`;
+          // `commonPdbIds` already computed above — reuse it for the batch record.
+          const commonPdbIdsJson = JSON.stringify(commonPdbIds);
+          const crossReportContent = crossReport?.ok ? crossReport.content : null;
+          try {
+            const batchId = 'mseq-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            await db.$executeRaw`INSERT INTO EvaluationBatch (batchId, title, combinedReport, commonPdbIds, crossReportOk, crossReportProvider, crossReportModel, crossReportDurationMs, crossReportChars, targetCount, createdAt, updatedAt) VALUES (${batchId}, ${batchTitle}, ${crossReportContent}, ${commonPdbIdsJson}, ${crossReport?.ok ?? false}, ${crossReport?.provider || null}, ${crossReport?.model || null}, ${crossReport?.durationMs || 0}, ${crossReport?.contentChars || 0}, ${seqResults.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`;
+            for (const r of seqResults) {
+              try { await db.$executeRaw`UPDATE Evaluation SET batchId = ${batchId} WHERE uniprotId = ${r.seqId}`; } catch {}
+            }
+            emit({ stage: 'batch-db', level: 'success', message: `✓ 多序列 Batch 记录已写入 EvaluationBatch (${batchId}) · 关联 ${seqResults.length} 条序列`, progress: 100 });
+          } catch (err: any) {
+            emit({ stage: 'batch-db', level: 'error', message: `多序列 Batch 记录写入失败：${err?.message}`, progress: 100 });
+          }
+          try {
+            await db.skillRunRecord.create({
+              data: {
+                module: 'eval',
+                status: crossReport?.ok || !generateReport ? 'success' : 'error',
+                summary: `多序列批量评估 ${seqResults.length} 条序列 · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? 'LLM ✓' : generateReport ? 'LLM ✗' : 'no LLM'}`,
+                details: JSON.stringify({ sequenceCount: seqResults.length, seqIds: seqResults.map(r => r.seqId), commonPdbIds, crossReportOk: crossReport?.ok }),
+                provider: body.llm?.provider || 'auto',
+                model: crossReport?.model || '',
+                llmOk: generateReport ? crossReport?.ok ?? false : null,
+                durationMs: Date.now() - t0,
+                resultJson: JSON.stringify({ sequences: seqResults.map(r => ({ seqId: r.seqId, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score })), commonPdbIds, crossReportChars: crossReport?.contentChars || 0 }),
+              },
+            });
+          } catch { /* ignore */ }
+        }
+
+        const result = {
+          ok: true,
+          inputMode: 'sequence',
+          sequenceCount: seqResults.length,
+          sequences: seqResults.map(r => ({
+            seqId: r.seqId,
+            uniprotInfo: r.uniprotInfo,
+            pdbCount: r.pdbDetails?.length || 0,
+            blastHitCount: r.blastHits?.length || 0,
+            coverage: r.coverage,
+            scores: r.scores,
+            report: r.report
+              ? {
+                  ok: !!r.report.ok,
+                  content: r.report.content || '',
+                  provider: r.report.provider || '',
+                  model: r.report.model || '',
+                  durationMs: r.report.durationMs || 0,
+                  contentChars: r.report.contentChars || 0,
+                }
+              : undefined,
+          })),
+          crossAnalysis: isMulti ? { crossReport } : undefined,
+          durationMs: Date.now() - t0,
+        };
+        const okCount = seqResults.filter(r => r.report?.ok).length;
+        emit({ stage: 'done', level: 'success', message: `多序列评估完成 · ${seqResults.length} 条 · LLM ${okCount}/${seqResults.length} ✓${isMulti && crossReport?.ok ? ' · 跨序列报告 ✓' : isMulti && generateReport ? ' · 跨序列报告 ✗' : ''} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 100 });
         await sleep(150);
         done(result);
         return;
       }
+
+      // ── Single sequence mode (backward compatible: body.sequence is a string) ──
+      if (body.inputMode === 'sequence' && body.sequence) {
+        const seqType: 'aa' | 'dna' = body.sequenceType === 'dna' ? 'dna' : 'aa';
+        const r = await evaluateOneSequence(String(body.sequence), seqType, 1, 1);
+        const result = { uniprot: r.seqId, uniprotInfo: r.uniprotInfo, directPdbCount: 0, pdbPersisted: r.pdbDetails.length, blastHitCount: r.blastHits.length, coverage: r.coverage, scores: r.scores, report: r.report, dbSaved: true, durationMs: Date.now() - t0 };
+        emit({ stage: 'done', level: r.report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${r.blastHits.length} BLAST 同源 · overall=${r.scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${r.report?.ok ? ` · LLM ✓ (${r.report.contentChars} chars)` : ''}`, progress: 100 });
+        await sleep(150);
+        done(result);
+        return;
+      }
+
 
       // ── Standard UniProt ID mode (original flow) ──
       emit({ stage: 'init', level: 'info', message: `启动 protein-target-evaluator · uniprot=${uniprot}`, progress: 2 });
