@@ -273,7 +273,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o && allowSkip && onClose) onClose() }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o && allowSkip && onClose) onClose(); /* if !allowSkip, prevent closing — user must complete setup */ }}>
       <DialogContent className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0">
         <DialogHeader className="px-6 pt-7 pb-5 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base leading-none">

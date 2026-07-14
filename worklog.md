@@ -1622,3 +1622,39 @@ Stage Summary:
 - Tour supports both spotlight mode (target element) and centered mode (no target)
 - Auto-starts on first visit, re-triggerable via Help button
 - Lint passes, build succeeds, code verified in production chunk
+
+---
+Task ID: force-db-setup-and-tour-redesign
+Agent: main (Z.ai Code)
+Task: 1) Force DB setup on first run (no skip), 2) Redesign tour with actual dialog integration and better visuals.
+
+Work Log:
+- DB setup wizard non-skippable:
+  - Changed `setDbWizardAllowSkip(false)` in first-run check (was `true`).
+  - Dialog `onOpenChange` only closes when `allowSkip && onClose` — when allowSkip=false, clicking outside does nothing.
+  - "暂时跳过" button only renders when `allowSkip && onClose` — hidden on first run.
+- Tour redesign — visual improvements:
+  - New TourCard component with gradient accent icon box (from-claude-accent/20), step counter badge, rounded-2xl, shadow-2xl.
+  - Progress dots: active = wide pill (w-6), past = small dot (w-1.5 accent/40), future = muted dot.
+  - Action buttons: "上一步" with ChevronLeft icon, "下一步" with ChevronRight icon, last step = green gradient "开始使用" with CheckCircle2.
+  - Close (X) button in top-right instead of "Skip" text.
+  - Each step has a themed icon (Sparkles, LayoutGrid, Rocket, Database, FlaskConical, BookOpen, CalendarClock, Search, CheckCircle2).
+  - Centered mode: full-screen rgba(0,0,0,0.5) overlay + scale/fade animation.
+  - Spotlight mode: pulsing border + dark overlay + positioned card.
+- Tour dialog integration:
+  - Added `onEnter`/`onExit` action keys to TOUR_STEPS: step 2 (运行中心) has onEnter='openRunCenter', onExit='closeRunCenter'.
+  - useTour hook now accepts `onOpenRunCenter` and `onCloseRunCenter` callbacks.
+  - When tour enters step 2, it calls `setSettingsOpen(true)` — the Run Center dialog opens with the tour card overlaid on top.
+  - When tour leaves step 2 (or finishes), it calls `setSettingsOpen(false)` — dialog closes.
+  - This lets the user see the actual Run Center UI while the tour explains it.
+- pdb-tracker.tsx wiring:
+  - `useTour` called with `onOpenRunCenter: () => setSettingsOpen(true)` and `onCloseRunCenter: () => setSettingsOpen(false)`.
+- Lint passes (0 errors). Build succeeds. Code verified in production chunks.
+- Browser verification limited by 4GB RAM OOM (Chrome + server).
+
+Stage Summary:
+- DB setup is now mandatory on first run — cannot skip, cannot close by clicking outside.
+- Tour redesigned with: gradient icons, progress dots, themed step icons, smooth animations, X close button.
+- Tour step 2 (运行中心) opens the actual Run Center dialog during the tour — user sees real UI with overlay explanation.
+- Tour step 4 (数据库配置) explains DB setup while user can see the Run Center's DB section.
+- Lint passes, build succeeds, server stable.

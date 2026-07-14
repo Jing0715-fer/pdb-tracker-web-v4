@@ -1065,6 +1065,8 @@ export default function PdbTracker() {
       modeSwitcherRef: modeTabContainerRef,
       searchRef: searchWrapRef,
     },
+    onOpenRunCenter: () => setSettingsOpen(true),
+    onCloseRunCenter: () => setSettingsOpen(false),
   });
 
   // ── First-run DB check ────────────────────────────────────────────────
@@ -1083,7 +1085,7 @@ export default function PdbTracker() {
         if (cancelled) return;
         const needsSetup = !data.confirmed || !data.hasSchema;
         if (needsSetup) {
-          setDbWizardAllowSkip(true); // allow skip so the app is still usable
+          setDbWizardAllowSkip(false); // force DB setup on first run — cannot skip
           setDbWizardOpen(true);
         }
       } catch {
