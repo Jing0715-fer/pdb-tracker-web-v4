@@ -2336,6 +2336,9 @@ export function SettingsRunPanel({
           </AnimatePresence>
         </div>
 
+        {/* Bottom spacer for visual breathing room */}
+        <div className="h-6 flex-shrink-0" />
+
       </DialogContent>
     </Dialog>
   );
