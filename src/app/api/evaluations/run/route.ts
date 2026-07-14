@@ -764,7 +764,10 @@ ${blastTable}${litBlock}
                   ? `\n\n相关 PubMed 文献（共 ${bLitInfo.count} 篇，按 IF 降序，摘要 200 字截断）：\n${bLitInfo.text}`
                   : '\n\n（无 PubMed 文献数据）';
                 const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白靶点评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 蛋白功能概述、## PDB 结构分析、## 可成药性评估、## 实验建议、## 总结。';
-                const bUserPrompt = `UniProt: ${bUid}\n蛋白名称: ${bInfo.proteinName}\n基因名: ${bInfo.geneNames}\n物种: ${bInfo.organism}\n序列长度: ${bInfo.sequenceLength} aa\nPDB 结构数: ${bPdbDetails.length}\n评分: overall=${bScores.overall.score}/10 (X-ray=${bScores.xray.score}/${bXray}条, Cryo-EM=${bScores.cryoem.score}/${bCryoem}条, NMR=${bScores.nmr.score}/${bNmr}条)\nBLAST: ${bSkipBlast ? '已跳过' : '未执行'}\n\n代表性 PDB 结构（前 10 个）:\n${topPdbs || '（无 PDB 结构）'}${bLitBlock}\n\n请生成完整的评估报告，在"实验建议"和"总结"中可引用文献 PMID 作为参考。`;
+                // Build full PDB table and BLAST table for batch target
+                const bFullPdbTable = bPdbDetails.length > 0 ? buildDetailedPdbTable(bPdbDetails, 80) : '（无 PDB 结构数据）';
+                const bFullBlastTable = bSkipBlast ? '（BLAST 已跳过）' : (bCached?.blastResults ? buildDetailedBlastTable(bCached.blastResults, bMaxPdb) : '（无 BLAST 数据）');
+                const bUserPrompt = `UniProt: ${bUid}\n蛋白名称: ${bInfo.proteinName}\n基因名: ${bInfo.geneNames}\n物种: ${bInfo.organism}\n序列长度: ${bInfo.sequenceLength} aa\nPDB 结构数: ${bPdbDetails.length}\n评分: overall=${bScores.overall.score}/10 (X-ray=${bScores.xray.score}/${bXray}条, Cryo-EM=${bScores.cryoem.score}/${bCryoem}条, NMR=${bScores.nmr.score}/${bNmr}条)\n\n完整 PDB 数据表:\n| # | PDB | 方法 | 分辨率(Å) | 期刊 (IF) | 配体 | 标题 |\n|---|------|------|-----------|----------|------|------|\n${bFullPdbTable}\n\nBLAST 同源数据:\n${bFullBlastTable}\n\n代表性 PDB 结构（前 10 个）:\n${topPdbs || '（无 PDB 结构）'}${bLitBlock}\n\n请生成完整的评估报告，在"实验建议"和"总结"中可引用文献 PMID 作为参考。`;
                 const br = await generateText(bSysPrompt, bUserPrompt, { maxChars: 2000, llm: body.llm });
                 bReport = { ok: br.ok, content: br.content, provider: br.provider, model: br.model, durationMs: br.durationMs, contentChars: br.content?.length || 0 };
                 if (br.ok) emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 报告已生成 · ${bReport.contentChars} chars · ${(br.durationMs / 1000).toFixed(1)}s${bLitInfo.count > 0 ? ` · 附 ${bLitInfo.count} 篇文献` : ''}`, progress: 100 });
@@ -825,7 +828,8 @@ ${blastTable}${litBlock}
             const crossSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份靶点间相关性分析报告，使用 Markdown 格式。分析多个蛋白靶点之间的结构关联性、功能关系、以及共有的结构基础。';
             const targetSummary = batchResults.map((r, i) => {
               const top5 = (r.pdbDetails || []).slice(0, 5).map((e: PdbEntryDetail) => `  - ${e.pdbId}: ${e.method} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 50)}`).join('\n');
-              return `靶点 ${i + 1}: ${r.uniprot} (${r.uniprotInfo?.proteinName})\n  PDB 结构数: ${(r.pdbDetails || []).length}\n  评分: overall=${r.scores?.overall?.score}/10\n  代表性结构:\n${top5}`;
+              const s = r.scores as any;
+              return `靶点 ${i + 1}: ${r.uniprot} (${r.uniprotInfo?.proteinName})\n  PDB 结构数: ${(r.pdbDetails || []).length}\n  评分: overall=${s?.overall?.score || '?'}/10 (X-ray=${s?.xray?.score || '?'}/${s?.xray?.structures || 0}条, Cryo-EM=${s?.cryoem?.score || '?'}/${s?.cryoem?.structures || 0}条, NMR=${s?.nmr?.score || '?'}/${s?.nmr?.structures || 0}条)\n  代表性结构:\n${top5}`;
             }).join('\n\n');
             const overlapSummary = Object.entries(pdbOverlap).length > 0
               ? Object.entries(pdbOverlap).map(([pair, ids]) => {
