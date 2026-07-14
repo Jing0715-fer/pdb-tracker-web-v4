@@ -193,6 +193,47 @@ export async function POST(req: Request) {
           authors: '', ligands: '', depositDate: null, releaseDate: h.releaseDate || null,
         }));
 
+        // ── Fetch UniProt metadata from the top BLAST hit ──
+        // The top hit's PDB ID is used to look up the associated UniProt accession
+        // via RCSB's entity API, then fetch UniProt metadata for supplementary info.
+        let uniprotInfo: any = { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length };
+        if (blastHits.length > 0) {
+          const topHit = blastHits[0];
+          emit({ stage: 'uniprot-lookup', level: 'info', message: `从最高同源性命中 (${topHit.pdbId}, identity=${topHit.identity}%) 查找 UniProt 元数据…`, progress: 42 });
+          try {
+            // Query RCSB for the UniProt accession associated with this PDB entry
+            const rcsbRes = await fetch(`https://data.rcsb.org/rest/v1/core/polymer_entity/${topHit.pdbId}/1`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+            if (rcsbRes.ok) {
+              const rcsbData = await rcsbRes.json();
+              const uniProts = rcsbData?.rcsb_polymer_entity_container_identifiers?.reference_sequence_identifiers || [];
+              const uniprotAcc = uniProts.find((r: any) => r.database_name === 'UniProt')?.database_accession;
+              if (uniprotAcc) {
+                emit({ stage: 'uniprot-lookup', level: 'info', message: `找到 UniProt accession: ${uniprotAcc}，获取元数据…`, progress: 44 });
+                const meta = await fetchUniprotMeta(uniprotAcc);
+                if (meta) {
+                  uniprotInfo = {
+                    uniprotId: uniprotAcc,
+                    entryName: meta.entryName,
+                    proteinName: meta.proteinName,
+                    geneNames: meta.geneNames,
+                    organism: meta.organism,
+                    sequenceLength: meta.sequenceLength,
+                    blastIdentity: topHit.identity,
+                    blastPdbId: topHit.pdbId,
+                  };
+                  emit({ stage: 'uniprot-lookup', level: 'success', message: `UniProt 元数据: ${meta.proteinName} · ${meta.organism} · ${meta.sequenceLength}aa (BLAST identity=${topHit.identity}%)`, progress: 46 });
+                } else {
+                  emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 元数据获取失败 (${uniprotAcc})`, progress: 46 });
+                }
+              } else {
+                emit({ stage: 'uniprot-lookup', level: 'warn', message: `PDB ${topHit.pdbId} 未关联 UniProt accession`, progress: 46 });
+              }
+            }
+          } catch (err: any) {
+            emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 查找失败: ${err?.message}`, progress: 46 });
+          }
+        }
+
         // Score from BLAST hit count
         const xrayCount = pdbDetails.filter(e => (e.method || '').includes('X-RAY')).length;
         const cryoemCount = pdbDetails.filter(e => (e.method || '').includes('ELECTRON')).length;
@@ -227,8 +268,13 @@ export async function POST(req: Request) {
             const sysPrompt = buildReportSystemPrompt();
             const userPrompt = `Generate a Chinese protein structure feasibility report for:
 
-UniProt: (序列输入模式 — 无 UniProt ID)
-Sequence: ${sequence.slice(0, 100)}... (${sequence.length}aa)
+UniProt: ${uniprotInfo.uniprotId !== seqId ? uniprotInfo.uniprotId : '(序列输入模式 — 无直接 UniProt ID)'}
+Protein: ${uniprotInfo.proteinName}
+Gene: ${uniprotInfo.geneNames}
+Organism: ${uniprotInfo.organism}
+Sequence length: ${uniprotInfo.sequenceLength} aa
+BLAST top hit: ${uniprotInfo.blastPdbId ? `${uniprotInfo.blastPdbId} (identity=${uniprotInfo.blastIdentity}%)` : 'N/A'}
+Input sequence: ${sequence.slice(0, 100)}... (${sequence.length}aa)
 BLAST hits: ${blastHits.length}
 Top BLAST structures:
 ${topPdbs || '（无 BLAST 命中）'}
@@ -237,7 +283,7 @@ ${pdbTable}
 
 ${blastTable}${litBlock}
 
-请基于 BLAST 同源搜索结果生成评估报告。`;
+请基于 BLAST 同源搜索结果和 UniProt 元数据生成评估报告。重点分析输入序列与已知蛋白的同源性、结构特征、功能推断。`;
 
             // Use single-call report (not 8-chapter) for sequence mode to save memory
             const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白序列评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 序列概述、## BLAST 同源结构分析、## 可成药性评估、## 实验建议、## 总结。';
@@ -254,7 +300,7 @@ ${blastTable}${litBlock}
         const seqId = `SEQ_${Date.now().toString(36)}`;
         try {
           const scoresJson = JSON.stringify({ 'X-ray': { score: scores.xray.score, rating: scores.xray.rating }, 'Cryo-EM': { score: scores.cryoem.score, rating: scores.cryoem.rating }, 'NMR': { score: scores.nmr.score, rating: scores.nmr.rating }, 'Overall': { score: scores.overall.score, rating: scores.overall.rating } });
-          await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${seqId}, ${seqType === 'dna' ? 'DNA Sequence' : 'AA Sequence'}, ${`Input Sequence (${sequence.length}aa)`}, 'N/A', 'N/A', ${sequence.length}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, 0, false, ${pdbDetails.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
+          await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${seqId}, ${uniprotInfo.entryName}, ${uniprotInfo.proteinName}, ${uniprotInfo.geneNames}, ${uniprotInfo.organism}, ${uniprotInfo.sequenceLength}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, 0, false, ${pdbDetails.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
           // Insert BLAST hits as PDB structures
           await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${seqId}`;
           for (const e of pdbDetails) {
@@ -272,7 +318,7 @@ ${blastTable}${litBlock}
           emit({ stage: 'write-db', level: 'error', message: `DB 写入失败：${err?.message}`, progress: 95 });
         }
 
-        const result = { uniprot: seqId, uniprotInfo: { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length }, directPdbCount: 0, pdbPersisted: pdbDetails.length, blastHitCount: blastHits.length, coverage, scores, report, dbSaved: true, durationMs: Date.now() - t0 };
+        const result = { uniprot: seqId, uniprotInfo, directPdbCount: 0, pdbPersisted: pdbDetails.length, blastHitCount: blastHits.length, coverage, scores, report, dbSaved: true, durationMs: Date.now() - t0 };
         emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${blastHits.length} BLAST 同源 · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : ''}`, progress: 100 });
         await sleep(150);
         done(result);
