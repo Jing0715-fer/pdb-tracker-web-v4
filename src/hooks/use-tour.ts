@@ -19,6 +19,8 @@ export interface UseTourOptions {
   onOpenRunCenter?: () => void;
   /** Called when a step with onExit='closeRunCenter' is left. */
   onCloseRunCenter?: () => void;
+  /** Called to switch the Run Center tab (for steps 5-7). */
+  onSwitchTab?: (tab: string) => void;
 }
 
 export interface UseTourReturn {
@@ -82,8 +84,15 @@ export function useTour({ mounted, refs, autoStartDelay = 1500, onOpenRunCenter,
       onOpenRunCenter();
     }
 
+    // Switch Run Center tab for module-specific steps (5-7 = indices 4-6)
+    if (onSwitchTab) {
+      if (tourStep === 4) onSwitchTab('evaluation');   // Step 5: 评估模块
+      else if (tourStep === 5) onSwitchTab('literature'); // Step 6: 文献模块
+      else if (tourStep === 6) onSwitchTab('weekly');    // Step 7: 周报模块
+    }
+
     prevStepRef.current = tourStep;
-  }, [tourActive, tourStep, onOpenRunCenter, onCloseRunCenter]);
+  }, [tourActive, tourStep, onOpenRunCenter, onCloseRunCenter, onSwitchTab]);
 
   // Clean up on finish
   const finishTour = useCallback(() => {

@@ -1065,18 +1065,23 @@ export default function PdbTracker() {
       modeSwitcherRef: modeTabContainerRef,
       searchRef: searchWrapRef,
     },
-    onOpenRunCenter: () => setSettingsOpen(true),
-    onCloseRunCenter: () => setSettingsOpen(false),
+    onOpenRunCenter: () => { setRunCenterOpen(true); setRunCenterTab('evaluation'); },
+    onCloseRunCenter: () => setRunCenterOpen(false),
+    onSwitchTab: (tab) => setRunCenterTab(tab),
   });
 
+  // Run Center controlled state (for tour integration)
+  const [runCenterOpen, setRunCenterOpen] = useState(false);
+  const [runCenterTab, setRunCenterTab] = useState('evaluation');
+
   // ── First-run DB check ────────────────────────────────────────────────
-  // Pop the setup wizard on first load when the user hasn't confirmed a
-  // database yet (first time) OR the schema isn't initialized. The wizard
-  // lets the user create a new DB or pick an existing one; once confirmed
-  // it won't show again. The test-DB warning is surfaced separately in the
-  // Run Center panel (settings-run-panel.tsx).
+  // Pop the setup wizard AFTER the tour completes (or if no tour needed).
+  // This ensures the user sees the onboarding tour first, then is forced
+  // to set up a database (cannot skip when no confirmed DB exists).
   useEffect(() => {
     if (dbWizardChecked) return;
+    // Wait for tour to finish before showing DB wizard (avoids overlap)
+    if (tourActive) return;
     let cancelled = false;
     (async () => {
       try {
@@ -1095,7 +1100,7 @@ export default function PdbTracker() {
       }
     })();
     return () => { cancelled = true; };
-  }, [dbWizardChecked]);
+  }, [dbWizardChecked, tourActive]);
 
   // Apply saved settings on first load
   useEffect(() => {
@@ -3943,7 +3948,13 @@ export default function PdbTracker() {
           <NotificationBell />
 
           {/* Skills & Manual Run Panel (literature-daily / protein-target-evaluator) */}
-          <SettingsRunPanel onDbChanged={handleRetryAll} />
+          <SettingsRunPanel
+            onDbChanged={handleRetryAll}
+            open={runCenterOpen}
+            onOpenChange={setRunCenterOpen}
+            activeTab={runCenterTab}
+            onTabChange={setRunCenterTab}
+          />
 
           {/* Settings Button */}
           <Tooltip>

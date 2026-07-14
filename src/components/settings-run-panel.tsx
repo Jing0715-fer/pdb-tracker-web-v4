@@ -944,9 +944,25 @@ function CycleTimeline({
 
 export function SettingsRunPanel({
   onDbChanged,
-}: { onDbChanged?: () => void } = {}) {
-  const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('evaluation');
+  open: externalOpen,
+  onOpenChange: externalOnOpenChange,
+  activeTab: externalTab,
+  onTabChange: externalOnTabChange,
+}: {
+  onDbChanged?: () => void;
+  /** Controlled open state (for tour integration). When provided, overrides internal state. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Controlled active tab (for tour integration). */
+  activeTab?: string;
+  onTabChange?: (tab: string) => void;
+} = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const [internalTab, setInternalTab] = useState('evaluation');
+  const open = externalOpen ?? internalOpen;
+  const setOpen = externalOnOpenChange ?? setInternalOpen;
+  const activeTab = externalTab ?? internalTab;
+  const setActiveTab = externalOnTabChange ?? setInternalTab;
   const [llmInfo, setLlmInfo] = useState<LlmInfo | null>(null);
   const [chosenProvider, setChosenProvider] = useState<string>(() => loadStoredProvider());
   const [llmCfg, setLlmCfg] = useState<LlmUserConfig>(() => loadStoredCfg());
