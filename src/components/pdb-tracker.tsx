@@ -1059,6 +1059,7 @@ export default function PdbTracker() {
   // missing. The mode switcher + search input are spotlighted; all other
   // steps render as centered tooltips. The 「帮助」 button in the top bar
   // calls `startTour()` to re-trigger the tour on demand.
+  const runCenterContentRef = useRef<HTMLDivElement>(null);
   const {
     tourActive,
     tourStep,
@@ -1071,10 +1072,16 @@ export default function PdbTracker() {
     refs: {
       modeSwitcherRef: modeTabContainerRef,
       searchRef: searchWrapRef,
+      runCenterContentRef,
     },
     onOpenDbWizard: () => setDbWizardOpen(true),
     onCloseDbWizard: () => setDbWizardOpen(false),
-    onOpenRunCenter: () => { setRunCenterOpen(true); setRunCenterTab('evaluation'); },
+    onOpenRunCenter: (tab) => {
+      setRunCenterOpen(true);
+      // Switch to the requested tab so each module step (eval / lit /
+      // weekly) shows its own panel inside the open Run Center dialog.
+      if (tab) setRunCenterTab(tab);
+    },
     onCloseRunCenter: () => setRunCenterOpen(false),
     onSwitchTab: (tab) => setRunCenterTab(tab),
     onSwitchEval: () => setRunCenterTab('evaluation'),
@@ -3966,6 +3973,7 @@ export default function PdbTracker() {
             onOpenChange={(open) => { if (!open && tourActive) return; setRunCenterOpen(open); }}
             activeTab={runCenterTab}
             onTabChange={setRunCenterTab}
+            contentRef={runCenterContentRef}
           />
 
           {/* Settings Button */}

@@ -9,6 +9,9 @@ export const TOUR_COMPLETED_KEY = 'pdb-tracker:tour-completed';
 export interface TourRefs {
   modeSwitcherRef?: RefObject<HTMLElement | null>;
   searchRef?: RefObject<HTMLElement | null>;
+  /** Run Center dialog content area — spotlighted by the eval/lit/weekly
+      module steps so the tour's tooltip anchors to the open dialog. */
+  runCenterContentRef?: RefObject<HTMLElement | null>;
 }
 
 export interface UseTourOptions {
@@ -19,8 +22,11 @@ export interface UseTourOptions {
   onOpenDbWizard?: () => void;
   /** Called when a step with onExit='closeDbWizard' is left. */
   onCloseDbWizard?: () => void;
-  /** Called when a step with onEnter='openRunCenter' is entered. */
-  onOpenRunCenter?: () => void;
+  /** Called when a step with onEnter='openRunCenter' is entered. Receives
+      the optional tab to switch to (e.g. 'evaluation' / 'literature' /
+      'weekly') so the host can both open the Run Center dialog AND switch
+      its tab in a single callback. */
+  onOpenRunCenter?: (tab?: string) => void;
   /** Called when a step with onExit='closeRunCenter' is left. */
   onCloseRunCenter?: () => void;
   /** Called to switch the Run Center tab (for module steps). */
@@ -49,6 +55,10 @@ function buildSteps(refs?: TourRefs): TourStepConfig[] {
     if (i === 1) targetRef = refs?.modeSwitcherRef;
     // Step index 7 = 搜索与快捷键 → spotlight search box
     else if (i === 7) targetRef = refs?.searchRef;
+    // Step indices 4 / 5 / 6 = 评估 / 文献 / 周报 module steps → spotlight
+    // the Run Center dialog content area so the tooltip anchors to the
+    // open dialog instead of dangling in a corner.
+    else if (i === 4 || i === 5 || i === 6) targetRef = refs?.runCenterContentRef;
     return { ...step, targetRef };
   });
 }
@@ -93,10 +103,10 @@ export function useTour({
   //   0: 欢迎 (centered)
   //   1: 模式切换 (spotlight)
   //   2: 数据库配置 (open DB wizard on enter, close on exit)
-  //   3: 运行中心 (close DB wizard, open Run Center on enter; close Run Center on exit)
-  //   4: 评估模块 (switch Run Center tab to evaluation)
-  //   5: 文献模块 (switch Run Center tab to literature)
-  //   6: 周报模块 (switch Run Center tab to weekly)
+  //   3: 运行中心 (open Run Center on enter; dialog stays open for steps 4-6)
+  //   4: 评估模块 (open Run Center + switch to evaluation tab)
+  //   5: 文献模块 (open Run Center + switch to literature tab)
+  //   6: 周报模块 (open Run Center + switch to weekly tab; close on exit)
   //   7: 搜索与快捷键 (spotlight)
   //   8: 开始使用 (centered)
   useEffect(() => {
@@ -121,21 +131,27 @@ export function useTour({
     }
     if (step.onEnter === 'openRunCenter') {
       // Step 3 (运行中心): close DB wizard first (left over from step 2), then
-      // open the Run Center dialog.
+      // open the Run Center dialog (default to evaluation tab).
       if (onCloseDbWizard) onCloseDbWizard();
-      if (onOpenRunCenter) onOpenRunCenter();
+      if (onOpenRunCenter) onOpenRunCenter('evaluation');
     }
     if (step.onEnter === 'switchEval') {
-      if (onSwitchEval) onSwitchEval();
+      // Steps 4-6 also open the Run Center (in case the user navigated here
+      // directly via 上一步/下一步 without going through step 3) AND switch
+      // to the matching tab in a single callback.
+      if (onOpenRunCenter) onOpenRunCenter('evaluation');
       else if (onSwitchTab) onSwitchTab('evaluation');
+      if (onSwitchEval) onSwitchEval();
     }
     if (step.onEnter === 'switchLit') {
-      if (onSwitchLit) onSwitchLit();
+      if (onOpenRunCenter) onOpenRunCenter('literature');
       else if (onSwitchTab) onSwitchTab('literature');
+      if (onSwitchLit) onSwitchLit();
     }
     if (step.onEnter === 'switchWeekly') {
-      if (onSwitchWeekly) onSwitchWeekly();
+      if (onOpenRunCenter) onOpenRunCenter('weekly');
       else if (onSwitchTab) onSwitchTab('weekly');
+      if (onSwitchWeekly) onSwitchWeekly();
     }
 
     prevStepRef.current = tourStep;

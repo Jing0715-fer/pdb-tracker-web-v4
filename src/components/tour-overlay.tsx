@@ -25,10 +25,10 @@ export interface TourStepConfig {
  *   0. 欢迎使用 PDB Structure Tracker (centered, no spotlight)
  *   1. 模式切换                          (spotlight: modeSwitcherRef)
  *   2. 数据库配置                        (open DB wizard: onEnter=openDbWizard, onExit=closeDbWizard)
- *   3. 运行中心                          (open Run Center: onEnter=openRunCenter, onExit=closeRunCenter)
- *   4. 评估模块                          (switch Run Center tab: onEnter=switchEval)
- *   5. 文献模块                          (switch Run Center tab: onEnter=switchLit)
- *   6. 周报模块                          (switch Run Center tab: onEnter=switchWeekly)
+ *   3. 运行中心                          (open Run Center: onEnter=openRunCenter; dialog stays open through steps 4-6)
+ *   4. 评估模块                          (open Run Center + switch tab: onEnter=switchEval; spotlight: runCenterContentRef)
+ *   5. 文献模块                          (open Run Center + switch tab: onEnter=switchLit; spotlight: runCenterContentRef)
+ *   6. 周报模块                          (open Run Center + switch tab: onEnter=switchWeekly, onExit=closeRunCenter; spotlight: runCenterContentRef)
  *   7. 搜索与快捷键                      (spotlight: searchRef)
  *   8. 开始使用                          (centered, no spotlight)
  */
@@ -55,7 +55,9 @@ export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
     description: '点击顶部「运行中心」按钮打开运行中心。支持三大模块：评估、文献检索、周报生成。',
     icon: <Rocket className="h-4 w-4" />,
     onEnter: 'openRunCenter',
-    onExit: 'closeRunCenter',
+    // NOTE: no onExit='closeRunCenter' here — the dialog stays open for
+    // steps 4-6 so the user can see each module's panel as the tour walks
+    // through them. The dialog is closed when leaving step 6 (周报模块).
   },
   {
     title: '评估模块',
@@ -74,6 +76,7 @@ export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
     description: '对抗式生成 PDB 周报：Generator → Critic → Synthesis。支持 ISO 周选择（自动检测最近可用窗口），可设 1–3 cycle 迭代提升质量。',
     icon: <CalendarClock className="h-4 w-4" />,
     onEnter: 'switchWeekly',
+    onExit: 'closeRunCenter',
   },
   {
     title: '搜索与快捷键',
@@ -243,11 +246,35 @@ export function TourOverlay({
   }, [tourActive, updatePosition]);
 
   useEffect(() => {
-    if (tourActive) {
-      const raf = requestAnimationFrame(() => updatePosition());
-      return () => cancelAnimationFrame(raf);
-    }
-  }, [tourActive, tourStep, updatePosition]);
+    if (!tourActive) return;
+    // When entering a step whose target is inside a dialog that's still
+    // opening (e.g. the Run Center dialog at step 4), the target ref may
+    // not be mounted yet on the first raf. Retry a few times over the
+    // next ~600ms so the spotlight appears as soon as the element is
+    // connected.
+    let cancelled = false;
+    let attempts = 0;
+    const tryUpdate = () => {
+      if (cancelled) return;
+      attempts++;
+      const el = currentStep?.targetRef?.current;
+      if (el && el.isConnected) {
+        updatePosition();
+        return;
+      }
+      if (attempts < 12) {
+        setTimeout(tryUpdate, 50);
+      } else {
+        // Give up — fall back to centered mode.
+        updatePosition();
+      }
+    };
+    const raf = requestAnimationFrame(tryUpdate);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+    };
+  }, [tourActive, tourStep, updatePosition, currentStep]);
 
   if (!tourActive || !currentStep || !stepConfig) return null;
 

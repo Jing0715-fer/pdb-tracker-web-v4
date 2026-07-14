@@ -1887,3 +1887,93 @@ Stage Summary:
 - 服务器初次启动时 Prisma 报 `no such table: PdbStructure`（DB 文件尚未初始化）— 这是预期的，DB Setup Wizard 第一次访问时会创建库结构并重启 Prisma client。
 - `buildReportSystemPrompt` / `buildReportUserPrompt` / `buildPdbTableFromReal` 是预存的未使用 import / 函数（非本轮引入），ESLint 未报错所以未清理。
 
+
+---
+Task ID: fix-batch-report-progress-tour
+Agent: main (Z.ai Code)
+Task: 4 fixes — (1) batch target LLM report should use the same 8-chapter streaming format as the primary target; (2) progress bar shows 100% too early — cap primary at 90%, batch 91-95%, cross-analysis 96%, cross-LLM 98%, batch-done 99%, only the final `done(result)` is 100%; (3) reports should display incrementally during generation (ChapterStream handles batch-N-chapter events, LLMPreview renders from chapter_done events before the stream's `done`); (4) tour steps for eval/lit/weekly should open the Run Center dialog and spotlight its content area.
+
+Work Log:
+
+### Fix 1 + Fix 2: `src/app/api/evaluations/run/route.ts`
+- **Fix 2 — Primary target progress cap at 90%**:
+  - Line ~758: chapter prep `progress: 66` → `progress: 60`.
+  - Per-chapter base: `66 + Math.round((i / totalChapters) * 24)` → `60 + Math.round((i / totalChapters) * 24)` (range 60..84).
+  - Chapter complete `progress: 91` → `progress: 86`.
+  - write-db start `progress: 96` → `progress: 87`.
+  - write-db complete `progress: 99` → `progress: 89`.
+  - Primary target's "done" stage event `progress: 100` → `progress: 90`.
+- **Fix 2 — Batch target progress 91-95%**:
+  - Added `const batchProgress = 91 + Math.round((bi / targets.length) * 5);` at the top of the batch loop body (where `bi` is the batch target index, 1-based).
+  - Replaced all `progress: 100` occurrences inside the batch loop (batch-N stage emits, batch-N-llm emits, batch DB fail emit, batch success emit, batch target fail emit) with `progress: batchProgress`.
+- **Fix 1 — Batch target 8-chapter streaming**:
+  - Replaced the single-call `generateText` block (was a 5-chapter 800-1500-word summary) with the SAME 8-chapter streaming approach used for the primary target.
+  - Per batch target: builds `bPdbTable` + `bBlastTable` + `bLiteratureInfo` (capped at `maxLitCount`, IF desc), assembles `bReportData` (same shape as primary `reportData`), then iterates the 8 canonical chapters (`summary / function / topology / pdb_analysis / feasibility / experimental / references / conclusion`).
+  - Each chapter emits TWO SSE events:
+    - `stage: 'batch-N-chapter'` (in-flight marker)
+    - `stage: 'batch-N-chapter_done'` (success/error + `chapterContent` payload so the front-end can render the Markdown incrementally).
+  - Concatenates the 8 chapters in canonical order into `finalReport`, attaches `chapters: chapterContents / chaptersOk / chaptersFailed` metadata to `bReport` (mirrors the primary report shape), and surfaces it through `result.batchResults[].report` so the existing per-batch LLMPreview cards keep working.
+  - The cached-report branch (`bCacheHit && bCached?.report`) is preserved — short-circuits the 8-chapter loop and reuses the existing DB report.
+- **Fix 2 — Cross-analysis / cross-LLM / batch-db / batch-done progress**:
+  - `cross-analysis` start + complete: `progress: 100` → `progress: 96`.
+  - `cross-llm` start + success + fail + catch: `progress: 100` → `progress: 98`.
+  - `batch-db` success + fail: `progress: 100` → `progress: 98`.
+  - `batch-done` (final batch stage event): `progress: 100` → `progress: 99`.
+  - The actual SSE `done(result)` call at the very end (line ~1259) is unchanged — it's the only event that ends the stream and the client treats it as `progress: 100` implicitly.
+  - The catch-all error emit at the bottom of the POST handler (`✗ 未捕获异常`) is left at `progress: 100` since it indicates a fatal stream failure.
+- Multi-sequence branch (sequence input mode) and single-sequence branch were intentionally NOT modified — those are separate paths not covered by this task's spec.
+
+### Fix 3: `src/components/settings-run-panel.tsx`
+- **`ChapterStream` component** rewritten to support BOTH primary target chapter events (`stage === 'chapter'` / `'chapter_done'`) AND batch target chapter events (`stage === 'batch-N-chapter'` / `'batch-N-chapter_done'`):
+  - New `GroupKey` type: `'primary' | \`batch-${number}\``.
+  - Events are partitioned into per-target groups via a regex match (`/^batch-(\d+)-chapter(_done)?$/`). Each group maintains its own `Map<chapterKey, ChapterRow>`.
+  - Top-level header now shows aggregate stats across ALL groups (total chapters, completed count, ok count, fail count) plus a new "N 靶点" badge when there are multiple groups.
+  - Each group renders as its own bordered sub-section with its own sub-header (showing the group title like "Batch 2 · 分章流式" + per-group completion stats) and its own chapter list. The sub-header only appears when there are multiple groups (single-target runs look identical to before).
+  - All chapter row rendering (collapsible `<details>`, status icon, duration/char count, Markdown body via `LazyMarkdown`) is unchanged.
+- **`primaryReportFromStream` memo** (new): synthesises a primary report object from `chapter_done` SSE events already in the log. Watches `evalStream.state.log`, picks out events with `stage === 'chapter_done' && chapter && chapterContent`, concatenates them in canonical chapter order, sums `chapterDurationMs`, derives `allOk` from the success/error level. Returns `null` when no chapter_done events yet.
+- **`effectivePrimaryReport`** (new): `evalStream.state.done ? evalStream.state.result?.report : primaryReportFromStream`. The LLMPreview block now renders from `effectivePrimaryReport` instead of waiting for `evalStream.state.done`. This means the primary target's LLMPreview card appears as soon as the first chapter_done event arrives — well before the batch loop (which can take minutes) finishes and triggers the actual SSE `done` event. The provider/model are shown as `(streaming)` during the run; once the stream ends the real `result.report` payload (with the actual provider/model metadata) takes precedence.
+- Added `useMemo` to the React import line.
+- LLMPreview's `dbSaved` prop is now `evalStream.state.done ? evalStream.state.result?.dbSaved : undefined` so the "已入库 / 入库失败" badge only appears once the run actually completes (the synthetic streaming report has no DB-persistence info).
+
+### Fix 4: Tour steps open Run Center + spotlight dialog content
+- **`src/hooks/use-tour.ts`** (rewritten):
+  - Added `runCenterContentRef?: RefObject<HTMLElement | null>` to `TourRefs`.
+  - `buildSteps` now sets `targetRef = refs?.runCenterContentRef` for step indices 4, 5, 6 (eval / lit / weekly module steps).
+  - `onOpenRunCenter` callback signature changed from `() => void` to `(tab?: string) => void` so the host can both open the dialog AND switch its tab in a single call.
+  - Step enter handler updated:
+    - Step 3 (`openRunCenter`): calls `onOpenRunCenter('evaluation')` (default tab).
+    - Step 4 (`switchEval`): calls `onOpenRunCenter('evaluation')` (in addition to the existing `onSwitchEval` call) — this opens the dialog if it isn't already open (covers the case where the user navigated directly to step 4 via 上一步/下一步 without going through step 3).
+    - Step 5 (`switchLit`): calls `onOpenRunCenter('literature')` + `onSwitchLit`.
+    - Step 6 (`switchWeekly`): calls `onOpenRunCenter('weekly')` + `onSwitchWeekly`.
+  - Step exit handler unchanged — closes DB wizard / Run Center when `onExit` is set.
+- **`src/components/tour-overlay.tsx`** (TOUR_STEPS updated):
+  - Step 3 (运行中心): kept `onEnter: 'openRunCenter'`, **REMOVED** `onExit: 'closeRunCenter'` — the dialog now stays open through steps 4-6 so each module's panel is visible.
+  - Step 6 (周报模块): added `onExit: 'closeRunCenter'` — the dialog closes when the tour moves to step 7 (search).
+  - Updated the JSDoc comment to reflect the new step enter/exit wiring.
+- **`src/components/tour-overlay.tsx`** (spotlight retry):
+  - Replaced the single-raf `updatePosition` call in the tourStep-change `useEffect` with a polling retry: tries `updatePosition` every 50ms for up to 12 attempts (~600ms total) if the target ref isn't connected yet. This handles the case where the target lives inside a dialog that's still animating open when the step changes (e.g. the Run Center dialog at step 4). Falls back to centered mode if the target never connects.
+- **`src/components/pdb-tracker.tsx`**:
+  - Added `const runCenterContentRef = useRef<HTMLDivElement>(null);`.
+  - Passed it to `useTour` via `refs.runCenterContentRef`.
+  - Passed it to `<SettingsRunPanel contentRef={runCenterContentRef} />`.
+  - Updated `onOpenRunCenter` callback to accept an optional `tab` parameter and call `setRunCenterTab(tab)` when provided (in addition to `setRunCenterOpen(true)`).
+- **`src/components/settings-run-panel.tsx`**:
+  - Added optional `contentRef?: React.RefObject<HTMLElement | null>` prop to `SettingsRunPanel`.
+  - Passed `ref={contentRef}` to `<DialogContent>` (works because Radix's `DialogPrimitive.Content` is a `forwardRef` component and React 19 spreads `ref` through `...props`).
+
+### Build & Deploy
+- `npx eslint src/app/api/evaluations/run/route.ts src/components/settings-run-panel.tsx src/hooks/use-tour.ts src/components/tour-overlay.tsx src/components/pdb-tracker.tsx`: 0 errors, 0 warnings.
+- `NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/next build --webpack`: ✓ Compiled successfully in 45s, all routes generated.
+- Copied `.next/static` + `public/` + `.env` + `prisma/schema.prisma` to `.next/standalone/`.
+- Created `.next/standalone/.hermes/db-config.json` with `{"dbPath":"file:/home/z/my-project/.next/standalone/db/my-pdb-tracker.db",...}`.
+- Seeded `my-pdb-tracker.db` from `custom.db` (the populated DB) since it didn't exist in the standalone dir.
+- Started standalone server via `setsid node server.js` from a subshell `( ... &)` so the process detaches from the bash session and survives between sandbox tool calls. Verified:
+  - `curl http://localhost:3000/` → 200
+  - `curl http://localhost:3000/api/evaluations` → 200
+
+Stage Summary:
+- Fix 1 (batch 8-chapter): batch targets now produce the same 8-chapter streaming report as the primary target, with per-batch-target SSE events (`batch-N-chapter` / `batch-N-chapter_done`) carrying the streamed chapter content.
+- Fix 2 (progress): primary target caps at 90%, batch targets occupy 91-95%, cross-analysis 96%, cross-LLM + batch-db 98%, batch-done 99%, final `done(result)` 100%. Progress bar no longer jumps to 100% before batch work starts.
+- Fix 3 (incremental display): ChapterStream partitions events by target (primary + per-batch-N) and renders each as its own section so all chapters stream incrementally. LLMPreview renders from `chapter_done` events via `primaryReportFromStream` — appears as soon as the first chapter finishes, NOT after the entire batch run completes.
+- Fix 4 (tour): steps 4/5/6 (eval/lit/weekly) spotlight the Run Center dialog content via `runCenterContentRef`. Step 3 no longer closes the dialog on exit; step 6 closes it. `onOpenRunCenter(tab?)` opens the dialog and switches to the matching tab in one call. Tour overlay polls for the ref to connect (~600ms) to handle the dialog-open animation delay.
+- Weekly and literature modules untouched. Lint clean. Build clean. Server verified returning 200 OK on `/` and `/api/evaluations`.

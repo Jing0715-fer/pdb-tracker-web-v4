@@ -22,7 +22,7 @@
  * ① / ② and flows into ③ via the same `llm` body field.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -672,6 +672,12 @@ function RunHistoryPanel({
  * events emitted by /api/evaluations/run. Each finished chapter becomes a
  * `<details>` row showing its Markdown content; chapters in flight show a
  * skeleton with the current `chapter_start` message.
+ *
+ * Supports BOTH the primary target's chapter events (`stage === 'chapter'`
+ * / `'chapter_done'`) AND batch target chapter events (`stage ===
+ * 'batch-N-chapter'` / `'batch-N-chapter_done'`). Each target's chapters
+ * are rendered as a separate section so the user can watch the LLM think
+ * through every target in the batch incrementally.
  */
 function ChapterStream({
   events,
@@ -701,6 +707,8 @@ function ChapterStream({
     startedAt?: string;
     finishedAt?: string;
   };
+  type GroupKey = 'primary' | `batch-${number}`;
+  type Group = { key: GroupKey; title: string; order: number; chapters: Map<string, ChapterRow> };
   const labels: Record<string, string> = {
     summary: '执行摘要',
     function: '蛋白功能与生物学背景',
@@ -712,20 +720,50 @@ function ChapterStream({
     conclusion: '总结',
   };
 
-  const byKey = new Map<string, ChapterRow>();
+  // Group events by target — primary (stage 'chapter' / 'chapter_done') gets
+  // its own group; each batch target (stage 'batch-N-chapter' /
+  // 'batch-N-chapter_done') gets its own group. This lets the user watch
+  // every target's chapter stream render incrementally as the run proceeds.
+  const groupMap = new Map<GroupKey, Group>();
+  const ensureGroup = (k: GroupKey, title: string, order: number): Group => {
+    let g = groupMap.get(k);
+    if (!g) {
+      g = { key: k, title, order, chapters: new Map() };
+      groupMap.set(k, g);
+    }
+    return g;
+  };
   for (const e of events) {
-    if (e.stage === 'chapter' && e.chapter) {
-      const k = e.chapter as string;
-      const cur = byKey.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' };
+    const stage = e.stage || '';
+    let groupKey: GroupKey | null = null;
+    let isDone = false;
+    if (stage === 'chapter') {
+      groupKey = 'primary';
+      isDone = false;
+    } else if (stage === 'chapter_done') {
+      groupKey = 'primary';
+      isDone = true;
+    } else {
+      const m = stage.match(/^batch-(\d+)-chapter(_done)?$/);
+      if (m) {
+        const bi = parseInt(m[1], 10);
+        groupKey = `batch-${bi}` as GroupKey;
+        isDone = !!m[2];
+      }
+    }
+    if (!groupKey || !e.chapter) continue;
+    const group = groupKey === 'primary'
+      ? ensureGroup('primary', '主靶点 · 分章流式', 0)
+      : ensureGroup(groupKey, `Batch ${parseInt(groupKey.replace('batch-', ''), 10) + 1} · 分章流式`, parseInt(groupKey.replace('batch-', ''), 10) + 1);
+    const k = e.chapter as string;
+    const cur = group.chapters.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' as const };
+    if (!isDone) {
       cur.status = 'running';
       cur.index = (e.chapterIndex as number) ?? cur.index;
       cur.total = (e.chapterTotal as number) ?? cur.total;
       cur.startedAt = e.ts;
-      byKey.set(k, cur);
-    } else if (e.stage === 'chapter_done' && e.chapter) {
-      const k = e.chapter as string;
+    } else {
       const isSuccess = e.level === 'success';
-      const cur = byKey.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' };
       cur.status = isSuccess ? 'success' : 'error';
       cur.index = (e.chapterIndex as number) ?? cur.index;
       cur.total = (e.chapterTotal as number) ?? cur.total;
@@ -733,15 +771,20 @@ function ChapterStream({
       cur.error = (e.chapterError as string) ?? cur.error;
       cur.durationMs = (e.chapterDurationMs as number) ?? cur.durationMs;
       cur.finishedAt = e.ts;
-      byKey.set(k, cur);
     }
+    group.chapters.set(k, cur);
   }
-  const rows = Array.from(byKey.values()).sort((a, b) => (a.index || 0) - (b.index || 0));
-  if (rows.length === 0) return null;
+  const groups = Array.from(groupMap.values())
+    .filter((g) => g.chapters.size > 0)
+    .sort((a, b) => a.order - b.order);
+  if (groups.length === 0) return null;
 
-  const completedCount = rows.filter((r) => r.status !== 'running').length;
-  const okCount = rows.filter((r) => r.status === 'success').length;
-  const failCount = rows.filter((r) => r.status === 'error').length;
+  // Aggregate stats across all groups for the top-level header.
+  const allRows = groups.flatMap((g) => Array.from(g.chapters.values()));
+  const totalCount = allRows.length;
+  const completedCount = allRows.filter((r) => r.status !== 'running').length;
+  const okCount = allRows.filter((r) => r.status === 'success').length;
+  const failCount = allRows.filter((r) => r.status === 'error').length;
 
   return (
     <motion.div
@@ -761,8 +804,13 @@ function ChapterStream({
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <ChevronRight className={`h-3 w-3 text-violet-500 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
           <span className="text-3xs font-semibold truncate">LLM 思考过程 · 分章流式</span>
+          {groups.length > 1 && (
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+              <Layers className="h-2 w-2" /> {groups.length} 靶点
+            </Badge>
+          )}
           <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
-            <Sparkles className="h-2 w-2" /> {completedCount}/{rows.length} 章节
+            <Sparkles className="h-2 w-2" /> {completedCount}/{totalCount} 章节
           </Badge>
           {okCount > 0 && failCount === 0 && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
@@ -774,7 +822,7 @@ function ChapterStream({
               ✗ {failCount} 失败
             </Badge>
           )}
-          {running && completedCount < rows.length && (
+          {running && completedCount < totalCount && (
             <span className="text-3xs text-violet-500 flex items-center gap-1 shrink-0">
               <Loader2 className="h-2.5 w-2.5 animate-spin" />
               生成中…
@@ -784,52 +832,79 @@ function ChapterStream({
         <span className="text-3xs text-muted-foreground/70 shrink-0">{collapsed ? '展开' : '收起'}</span>
       </div>
       {!collapsed && (
-      <div className="max-h-[40rem] overflow-y-auto thin-scroll p-2 space-y-1.5">
-        {rows.map((r) => {
-          const isRunning = r.status === 'running';
-          const isError = r.status === 'error';
+      <div className="max-h-[40rem] overflow-y-auto thin-scroll p-2 space-y-2">
+        {groups.map((g) => {
+          const rows = Array.from(g.chapters.values()).sort((a, b) => (a.index || 0) - (b.index || 0));
+          const gCompleted = rows.filter((r) => r.status !== 'running').length;
+          const gFail = rows.filter((r) => r.status === 'error').length;
           return (
-            <details
-              key={r.key}
-              open={isRunning}
-              className={`group rounded-md border ${
-                isRunning ? 'border-violet-500/40 bg-violet-500/5' :
-                isError ? 'border-rose-500/30 bg-rose-500/5' :
-                'border-emerald-500/30 bg-emerald-500/5'
-              }`}
-            >
-              <summary className="cursor-pointer list-none px-3 py-2 flex items-center gap-2 select-none">
-                <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90 text-muted-foreground shrink-0" />
-                <span className="text-sm font-semibold text-foreground/90 shrink-0">
-                  {r.index || '?'}/{r.total || '?'}
-                </span>
-                <span className="text-sm font-medium text-foreground/80 truncate">{r.label || r.key}</span>
-                {isRunning && <Loader2 className="h-2.5 w-2.5 animate-spin text-violet-500 shrink-0" />}
-                {isError && <XCircle className="h-3 w-3 text-rose-500 shrink-0" />}
-                {!isRunning && !isError && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500 shrink-0" />}
-                {r.durationMs != null && (
-                  <span className="text-3xs text-muted-foreground/60 font-mono ml-auto shrink-0">
-                    {(r.durationMs / 1000).toFixed(1)}s · {r.content?.length ?? 0} chars
-                  </span>
-                )}
-              </summary>
-              <div className="px-3 pb-3 pt-1">
-                {r.content ? (
-                  <div className="rounded border border-border/30 bg-background/40 p-3 max-h-72 overflow-y-auto thin-scroll text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none">
-                    <LazyMarkdown>{r.content}</LazyMarkdown>
-                  </div>
-                ) : isError ? (
-                  <div className="rounded border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-600 dark:text-rose-300 font-mono break-all">
-                    {r.error || '未知错误'}
-                  </div>
-                ) : (
-                  <div className="rounded border border-border/30 bg-background/40 p-3 text-sm text-muted-foreground italic">
-                    <Loader2 className="h-3 w-3 animate-spin inline-block mr-2" />
-                    等待 LLM 响应…
-                  </div>
-                )}
+            <div key={g.key} className="rounded-md border border-border/40 bg-background/30 overflow-hidden">
+              {/* Sub-header for each target group (only show when there are
+                  multiple groups — for single-target runs the top-level
+                  header is enough). */}
+              {groups.length > 1 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-muted/30">
+                  <span className="text-3xs font-semibold text-foreground/80 truncate">{g.title}</span>
+                  <Badge variant="outline" className="text-4xs font-mono px-1.5 h-4 rounded shrink-0 border-border/60 bg-background/60 text-muted-foreground">
+                    {gCompleted}/{rows.length}
+                  </Badge>
+                  {gFail > 0 && (
+                    <Badge variant="outline" className="text-4xs font-mono px-1.5 h-4 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                      ✗ {gFail}
+                    </Badge>
+                  )}
+                </div>
+              )}
+              <div className="p-1.5 space-y-1.5">
+                {rows.map((r) => {
+                  const isRunning = r.status === 'running';
+                  const isError = r.status === 'error';
+                  return (
+                    <details
+                      key={r.key}
+                      open={isRunning}
+                      className={`group rounded-md border ${
+                        isRunning ? 'border-violet-500/40 bg-violet-500/5' :
+                        isError ? 'border-rose-500/30 bg-rose-500/5' :
+                        'border-emerald-500/30 bg-emerald-500/5'
+                      }`}
+                    >
+                      <summary className="cursor-pointer list-none px-3 py-2 flex items-center gap-2 select-none">
+                        <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-semibold text-foreground/90 shrink-0">
+                          {r.index || '?'}/{r.total || '?'}
+                        </span>
+                        <span className="text-sm font-medium text-foreground/80 truncate">{r.label || r.key}</span>
+                        {isRunning && <Loader2 className="h-2.5 w-2.5 animate-spin text-violet-500 shrink-0" />}
+                        {isError && <XCircle className="h-3 w-3 text-rose-500 shrink-0" />}
+                        {!isRunning && !isError && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500 shrink-0" />}
+                        {r.durationMs != null && (
+                          <span className="text-3xs text-muted-foreground/60 font-mono ml-auto shrink-0">
+                            {(r.durationMs / 1000).toFixed(1)}s · {r.content?.length ?? 0} chars
+                          </span>
+                        )}
+                      </summary>
+                      <div className="px-3 pb-3 pt-1">
+                        {r.content ? (
+                          <div className="rounded border border-border/30 bg-background/40 p-3 max-h-72 overflow-y-auto thin-scroll text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                            <LazyMarkdown>{r.content}</LazyMarkdown>
+                          </div>
+                        ) : isError ? (
+                          <div className="rounded border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-600 dark:text-rose-300 font-mono break-all">
+                            {r.error || '未知错误'}
+                          </div>
+                        ) : (
+                          <div className="rounded border border-border/30 bg-background/40 p-3 text-sm text-muted-foreground italic">
+                            <Loader2 className="h-3 w-3 animate-spin inline-block mr-2" />
+                            等待 LLM 响应…
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
               </div>
-            </details>
+            </div>
           );
         })}
       </div>
@@ -948,6 +1023,7 @@ export function SettingsRunPanel({
   onOpenChange: externalOnOpenChange,
   activeTab: externalTab,
   onTabChange: externalOnTabChange,
+  contentRef,
 }: {
   onDbChanged?: () => void;
   /** Controlled open state (for tour integration). When provided, overrides internal state. */
@@ -956,6 +1032,9 @@ export function SettingsRunPanel({
   /** Controlled active tab (for tour integration). */
   activeTab?: string;
   onTabChange?: (tab: string) => void;
+  /** Ref attached to the dialog's content element so external code (e.g. the
+      onboarding tour) can spotlight it. */
+  contentRef?: React.RefObject<HTMLElement | null>;
 } = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [internalTab, setInternalTab] = useState('evaluation');
@@ -1143,6 +1222,48 @@ export function SettingsRunPanel({
   useEffect(() => {
     if (weeklyStream.state.done) setWeeklyRunCount(c => c + 1);
   }, [weeklyStream.state.done]);
+
+  // ── Synthetic primary report derived from chapter_done SSE events ──────
+  // The actual SSE `done` event is only sent at the very end of the run —
+  // AFTER batch mode finishes (which can take minutes for multi-target
+  // runs). To surface the primary target's report to the user as soon as
+  // its 8 chapters have streamed in (well before the batch loop ends), we
+  // synthesise a report object here from the chapter_done events already
+  // in the log. Once the run completes, the final `result.report` payload
+  // (which has the real provider/model metadata) takes precedence.
+  const primaryReportFromStream = useMemo(() => {
+    const chapterDones = evalStream.state.log.filter(
+      (e) => e.stage === 'chapter_done' && e.chapter && e.chapterContent,
+    );
+    if (chapterDones.length === 0) return null;
+    const canonical = ['summary', 'function', 'topology', 'pdb_analysis', 'feasibility', 'experimental', 'references', 'conclusion'];
+    const chapters: Record<string, string> = {};
+    let totalMs = 0;
+    let allOk = true;
+    for (const e of chapterDones) {
+      chapters[e.chapter as string] = e.chapterContent as string;
+      if (e.chapterDurationMs) totalMs += e.chapterDurationMs as number;
+      if (e.level !== 'success') allOk = false;
+    }
+    const content = canonical.map((ck) => chapters[ck] ?? '').filter(Boolean).join('\n\n');
+    if (!content) return null;
+    return {
+      ok: allOk,
+      content,
+      provider: '(streaming)',
+      model: '(streaming)',
+      durationMs: totalMs,
+      contentChars: content.length,
+      fallback: false,
+    };
+  }, [evalStream.state.log]);
+
+  // ── Effective primary report: prefer the final result once the stream is
+  // done; otherwise fall back to the streaming-derived synthetic report so
+  // the LLMPreview renders incrementally during batch mode.
+  const effectivePrimaryReport = evalStream.state.done
+    ? evalStream.state.result?.report
+    : primaryReportFromStream;
 
   /* ── data fetch on open ─────────────────────────────────────────────── */
   useEffect(() => {
@@ -1533,7 +1654,7 @@ export function SettingsRunPanel({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
+      <DialogContent ref={contentRef} className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
         {/* ── Header band (compact) ──────────────────────────────────── */}
         <div className="relative px-6 pt-4 pb-3 border-b border-border/60 bg-gradient-to-br from-muted/40 via-background to-background">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
@@ -2027,19 +2148,22 @@ export function SettingsRunPanel({
                   done={evalStream.state.done}
                 />
 
-                {/* LLM report inline preview (module ①) — shows real LLM output or failure */}
-                {evalStream.state.done && evalStream.state.result?.report && (
+                {/* LLM report inline preview (module ①) — shows real LLM output or failure.
+                    Uses `effectivePrimaryReport` so the preview appears as soon as the
+                    primary target's chapters finish streaming (via chapter_done SSE
+                    events), WITHOUT waiting for the entire batch run to complete. */}
+                {effectivePrimaryReport && (
                   <LLMPreview
-                    content={evalStream.state.result.report.content}
-                    title={`LLM 可行性报告 · ${evalStream.state.result.uniprotInfo?.proteinName || evalStream.state.result.uniprot}`}
-                    provider={evalStream.state.result.report.provider}
-                    model={evalStream.state.result.report.model}
-                    durationMs={evalStream.state.result.report.durationMs}
-                    fallback={evalStream.state.result.report.fallback}
-                    error={evalStream.state.result.report.error}
-                    ok={evalStream.state.result.report.ok}
-                    dbSaved={evalStream.state.result.dbSaved}
-                    chars={evalStream.state.result.report.contentChars}
+                    content={effectivePrimaryReport.content}
+                    title={`LLM 可行性报告 · ${evalStream.state.result?.uniprotInfo?.proteinName || evalStream.state.result?.uniprot || (evalStream.state.running ? '生成中…' : '主靶点')}`}
+                    provider={effectivePrimaryReport.provider}
+                    model={effectivePrimaryReport.model}
+                    durationMs={effectivePrimaryReport.durationMs}
+                    fallback={effectivePrimaryReport.fallback}
+                    error={effectivePrimaryReport.error}
+                    ok={effectivePrimaryReport.ok}
+                    dbSaved={evalStream.state.done ? evalStream.state.result?.dbSaved : undefined}
+                    chars={effectivePrimaryReport.contentChars}
                     accent="emerald"
                   />
                 )}
