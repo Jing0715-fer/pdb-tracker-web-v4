@@ -724,6 +724,13 @@ export default function PdbTracker() {
   // Error state for retry UI
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  /** Check if an error is likely caused by missing/unconfigured database. */
+  const isDbError = (err: any): boolean => {
+    const msg = err instanceof Error ? err.message : String(err);
+    return /HTTP 500|no such table|database.*not.*found|P2021|P2003/i.test(msg);
+  };
+  const dbErrorMsg = '数据库未配置或未初始化。请先在运行中心创建或选择数据库。';
+
   // Track whether fallback data is being used
   const [usingFallbackData, setUsingFallbackData] = useState(false);
 
@@ -744,7 +751,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch snapshots:', err);
       setSnapshots([]);
       setUsingFallbackData(false);
-      setFetchError(`加载快照失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载快照失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, [selectedSnapshot]);
 
@@ -769,7 +776,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch entries:', err);
       setEntries([]);
       setUsingFallbackData(false);
-      setFetchError(`加载 PDB 结构失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载 PDB 结构失败：${err instanceof Error ? err.message : '网络错误'}`);
     } finally {
       setLoading(false);
       setShowWelcome(false);
@@ -802,7 +809,7 @@ export default function PdbTracker() {
       setEvalBatches([]);
       setBatchSubTargets({});
       setUsingFallbackData(false);
-      setFetchError(`加载评估数据失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载评估数据失败：${err instanceof Error ? err.message : '网络错误'}`);
     } finally {
       setEvalLoading(false);
     }
@@ -922,7 +929,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch lit stats:', err);
       setLitStats(null);
       setUsingFallbackData(false);
-      setFetchError(`加载文献统计失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载文献统计失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, []);
 
@@ -943,7 +950,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch lit papers:', err);
       setLitPapers([]);
       setUsingFallbackData(false);
-      setFetchError(`加载论文列表失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载论文列表失败：${err instanceof Error ? err.message : '网络错误'}`);
     } finally {
       setLitLoading(false);
     }
@@ -963,7 +970,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch lit reports:', err);
       setLitReports([]);
       setUsingFallbackData(false);
-      setFetchError(`加载文献报告失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载文献报告失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, []);
 
@@ -981,7 +988,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch reports:', err);
       setWeeklyReports([]);
       setUsingFallbackData(false);
-      setFetchError(`加载周报失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `加载周报失败：${err instanceof Error ? err.message : '网络错误'}`);
     }
   }, []);
 
@@ -4129,14 +4136,23 @@ export default function PdbTracker() {
         {fetchError && (
           <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs flex-shrink-0">
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="font-medium">数据加载失败</span>
+            <span className="font-medium">{fetchError === dbErrorMsg ? '数据库未配置' : '数据加载失败'}</span>
             <span className="text-rose-600 dark:text-rose-400">— {fetchError}</span>
-            <button
-              onClick={() => { setFetchError(null); fetchSnapshots(); fetchEntries(); }}
-              className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
-            >
-              重试
-            </button>
+            {fetchError === dbErrorMsg ? (
+              <button
+                onClick={() => { setFetchError(null); setRunCenterOpen(true); }}
+                className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
+              >
+                打开运行中心
+              </button>
+            ) : (
+              <button
+                onClick={() => { setFetchError(null); fetchSnapshots(); fetchEntries(); }}
+                className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
+              >
+                重试
+              </button>
+            )}
             <button
               onClick={() => setFetchError(null)}
               className="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
