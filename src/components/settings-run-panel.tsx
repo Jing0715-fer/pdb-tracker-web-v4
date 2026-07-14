@@ -1654,9 +1654,9 @@ export function SettingsRunPanel({
         </Button>
       </DialogTrigger>
 
-      <DialogContent ref={contentRef} className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
+      <DialogContent ref={contentRef} className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* ── Header band (compact) ──────────────────────────────────── */}
-        <div className="relative px-6 pt-4 pb-3 border-b border-border/60 bg-gradient-to-br from-muted/40 via-background to-background">
+        <div className="relative px-6 pt-4 pb-3 border-b border-border/60 bg-gradient-to-br from-muted/40 via-background to-background flex-shrink-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
           <DialogHeader className="relative">
             <DialogTitle className="flex items-center gap-2.5 text-lg">
@@ -1680,7 +1680,7 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── LLM provider status bar — 2-column compact layout ──────────── */}
-        <div className="px-6 py-2.5 border-b border-border/60 bg-muted/20">
+        <div className="px-6 py-2.5 border-b border-border/60 bg-muted/20 flex-shrink-0">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
               <div className="flex items-center gap-1.5 shrink-0">
@@ -1991,7 +1991,7 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── Tabbed module panels ─────────────────────────────────────── */}
-        <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
+        <div className="px-6 pt-3 pb-6 flex-1 min-h-0 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-2">
             <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
               <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
@@ -2570,9 +2570,6 @@ export function SettingsRunPanel({
             )}
           </AnimatePresence>
         </div>
-
-        {/* Bottom spacer — matches px-6 horizontal padding for visual balance */}
-        <div className="px-6 pb-6 flex-shrink-0" />
 
       </DialogContent>
     </Dialog>

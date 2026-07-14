@@ -1977,3 +1977,30 @@ Stage Summary:
 - Fix 3 (incremental display): ChapterStream partitions events by target (primary + per-batch-N) and renders each as its own section so all chapters stream incrementally. LLMPreview renders from `chapter_done` events via `primaryReportFromStream` — appears as soon as the first chapter finishes, NOT after the entire batch run completes.
 - Fix 4 (tour): steps 4/5/6 (eval/lit/weekly) spotlight the Run Center dialog content via `runCenterContentRef`. Step 3 no longer closes the dialog on exit; step 6 closes it. `onOpenRunCenter(tab?)` opens the dialog and switches to the matching tab in one call. Tour overlay polls for the ref to connect (~600ms) to handle the dialog-open animation delay.
 - Weekly and literature modules untouched. Lint clean. Build clean. Server verified returning 200 OK on `/` and `/api/evaluations`.
+
+---
+Task ID: tour-and-layout-fix
+Agent: main
+Task: Fix two issues: (1) Tour not appearing when clicking "帮助" button, (2) Execution log sticking to bottom border when content is tall
+
+Work Log:
+- Investigated tour overlay rendering issue using agent-browser
+- Discovered the tour overlay WAS rendering in the DOM but was positioned off-screen
+- Root cause: The `transform: translate(-100%, -100%)` CSS style used to position the centered-mode tour card was being OVERRIDDEN by framer-motion's `animate={{ y: 0, scale: 1 }}` prop, which controls the `transform` property
+- Fix: Changed `computeTooltipPos`/`realPos` for centered mode to compute actual `top`/`left` values accounting for card dimensions (`top = vh - 16 - height`, `left = vw - 16 - width`) instead of relying on CSS transform
+- Removed the `transform` style from the motion.div (framer-motion handles animation transforms)
+- Also fixed the spotlight fallback case (bottom-right corner) with the same approach
+- For the bottom spacing issue: converted Run Center DialogContent from fixed `max-h-[calc(92vh-280px)]` to proper flex column layout
+  - DialogContent: added `flex flex-col`
+  - Header band + LLM bar: added `flex-shrink-0`
+  - Scrollable area: changed to `flex-1 min-h-0 overflow-y-auto pt-3 pb-6`
+  - Removed the separate bottom spacer div (was getting clipped by `overflow-hidden`)
+- Ran lint: 0 errors, 0 warnings
+- Browser verification (agent-browser):
+  - Tour: Clicked "帮助" button → tour card appears fully visible at bottom-right (944,394 to 1264,568 within 1280×577 viewport, opacity=1)
+  - Layout: Run Center dialog opens with flex column layout, scrollable area has 12px/24px padding (pt-3/pb-6), no clipping, dialog bottom (554px) within viewport (577px)
+
+Stage Summary:
+- Tour fix: The root cause was framer-motion overriding the CSS `transform` property. Fixed by computing actual top/left positions instead of using translate. Tour now appears correctly when clicking Help.
+- Layout fix: Converted from fragile `max-h-[calc(92vh-280px)]` + separate bottom spacer to robust flex column pattern. The execution log (inside scrollable area) now always has 24px bottom padding, preventing it from sticking to the dialog's bottom border.
+- Key files modified: `src/components/tour-overlay.tsx`, `src/components/settings-run-panel.tsx`

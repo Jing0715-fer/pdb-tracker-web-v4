@@ -283,13 +283,24 @@ export function TourOverlay({
   // measured height. We re-compute here so the tooltip reflows when its
   // content changes (different step descriptions have different lengths).
   const realPos = (() => {
-    if (!spotlightRect) return pos;
+    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+    const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
+    const h = tooltipHeight || 220;
+    if (!spotlightRect) {
+      // Centered mode — place card at bottom-right corner, accounting for
+      // the card's actual dimensions (framer-motion overrides `transform`,
+      // so we can't use translate(-100%,-100%) to shift it).
+      return {
+        top: Math.max(VIEWPORT_MARGIN, vh - 16 - h),
+        left: Math.max(VIEWPORT_MARGIN, vw - 16 - TOOLTIP_WIDTH),
+        caretSide: 'bottom' as const,
+        caretTop: 0,
+        caretLeft: 0,
+      };
+    }
     // Re-run the position calc with the measured tooltip height to keep the
     // caret correctly aligned when the card is taller / shorter than the
     // 220px estimate.
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    const h = tooltipHeight || 220;
     let left = spotlightRect.right + TOOLTIP_GAP;
     let top = spotlightRect.bottom + TOOLTIP_GAP;
     let caretSide: TooltipPos['caretSide'] = 'left';
@@ -316,9 +327,9 @@ export function TourOverlay({
           caretTop = h - 14;
         }
       } else {
-        // Final fallback: bottom-right corner.
-        top = vh - 16;
-        left = vw - 16;
+        // Final fallback: bottom-right corner (accounting for card size).
+        top = Math.max(VIEWPORT_MARGIN, vh - 16 - h);
+        left = Math.max(VIEWPORT_MARGIN, vw - 16 - TOOLTIP_WIDTH);
         caretSide = 'bottom';
         caretTop = 0;
         caretLeft = 0;
@@ -396,8 +407,6 @@ export function TourOverlay({
             top: realPos.top,
             left: realPos.left,
             width: TOOLTIP_WIDTH,
-            // Centered mode: anchor card to bottom-right corner via transform.
-            transform: spotlightRect ? undefined : 'translate(-100%, -100%)',
           }}
         >
           <div className="relative bg-white dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-xl shadow-2xl overflow-hidden">
