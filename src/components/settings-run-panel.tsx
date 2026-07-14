@@ -1027,6 +1027,11 @@ export function SettingsRunPanel({
     forceBlast: boolean;
     skipBlast: boolean;
   }
+  // Input mode: 'uniprot' (default) or 'sequence'
+  const [evalInputMode, setEvalInputMode] = useState<'uniprot' | 'sequence'>('uniprot');
+  // Sequence input state
+  const [evalSequence, setEvalSequence] = useState('');
+  const [evalSeqType, setEvalSeqType] = useState<'aa' | 'dna'>('aa');
   const [evalTargets, setEvalTargets] = useState<EvalTarget[]>([
     { uniprot: 'P00533', maxPdb: 80, maxBlastHits: 50, forceBlast: false, skipBlast: true },
   ]);
@@ -1302,6 +1307,29 @@ export function SettingsRunPanel({
   }, []);
 
   const runEvaluation = () => {
+    if (evalInputMode === 'sequence') {
+      // Sequence-based evaluation: no UniProt ID, use sequence directly for BLAST
+      const seq = evalSequence.trim();
+      if (!seq || seq.length < 10) {
+        toast.error('请输入有效的序列（至少 10 个残基）');
+        return;
+      }
+      markRunning('eval');
+      evalStream.reset();
+      const seqLabel = evalSeqType === 'dna' ? `DNA序列(${seq.length}nt)→转录→AA` : `AA序列(${seq.length}aa)`;
+      log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `序列评估 ${seqLabel} — BLASTp 搜索 — SSE streaming…` });
+      evalStream.start('/api/evaluations/run', {
+        inputMode: 'sequence',
+        sequence: seq,
+        sequenceType: evalSeqType,
+        maxBlastHits: evalTargets[0]?.maxBlastHits || 50,
+        maxLitCount: evalMaxLitCount,
+        generateReport: evalGenerateReport,
+        saveReportFile: evalSaveReportFile,
+        llm: llmBody(),
+      });
+      return;
+    }
     // Collect valid (non-empty) targets from the multi-target list.
     const valid = evalTargets.filter(t => t.uniprot.trim());
     if (valid.length === 0) {
@@ -1845,6 +1873,51 @@ export function SettingsRunPanel({
                   </Badge>
                 ) : null}
               >
+                {/* Input mode toggle: UniProt ID vs Sequence */}
+                <div className="flex items-center gap-1.5 mb-3">
+                  <div className="flex items-center gap-0.5 rounded-md bg-muted/40 border border-border/40 p-0.5">
+                    <button type="button" onClick={() => setEvalInputMode('uniprot')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'uniprot' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>UniProt ID</button>
+                    <button type="button" onClick={() => setEvalInputMode('sequence')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'sequence' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>序列输入</button>
+                  </div>
+                  {evalInputMode === 'sequence' && (
+                    <div className="flex items-center gap-0.5 rounded-md bg-muted/40 border border-border/40 p-0.5">
+                      <button type="button" onClick={() => setEvalSeqType('aa')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalSeqType === 'aa' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-300' : 'text-muted-foreground hover:text-foreground'}`}>氨基酸</button>
+                      <button type="button" onClick={() => setEvalSeqType('dna')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalSeqType === 'dna' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-300' : 'text-muted-foreground hover:text-foreground'}`}>DNA</button>
+                    </div>
+                  )}
+                </div>
+
+                {evalInputMode === 'sequence' ? (
+                  /* Sequence input mode */
+                  <div className="space-y-2 mb-3">
+                    <div>
+                      <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                        {evalSeqType === 'dna' ? 'DNA 序列（将自动转录为氨基酸）' : '氨基酸序列'}
+                      </Label>
+                      <textarea
+                        value={evalSequence}
+                        onChange={e => setEvalSequence(e.target.value)}
+                        placeholder={evalSeqType === 'dna' ? 'ATGGCGAGC...（DNA 序列，自动转录为氨基酸后进行 BLASTp）' : 'MAGSCKLP...（氨基酸序列，直接进行 BLASTp）'}
+                        className="mt-1 w-full h-24 px-2 py-1.5 rounded-md border border-border/60 bg-background text-xs font-mono resize-y thin-scroll"
+                        spellCheck={false}
+                      />
+                      <p className="text-3xs text-muted-foreground mt-0.5">
+                        {evalSequence.trim().length > 0 ? `${evalSequence.trim().length} ${evalSeqType === 'dna' ? 'nt' : 'aa'}` : `输入${evalSeqType === 'dna' ? 'DNA' : '氨基酸'}序列进行 BLASTp 同源搜索`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-20 shrink-0">
+                        <Field label="BLAST">
+                          <Input type="number" min={1} max={500} value={evalTargets[0]?.maxBlastHits || 50} onChange={e => updateEvalTarget(0, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
+                        </Field>
+                      </div>
+                      <div className="ml-auto shrink-0">
+                        <RunButton running={isRunning('eval')} onClick={runEvaluation} onCancel={() => evalStream.cancel()} />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                /* UniProt ID input mode (original) */
                 <div className="space-y-2 mb-3">
                   {evalTargets.map((t, i) => (
                     <div key={i} className="flex items-end gap-1.5">
@@ -1894,6 +1967,7 @@ export function SettingsRunPanel({
                     </div>
                   ))}
                 </div>
+                ) /* end UniProt ID mode */}
 
                 <StreamFeed
                   events={evalStream.state.log}

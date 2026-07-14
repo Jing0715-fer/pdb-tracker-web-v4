@@ -133,6 +133,153 @@ export async function POST(req: Request) {
     const t0 = Date.now();
     const emit = (e: SseEvent) => progress(e);
     try {
+      // ── Sequence input mode: BLAST directly with provided sequence ──
+      if (body.inputMode === 'sequence' && body.sequence) {
+        let sequence = String(body.sequence).trim().toUpperCase().replace(/\s/g, '');
+        const seqType = body.sequenceType === 'dna' ? 'dna' : 'aa';
+        emit({ stage: 'init', level: 'info', message: `启动序列评估 · ${seqType === 'dna' ? 'DNA' : 'AA'} 序列 (${sequence.length} ${seqType === 'dna' ? 'nt' : 'aa'})`, progress: 2 });
+        await sleep(300);
+
+        // Transcribe DNA to amino acid sequence
+        if (seqType === 'dna') {
+          emit({ stage: 'transcribe', level: 'info', message: `DNA → 氨基酸转录中…`, progress: 5 });
+          // Remove non-coding characters, translate codons
+          const cleanDna = sequence.replace(/[^ATGC]/g, '');
+          const codonTable: Record<string, string> = {
+            'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
+            'ATT':'I','ATC':'I','ATA':'I','ATG':'M','GTT':'V','GTC':'V','GTA':'V','GTG':'V',
+            'TTT':'F','TTC':'F','TTA':'L','TTG':'L','CTT':'L','CTC':'L','CTA':'L','CTG':'L',
+            'ATT':'I','ATC':'I','ATA':'I','ATG':'M','GTT':'V','GTC':'V','GTA':'V','GTG':'V',
+            'TCT':'S','TCC':'S','TCA':'S','TCG':'S','CCT':'P','CCC':'P','CCA':'P','CCG':'P',
+            'ACT':'T','ACC':'T','ACA':'T','ACG':'T','GCT':'A','GCC':'A','GCA':'A','GCG':'A',
+            'TAT':'Y','TAC':'Y','TAA':'*','TAG':'*','CAT':'H','CAC':'H','CAA':'Q','CAG':'Q',
+            'AAT':'N','AAC':'N','AAA':'K','AAG':'K','GAT':'D','GAC':'D','GAA':'E','GAG':'E',
+            'TGT':'C','TGC':'C','TGA':'*','TGG':'W','CGT':'R','CGC':'R','CGA':'R','CGG':'R',
+            'AGT':'S','AGC':'S','AGA':'R','AGG':'R','GGT':'G','GGC':'G','GGA':'G','GGG':'G',
+          };
+          let aaSeq = '';
+          for (let i = 0; i + 2 < cleanDna.length; i += 3) {
+            const codon = cleanDna.slice(i, i + 3);
+            const aa = codonTable[codon] || 'X';
+            if (aa === '*') break; // stop codon
+            aaSeq += aa;
+          }
+          sequence = aaSeq;
+          emit({ stage: 'transcribe', level: 'success', message: `转录完成: ${cleanDna.length}nt → ${aaSeq.length}aa`, progress: 10 });
+        }
+
+        // Run BLASTp with the sequence
+        emit({ stage: 'blast', level: 'info', message: `BLASTp 同源检索（序列 ${sequence.length}aa, 上限 ${maxBlastHits}）`, progress: 15 });
+        let blastHits: any[] = [];
+        try {
+          const blastPromise = runBlast(sequence, maxBlastHits, (msg) => { emit({ stage: 'blast', level: 'info', message: msg, progress: 20 }); });
+          const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('BLAST 超时（180s）')), 180000));
+          blastHits = await Promise.race([blastPromise, timeoutPromise]);
+          if (blastHits.length > 0) {
+            const topHit = blastHits[0];
+            emit({ stage: 'blast', level: 'success', message: `BLAST 命中 ${blastHits.length}/${maxBlastHits} 条同源（最高 identity=${topHit.identity}% · ${topHit.pdbId}）`, progress: 40 });
+          } else {
+            emit({ stage: 'blast', level: 'warn', message: `BLAST 完成，无同源命中`, progress: 40 });
+          }
+        } catch (err: any) {
+          emit({ stage: 'blast', level: 'error', message: `BLAST 失败：${err?.message}`, progress: 40 });
+        }
+
+        // Convert BLAST hits to PDB-like details for scoring and report
+        const pdbDetails: PdbEntryDetail[] = blastHits.map((h: any) => ({
+          pdbId: h.pdbId, method: h.method || 'X-RAY DIFFRACTION', resolution: h.resolution ?? null,
+          title: h.description || h.title || '', journal: h.journal || '', journalIf: h.journalIf ?? null,
+          doi: null, pubmedId: h.pubmedId || null, organisms: h.organism || '',
+          authors: '', ligands: '', depositDate: null, releaseDate: h.releaseDate || null,
+        }));
+
+        // Score from BLAST hit count
+        const xrayCount = pdbDetails.filter(e => (e.method || '').includes('X-RAY')).length;
+        const cryoemCount = pdbDetails.filter(e => (e.method || '').includes('ELECTRON')).length;
+        const nmrCount = pdbDetails.filter(e => (e.method || '').includes('NMR')).length;
+        const calcScore = (c: number) => Math.min(10, Math.max(1, Math.round(c / 5) + 3));
+        const scores = {
+          xray: { score: calcScore(xrayCount), rating: '', structures: xrayCount },
+          cryoem: { score: calcScore(cryoemCount), rating: '', structures: cryoemCount },
+          nmr: { score: calcScore(nmrCount), rating: '', structures: nmrCount },
+          overall: { score: Math.min(10, Math.max(1, Math.round((calcScore(xrayCount) + calcScore(cryoemCount) + calcScore(nmrCount)) / 3))), rating: '' },
+        };
+        const coverage = Math.min(100, pdbDetails.length * 5);
+        const scoreRating = (s: number) => s >= 8 ? '优' : s >= 6 ? '良' : s >= 4 ? '中' : '差';
+        scores.xray.rating = scoreRating(scores.xray.score);
+        scores.cryoem.rating = scoreRating(scores.cryoem.score);
+        scores.nmr.rating = scoreRating(scores.nmr.score);
+        scores.overall.rating = scoreRating(scores.overall.score);
+        emit({ stage: 'score', level: 'success', message: `overall=${scores.overall.score}/10 (X-ray=${scores.xray.score}/${xrayCount}条, Cryo-EM=${scores.cryoem.score}/${cryoemCount}条, NMR=${scores.nmr.score}/${nmrCount}条)`, progress: 50 });
+
+        // Generate report
+        let report: any = undefined;
+        if (generateReport) {
+          emit({ stage: 'llm-report', level: 'info', message: `生成 LLM 报告 (${provider})…`, progress: 55 });
+          try {
+            const litInfo = await buildLiteratureInfo(pdbDetails, maxLitCount);
+            const pdbTable = pdbDetails.length > 0
+              ? buildDetailedPdbTable(pdbDetails, 80)
+              : '| PDB ID | Method | Resolution | Journal (IF) | Title |\n|--------|--------|------------|--------------|-------|\n| (无 BLAST 同源结构) | - | - | - | - |';
+            const blastTable = buildDetailedBlastTable(blastHits, maxBlastHits);
+            const topPdbs = pdbDetails.slice(0, 10).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)}`).join('\n');
+            const litBlock = litInfo.count > 0 ? `\n\n相关 PubMed 文献（共 ${litInfo.count} 篇，按 IF 降序）：\n${litInfo.text}` : '\n\n（无 PubMed 文献数据）';
+            const sysPrompt = buildReportSystemPrompt();
+            const userPrompt = `Generate a Chinese protein structure feasibility report for:
+
+UniProt: (序列输入模式 — 无 UniProt ID)
+Sequence: ${sequence.slice(0, 100)}... (${sequence.length}aa)
+BLAST hits: ${blastHits.length}
+Top BLAST structures:
+${topPdbs || '（无 BLAST 命中）'}
+
+${pdbTable}
+
+${blastTable}${litBlock}
+
+请基于 BLAST 同源搜索结果生成评估报告。`;
+
+            // Use single-call report (not 8-chapter) for sequence mode to save memory
+            const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白序列评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 序列概述、## BLAST 同源结构分析、## 可成药性评估、## 实验建议、## 总结。';
+            const r = await generateText(bSysPrompt, userPrompt, { maxChars: 2000, llm: body.llm });
+            report = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, fallback: false };
+            if (r.ok) emit({ stage: 'llm-report', level: 'success', message: `LLM 报告已生成 · ${report.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 90 });
+            else emit({ stage: 'llm-report', level: 'error', message: `LLM 报告失败：${r.error}`, progress: 90 });
+          } catch (err: any) {
+            emit({ stage: 'llm-report', level: 'error', message: `LLM 生成失败：${err?.message}`, progress: 90 });
+          }
+        }
+
+        // Write to DB
+        const seqId = `SEQ_${Date.now().toString(36)}`;
+        try {
+          const scoresJson = JSON.stringify({ 'X-ray': { score: scores.xray.score, rating: scores.xray.rating }, 'Cryo-EM': { score: scores.cryoem.score, rating: scores.cryoem.rating }, 'NMR': { score: scores.nmr.score, rating: scores.nmr.rating }, 'Overall': { score: scores.overall.score, rating: scores.overall.rating } });
+          await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${seqId}, ${seqType === 'dna' ? 'DNA Sequence' : 'AA Sequence'}, ${`Input Sequence (${sequence.length}aa)`}, 'N/A', 'N/A', ${sequence.length}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, 0, false, ${pdbDetails.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
+          // Insert BLAST hits as PDB structures
+          await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${seqId}`;
+          for (const e of pdbDetails) {
+            const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
+            const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
+            await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${seqId}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate || null}, ${e.releaseDate}, ${e.ligands || ''}, ${e.ligands || ''}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms || ''}, ${e.authors || ''}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
+          }
+          // Insert BLAST results
+          await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${seqId}`;
+          for (const h of blastHits) {
+            await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${seqId}, ${h.pdbId}, ${h.uniprotRef || ''}, ${h.description || ''}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
+          }
+          emit({ stage: 'write-db', level: 'success', message: `已写入 Evaluation + ${pdbDetails.length} PDB + ${blastHits.length} BLAST`, progress: 95 });
+        } catch (err: any) {
+          emit({ stage: 'write-db', level: 'error', message: `DB 写入失败：${err?.message}`, progress: 95 });
+        }
+
+        const result = { uniprot: seqId, uniprotInfo: { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length }, directPdbCount: 0, pdbPersisted: pdbDetails.length, blastHitCount: blastHits.length, coverage, scores, report, dbSaved: true, durationMs: Date.now() - t0 };
+        emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${blastHits.length} BLAST 同源 · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : ''}`, progress: 100 });
+        await sleep(150);
+        done(result);
+        return;
+      }
+
+      // ── Standard UniProt ID mode (original flow) ──
       emit({ stage: 'init', level: 'info', message: `启动 protein-target-evaluator · uniprot=${uniprot}`, progress: 2 });
       await sleep(300);
       emit({ stage: 'uniprot-meta', level: 'info', message: `拉取 UniProt 元数据 (${uniprot})`, progress: 8 });
