@@ -590,7 +590,13 @@ export async function POST(req: Request) {
               return `靶点 ${i + 1}: ${r.uniprot} (${r.uniprotInfo?.proteinName})\n  PDB 结构数: ${(r.pdbDetails || []).length}\n  评分: overall=${r.scores?.overall?.score}/10\n  代表性结构:\n${top5}`;
             }).join('\n\n');
             const overlapSummary = Object.entries(pdbOverlap).length > 0
-              ? Object.entries(pdbOverlap).map(([pair, ids]) => `${pair}: ${ids.length} 个共有结构 (${ids.slice(0, 5).join(', ')})`).join('\n')
+              ? Object.entries(pdbOverlap).map(([pair, ids]) => {
+                  const idDetails = ids.slice(0, 10).map(id => {
+                    const det = batchResults.flatMap(r => r.pdbDetails || []).find(e => e.pdbId === id);
+                    return `  - ${id}: ${det?.method || 'N/A'} | ${det?.resolution != null ? det.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(det?.title || '').slice(0, 60)}`;
+                  }).join('\n');
+                  return `${pair}: ${ids.length} 个共有结构\n${idDetails}`;
+                }).join('\n')
               : '无两两共有结构';
             // Aggregate literature from ALL batch targets (cap at maxLitCount total, IF desc).
             const allBatchPdbs: PdbEntryDetail[] = batchResults.flatMap((r) => r.pdbDetails || []);
@@ -598,12 +604,20 @@ export async function POST(req: Request) {
             const crossLitBlock = crossLit.count > 0
               ? `\n\n相关 PubMed 文献（聚合全部 ${batchResults.length} 个靶点，共 ${crossLit.count} 篇，按 IF 降序）：\n${crossLit.text}`
               : '\n\n（无 PubMed 文献数据）';
+            const commonPdbDetails = commonPdbIds.length > 0
+              ? commonPdbIds.slice(0, 15).map(id => {
+                  const det = batchResults.flatMap(r => r.pdbDetails || []).find(e => e.pdbId === id);
+                  return `  - ${id}: ${det?.method || 'N/A'} | ${det?.resolution != null ? det.resolution.toFixed(1) + 'Å' : 'N/A'} | ${det?.journal || 'N/A'} (${det?.journalIf != null ? det.journalIf.toFixed(1) : 'N/A'}) | ${(det?.title || '').slice(0, 60)}`;
+                }).join('\n')
+              : '（无共有结构）';
+
             const crossUserPrompt = `请分析以下 ${batchResults.length} 个蛋白靶点的结构相关性与功能关系：
 
 ${targetSummary}
 
 共有结构分析：
-- 全部靶点共有的结构: ${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 10).join(', ')})` : ''}
+- 全部靶点共有的结构: ${commonPdbIds.length} 个
+${commonPdbDetails}
 - 两两重叠:
 ${overlapSummary}${crossLitBlock}
 

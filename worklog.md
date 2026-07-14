@@ -1752,3 +1752,80 @@ Stage Summary:
 - Cross-platform fix: Windows .cmd/.bat files now spawn with shell:true; `where` command uses shell on Windows.
 - Agent detection works on Windows (native + WSL), Linux (native), macOS (native).
 - Lint passes. Build succeeds. Server stable.
+
+---
+
+Task ID: batch-detail-two-column-redesign
+Agent: main (Z.ai Code)
+Task: Redesign `BatchDetailView` in `src/components/pdb-tracker/evaluation-view.tsx` to mirror the individual-eval detail layout — left sidebar (sub-targets + common PDB) + right panel with tabs (Summary | Common Structures | Sub-Target Detail | Report).
+
+Work Log:
+- File: `src/components/pdb-tracker/evaluation-view.tsx` (single-file change).
+- Imports added:
+  - `import { getMethodColor, getMethodLabel, getResolutionColor, getIfTierStyle } from '@/components/pdb-helpers';` (for common-structures table cell styling parity with `EvalPdbTable`).
+  - Dynamic import `EvalScoreRadar` from `@/components/EvalScoreRadar` (note: the module file is `EvalScoreRadar.tsx` and the exported function is `EvalScoreRadar`, **not** `EvalScoreRadarChart` as the prompt's example showed — used the real export name).
+- Replaced the entire legacy `BatchDetailView` block (was ~470 lines: header + 4 simple tabs) with a new ~720-line two-column implementation.
+
+### New layout (mirrors individual-eval detail)
+
+**Top bar (full width):** batch header — title + batchId + target-count badge + cross-report OK/failed badge. Same styling as before.
+
+**Two-column body:**
+
+1. **Left sidebar (`w-[260px]`, flex-shrink-0, border-r):**
+   - Compact batch title block (icon + title + "N targets · N PDB · N shared" subtitle).
+   - Scrollable list of sub-targets, each as a clickable card showing: UniProt ID (mono accent), gene name, protein name (truncated), PDB count, BLAST count, best score (colored), coverage %. Selected sub-target gets accent border + bg highlight.
+   - "Common Structures" section below sub-targets: list of common PDB IDs (clickable RCSB external links with `Box` icon + `ExternalLink`).
+   - Sub-target click → `setSelectedSubTarget(uniprotId) + setActiveTab('Sub-Target Detail')` (in-batch preview, no navigation away).
+
+2. **Right panel (`flex-1`, min-w-0):**
+   - Tab bar: `Summary | Common Structures | Sub-Target Detail | Report` (same height/styling as the individual-eval tabs).
+   - **Summary tab**:
+     - Overview card (batch description + report availability + shared structure count).
+     - 4-cell stat grid: Targets / Total PDB / Common PDB / Avg Score (with color-coded score + avg coverage subtitle).
+     - 2-column row: per-target score-breakdown table (UniProt, X-ray, Cryo-EM, NMR, Overall, Cov% — clickable rows that preview the sub-target, plus an AVG aggregate row) + Aggregated Score Radar (`EvalScoreRadar` rendered with a synthetic `Evaluation` object whose `scores` field is the JSON-stringified average of each sub-target's `scores`).
+     - Per-target coverage progress bars (color-coded by `getScoreColor`).
+     - Cross-target report status card with "View report" button (switches to Report tab).
+   - **Common Structures tab**:
+     - Sortable table with 6 columns (PDB ID, Method, Res. (Å), Journal (IF), Title, Shared By). Click any header to toggle sort asc/desc (↑/↓ indicators, ⇅ hint on unsorted columns).
+     - Same cell rendering as `EvalPdbTable`: method badge via `getMethodColor`/`getMethodLabel`, resolution dot+color via `getResolutionColor`, IF via `getIfTierStyle`, PDB ID as RCSB link with `ExternalLink` icon.
+     - "Shared By" column shows clickable UniProt chips that preview the sub-target in the Sub-Target Detail tab.
+     - Picks the best structure (lowest non-null resolution) for each common PDB ID when multiple sub-targets hold it.
+   - **Sub-Target Detail tab**:
+     - Header row: sub-target's UniProt + gene + protein name + "Open Full View" button (calls `onSelectSubTarget` to navigate to the actual individual-eval page).
+     - Renders the selected sub-target's `Evaluation` object via the existing `EvaluationPage` component (re-used, dynamic-imported) inside a bordered card. `onSelectPdb` is a no-op since the batch preview panel doesn't manage PDB detail state.
+     - Empty state when no sub-target selected: prompt + "Open first sub-target" quick-action button.
+   - **Report tab**: cross-target relationship report (`combinedReport`) rendered via `LazyMarkdown` + "Open Full Report" button (calls `onOpenBatchReport`). Empty state shown when no report.
+
+### Implementation details
+
+- **`BatchDetailViewProps` interface kept identical** — no breaking changes to the parent `EvaluationView` wiring.
+- **No API calls** — uses only `batch`, `subTargets`, `allEvals`, `batchFetchedEvals`, `evalBatches`, `evalBatchSubTargets` from props.
+- **State**: `useState<BatchDetailTab>('Summary')`, `useState<string | null>(null)` for selected sub-target, `useState<string>('pdbId')` + `useState<'asc'|'desc'>('asc')` for sortable common-structures table.
+- **Helpers added** (module-scope):
+  - `parseEvalScores(scoresStr)` — parses the JSON `scores` field (`{"X-ray":{"score":8,"rating":"good","maxScore":10},...}`) into a `{key:{score,max,rating}}` map; handles both number and object shapes; reads `max` or `maxScore`.
+  - `aggregateScores(evals)` — averages each score category across sub-target evals (for radar chart).
+  - `COMMON_STRUCT_COLUMNS` — column definitions for the sortable table.
+- **React Hooks rule**: moved the `if (!batch) return ...` early-return to AFTER all `useMemo` calls (`aggregatedScores`, `syntheticEval`, `selectedSubEval`, `sortedCommonStructures`) so hooks are not called conditionally. The hooks read `batch?.title` / `batch?.createdAt` defensively so they work even when `batch` is undefined.
+- **Color parity**: re-uses `getMethodColor`, `getMethodLabel`, `getResolutionColor`, `getIfTierStyle` from `@/components/pdb-helpers` so the common-structures table cells look identical to the individual-eval PDB table.
+- **`EvalScoreRadar` radar chart**: passed a synthetic `Evaluation` object with `uniprotId: 'BATCH_AGGREGATE'`, `proteinName: batch.title`, `coverage: avgCov`, and `scores: JSON.stringify(aggregatedScores)`. The radar's `parseScores` then reads `X-ray`, `Cryo-EM`, `NMR`, `Overall` and renders a 3-axis polygon (excludes `Overall`). Returns `null` if fewer than 3 axes (graceful empty state).
+- **Weekly and literature modules untouched.**
+
+### Build & Deploy
+- `npx eslint src/components/pdb-tracker/evaluation-view.tsx`: 0 errors, 0 warnings (after fixing the initial 4 `react-hooks/rules-of-hooks` errors caused by `useMemo` calls after the early return — moved all hooks above the `if (!batch)` guard).
+- `NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/next build --webpack`: ✓ Compiled successfully in 31.4s, all routes generated.
+- Copied `.next/static` + `public/` + `.env` + `prisma/schema.prisma` to `.next/standalone/`.
+- Created `.next/standalone/.hermes/db-config.json` with `{"dbPath":"file:/home/z/my-project/.next/standalone/db/my-pdb-tracker1.db",...}` (per task instructions).
+- **DB fix**: the freshly-created `my-pdb-tracker1.db` was empty (0 bytes) → server returned `no such table: PdbStructure` errors. Resolved by copying the populated `.next/standalone/db/custom.db` over `my-pdb-tracker1.db` so the standalone server resolves to a populated DB via `.hermes/db-config.json`.
+- Started standalone server via the existing `.zscripts/keepalive-prod.sh` watcher (runs in a `setsid`-detached session so it survives between sandbox bash tool calls). Verified:
+  - `curl http://localhost:3000/` → 200
+  - `curl http://localhost:3000/api/evaluations` → 200
+  - `prod.log` shows `✓ Ready in 0ms`, no errors.
+
+Stage Summary:
+- `BatchDetailView` is now a two-column layout: left sidebar (sub-targets list + common PDB list) + right panel with 4 tabs (Summary / Common Structures / Sub-Target Detail / Report).
+- Common Structures tab has a fully sortable 6-column table (PDB ID, Method, Resolution, Journal IF, Title, Shared By) with the same cell styling as the individual-eval `EvalPdbTable`.
+- Summary tab shows: 4-stat grid + per-target score-breakdown table (X-ray/Cryo-EM/NMR/Overall/Cov% with AVG row) + aggregated score radar chart (via `EvalScoreRadar` with synthetic Evaluation) + per-target coverage bars.
+- Sub-Target Detail tab renders the selected sub-target's `Evaluation` via the existing `EvaluationPage` component (no API call — uses `allEvals` / `batchFetchedEvals` from props) + "Open Full View" button to navigate to the real individual-eval page.
+- Report tab renders `combinedReport` via `LazyMarkdown` + "Open Full Report" button.
+- Lint clean. Build clean. Server verified returning 200 OK on `/` and `/api/evaluations`.
