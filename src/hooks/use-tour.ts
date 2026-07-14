@@ -4,23 +4,28 @@ import { useState, useEffect, useCallback, useRef, type RefObject } from 'react'
 import { toast } from 'sonner';
 import { TOUR_STEPS, type TourStepConfig } from '@/components/tour-overlay';
 
-/** Refs for each tour target element. */
+/** localStorage key used to mark the tour as completed (auto-start is skipped once set). */
+export const TOUR_COMPLETED_KEY = 'pdb-tracker:tour-completed';
+
+/**
+ * Refs that the parent component may pass in to spotlight specific elements.
+ * All refs are optional — when a ref is missing (or `.current` is null) the
+ * corresponding tour step renders as a centered tooltip without a spotlight.
+ */
 export interface TourRefs {
-  tourTitleRef: RefObject<HTMLDivElement | null>;
-  tourSidebarRef: RefObject<HTMLDivElement | null>;
-  tourModeSwitcherRef: RefObject<HTMLDivElement | null>;
-  tourSearchRef: RefObject<HTMLDivElement | null>;
-  tourPreviewRef: RefObject<HTMLDivElement | null>;
-  tourShortcutsRef: RefObject<HTMLButtonElement | null>;
+  /** Step 1 (index 1) — mode switcher segmented control. */
+  modeSwitcherRef?: RefObject<HTMLElement | null>;
+  /** Step 7 (index 7) — search input wrapper. */
+  searchRef?: RefObject<HTMLElement | null>;
 }
 
 export interface UseTourOptions {
   /** `true` once the component has mounted (client-side). */
   mounted: boolean;
-  /** Whether the preview panel is currently open; the hook may force it open at step 4. */
-  previewOpen: boolean;
-  /** Setter to open the preview panel. */
-  setPreviewOpen: (open: boolean) => void;
+  /** Optional refs to spotlight specific elements on certain steps. */
+  refs?: TourRefs;
+  /** Delay (ms) before auto-starting on first visit. Default 1500. */
+  autoStartDelay?: number;
 }
 
 export interface UseTourReturn {
@@ -34,57 +39,68 @@ export interface UseTourReturn {
   finishTour: () => void;
   /** Manually start the tour from step 0. */
   startTour: () => void;
-  /** Refs that must be attached to the corresponding DOM elements. */
-  refs: TourRefs;
   /** Pre-built `TourStepConfig[]` ready to pass to `<TourOverlay steps={…} />`. */
   steps: TourStepConfig[];
 }
 
-export function useTour({ mounted, previewOpen, setPreviewOpen }: UseTourOptions): UseTourReturn {
+/**
+ * Build the steps array by binding the provided refs to the matching TOUR_STEPS
+ * entries. Steps whose ref is missing (or null) render as centered tooltips.
+ *
+ * Step index → ref mapping (matches the TOUR_STEPS order in tour-overlay.tsx):
+ *   1 → modeSwitcherRef
+ *   7 → searchRef
+ * All other steps have no ref (centered mode).
+ */
+function buildSteps(refs?: TourRefs): TourStepConfig[] {
+  return TOUR_STEPS.map((step, i) => {
+    let targetRef: TourStepConfig['targetRef'];
+    if (i === 1) targetRef = refs?.modeSwitcherRef;
+    else if (i === 7) targetRef = refs?.searchRef;
+    return { ...step, targetRef };
+  });
+}
+
+export function useTour({ mounted, refs, autoStartDelay = 1500 }: UseTourOptions): UseTourReturn {
   // ── State ──
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
 
-  // ── Refs ──
-  const tourTitleRef = useRef<HTMLDivElement>(null);
-  const tourSidebarRef = useRef<HTMLDivElement>(null);
-  const tourModeSwitcherRef = useRef<HTMLDivElement>(null);
-  const tourSearchRef = useRef<HTMLDivElement>(null);
-  const tourPreviewRef = useRef<HTMLDivElement>(null);
-  const tourShortcutsRef = useRef<HTMLButtonElement>(null);
+  // ── Auto-start guard (stable across renders) ──
+  const autoStartedRef = useRef(false);
 
   // ── Auto-start on first visit (desktop only) ──
-  const tourAutoStartRef = useRef(false);
   useEffect(() => {
     if (!mounted) return;
-    if (tourAutoStartRef.current) return;
-    tourAutoStartRef.current = true;
-    if (window.innerWidth < 768) return;
+    if (autoStartedRef.current) return;
+    autoStartedRef.current = true;
+    // Skip auto-start on mobile — spotlight navigation is awkward on small screens.
+    if (typeof window !== 'undefined' && window.innerWidth < 768) return;
     try {
-      const completed = localStorage.getItem('pdb-tour-completed');
+      const completed = localStorage.getItem(TOUR_COMPLETED_KEY);
       if (!completed) {
         const timer = setTimeout(() => {
           setTourActive(true);
           setTourStep(0);
-        }, 1500);
+        }, autoStartDelay);
         return () => clearTimeout(timer);
       }
     } catch {
-      /* ignore */
+      /* ignore localStorage errors (private mode, etc.) */
     }
-  }, [mounted]);
+  }, [mounted, autoStartDelay]);
 
   // ── Completion handler ──
   const finishTour = useCallback(() => {
     setTourActive(false);
     setTourStep(0);
     try {
-      localStorage.setItem('pdb-tour-completed', 'true');
+      localStorage.setItem(TOUR_COMPLETED_KEY, 'true');
     } catch {
       /* ignore */
     }
-    toast('Tour complete!', {
-      description: 'Explore the app and use ⌘K anytime to search.',
+    toast('引导已完成', {
+      description: '随时点击右上角「帮助」按钮重新查看引导。',
     });
   }, []);
 
@@ -94,22 +110,8 @@ export function useTour({ mounted, previewOpen, setPreviewOpen }: UseTourOptions
     setTourStep(0);
   }, []);
 
-  // ── Ensure preview panel is open for the preview step (index 4) ──
-  useEffect(() => {
-    if (tourActive && tourStep === 4 && !previewOpen) {
-      setPreviewOpen(true);
-    }
-  }, [tourActive, tourStep, previewOpen, setPreviewOpen]);
-
-  // ── Build the steps array, binding each TOUR_STEPS entry to its ref ──
-  const steps: TourStepConfig[] = [
-    { title: TOUR_STEPS[0].title, description: TOUR_STEPS[0].description, targetRef: tourTitleRef as RefObject<HTMLElement | null> },
-    { title: TOUR_STEPS[1].title, description: TOUR_STEPS[1].description, targetRef: tourSidebarRef as RefObject<HTMLElement | null> },
-    { title: TOUR_STEPS[2].title, description: TOUR_STEPS[2].description, targetRef: tourModeSwitcherRef as RefObject<HTMLElement | null> },
-    { title: TOUR_STEPS[3].title, description: TOUR_STEPS[3].description, targetRef: tourSearchRef as RefObject<HTMLElement | null> },
-    { title: TOUR_STEPS[4].title, description: TOUR_STEPS[4].description, targetRef: tourPreviewRef as RefObject<HTMLElement | null> },
-    { title: TOUR_STEPS[5].title, description: TOUR_STEPS[5].description, targetRef: tourShortcutsRef as RefObject<HTMLElement | null> },
-  ];
+  // ── Build steps array (re-computed only when refs change, which is essentially never) ──
+  const steps = buildSteps(refs);
 
   return {
     tourActive,
@@ -117,14 +119,6 @@ export function useTour({ mounted, previewOpen, setPreviewOpen }: UseTourOptions
     setTourStep,
     finishTour,
     startTour,
-    refs: {
-      tourTitleRef,
-      tourSidebarRef,
-      tourModeSwitcherRef,
-      tourSearchRef,
-      tourPreviewRef,
-      tourShortcutsRef,
-    },
     steps,
   };
 }

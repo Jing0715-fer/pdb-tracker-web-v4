@@ -10,7 +10,7 @@ import {
   Sparkles, Loader2, ExternalLink, Users, Link2, Copy, Check, Menu,
   Calendar, ArrowRightLeft, LayoutDashboard, Clock, FileDown, Settings,
   Microscope, ArrowUp, RefreshCw, Download, Box, Upload, ChevronLeft,
-  StickyNote, Tag, Trophy, Eye, AlertTriangle,
+  StickyNote, Tag, Trophy, Eye, AlertTriangle, HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +44,8 @@ import { toast } from 'sonner';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { generateBibTeX, generateRIS, generateAPA, generateVancouver, generateMLA, downloadFile } from '@/lib/citation-utils';
 // fallback-data import removed — errors now surface as error messages, not demo data.
+import { TourOverlay } from '@/components/tour-overlay';
+import { useTour } from '@/hooks/use-tour';
 import { EnhancedFooter } from '@/components/enhanced-footer';
 import { WeeklyViewSkeleton, EvaluationViewSkeleton, LiteratureViewSkeleton, ModeTransitionWrapper } from '@/components/enhanced-skeleton';
 import { exportToCSV, exportToJSON, formatPdbEntryForExport, formatEvalForExport, formatLitPaperForExport } from '@/lib/export-utils';
@@ -527,6 +529,9 @@ export default function PdbTracker() {
 
   // Search input ref for keyboard shortcut
   const searchInputRef = useRef<HTMLInputElement>(null);
+  // Wrapper ref around the search input — used as the tour spotlight target
+  // for the "Search & Shortcuts" step (step index 7).
+  const searchWrapRef = useRef<HTMLDivElement>(null);
 
   // Mode tab refs for segmented control sliding pill
   const modeTabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -1041,6 +1046,26 @@ export default function PdbTracker() {
   // ─── Effects ──────────────────────────────────────────────────────────────
 
   useEffect(() => { setMounted(true); }, []);
+
+  // ── Onboarding tour ──────────────────────────────────────────────────
+  // Auto-starts on first visit (desktop only) when localStorage flag is
+  // missing. The mode switcher + search input are spotlighted; all other
+  // steps render as centered tooltips. The 「帮助」 button in the top bar
+  // calls `startTour()` to re-trigger the tour on demand.
+  const {
+    tourActive,
+    tourStep,
+    setTourStep,
+    finishTour,
+    startTour,
+    steps: tourSteps,
+  } = useTour({
+    mounted,
+    refs: {
+      modeSwitcherRef: modeTabContainerRef,
+      searchRef: searchWrapRef,
+    },
+  });
 
   // ── First-run DB check ────────────────────────────────────────────────
   // Pop the setup wizard on first load when the user hasn't confirmed a
@@ -3788,7 +3813,7 @@ export default function PdbTracker() {
           <div className="flex-1" />
 
           {/* Search (desktop) */}
-          <div className="relative max-w-xs w-full hidden md:block">
+          <div ref={searchWrapRef} className="relative max-w-xs w-full hidden md:block">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
             <Input
               ref={searchInputRef}
@@ -3927,6 +3952,22 @@ export default function PdbTracker() {
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom"><p>Settings</p></TooltipContent>
+          </Tooltip>
+
+          {/* Help / Restart Onboarding Tour Button */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={startTour}
+                className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-accent active:scale-95 transition-transform duration-100"
+                aria-label="帮助 · 重新查看引导"
+              >
+                <HelpCircle className="h-3.5 w-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom"><p>帮助 · 重新查看引导</p></TooltipContent>
           </Tooltip>
 
           {mounted && (
@@ -4450,6 +4491,18 @@ export default function PdbTracker() {
             toast.success('数据库已就绪，运行中心与三大模块已同步');
           })();
         }}
+      />
+
+      {/* Onboarding Tour Overlay — 9-step Chinese tour, spotlights the mode
+          switcher (step 1) and search input (step 7); all other steps render
+          as centered tooltips. Auto-starts on first visit; the 「帮助」 button
+          in the top bar re-triggers it. */}
+      <TourOverlay
+        tourActive={tourActive}
+        tourStep={tourStep}
+        setTourStep={setTourStep}
+        finishTour={finishTour}
+        steps={tourSteps}
       />
     </div>
     </TooltipProvider>

@@ -1527,3 +1527,98 @@ Stage Summary:
 - Report tab shows cross-target LLM report with "Open Full Report" modal.
 - P00533+P07766 maxPdb=400 test OOM-crashed (4GB RAM limit). maxPdb=10-20 works.
 - Lint passes. Server stable for normal usage.
+
+---
+Task ID: redesign-onboarding-tour-run-center
+Agent: main (Z.ai Code)
+Task: Redesign the new-user onboarding tour to include the Run Center and reflect current app features. Wire the existing (but orphaned) TourOverlay + useTour into pdb-tracker.tsx, support centered tooltip mode for steps without a specific element target.
+
+Work Log:
+
+### 1. `src/components/tour-overlay.tsx` — full rewrite
+- **TOUR_STEPS** rewritten to 9 Chinese steps that reflect the current app features:
+  1. 欢迎使用 PDB Structure Tracker — app overview
+  2. 模式切换 — Weekly / Evaluation / Literature 模式说明
+  3. 运行中心 — Run Center 入口（三大模块、SSE 进度、z.ai SDK LLM 测试）
+  4. 数据库配置 — 运行中心内置数据库管理（新建 / 选择 / 共用 DB）
+  5. 评估模块 — ① 蛋白靶点评估 tab（UniProt ID、批量评估、互作关系、跳过BLAST）
+  6. 文献模块 — ② 每日文献检索 tab（PubMed、方法筛选、LLM 中文摘要、历史报告）
+  7. 周报模块 — ③ PDB 周报生成 tab（对抗式 Generator→Critic→Synthesis、ISO 周、1-3 cycle）
+  8. 搜索与快捷键 — `/` 聚焦搜索、`?` 查看快捷键、支持 PDB ID / UniProt ID / 基因名
+  9. 开始使用 — 引导完成提示 + 帮助按钮重新查看
+- **TourOverlay component** refactored to support centered tooltip mode:
+  - When `currentStep.targetRef` is undefined or `.current` is null → `spotlightRect` is set to null → renders a full-screen `bg-black/50` overlay with a centered card (max-w-md, scale+fade animation). This is the new "centered mode".
+  - When `targetRef.current` exists → renders the existing spotlight mode (box-shadow `0 0 0 9999px rgba(0,0,0,0.5)` + pulsing border + tooltip near element).
+  - Extracted the inner card UI into a shared `TourCard` sub-component used by both modes (consistent visual: step number badge, title, description, pagination dots, 上一步 / 下一步 / 跳过 / 开始使用 buttons). Chinese button labels throughout.
+  - Increased tooltip width from 280 → 320 px (spotlight mode) and 420 px (centered mode) for the longer Chinese descriptions. Tooltip height estimate bumped 200 → 220.
+  - Removed the `if (!spotlightRect) return null` guard so the centered mode can render.
+  - Dark overlay opacity bumped 0.4 → 0.5 for both modes for better focus.
+- Pagination dots now use a w-1.5 → w-4 active pill (was uniform 1.5px dots).
+
+### 2. `src/hooks/use-tour.ts` — full rewrite
+- **API simplified**: now accepts `{ mounted, refs?, autoStartDelay? }` where `refs` is `{ modeSwitcherRef?, searchRef? }`. All refs are optional — when missing, the corresponding tour step renders in centered mode.
+- **`buildSteps()`**: maps `TOUR_STEPS` (now 9 entries) to `TourStepConfig[]`, binding `modeSwitcherRef` to step index 1 and `searchRef` to step index 7. All other steps have no `targetRef` (centered mode).
+- **`TOUR_COMPLETED_KEY`** exported as `'pdb-tracker:tour-completed'` (was `'pdb-tour-completed'`).
+- Auto-start effect: stable `autoStartedRef` (useRef) guard; desktop-only (≥768px); 1500ms delay (configurable).
+- `finishTour()` toast changed to Chinese: `'引导已完成'` with description `'随时点击右上角「帮助」按钮重新查看引导。'`.
+- Removed the old hardcoded 6-ref structure (`tourTitleRef` / `tourSidebarRef` / `tourPreviewRef` / etc.), the `previewOpen` / `setPreviewOpen` coupling (no longer needed — the new tour has no preview-panel step), and the unused `TourRefs` interface fields.
+- Returns `{ tourActive, tourStep, setTourStep, finishTour, startTour, steps }` — no refs returned (parent owns them now).
+
+### 3. `src/components/pdb-tracker.tsx` — wire the tour in
+- Added `HelpCircle` to the lucide-react imports.
+- Added `import { TourOverlay } from '@/components/tour-overlay';` and `import { useTour } from '@/hooks/use-tour';` next to the existing imports.
+- Added a new `searchWrapRef = useRef<HTMLDivElement>(null)` and attached it to the desktop search input wrapper div (so the tour can spotlight the search box on step 8 — reusing the existing `modeTabContainerRef` for the step-2 mode-switcher spotlight).
+- Called `useTour({ mounted, refs: { modeSwitcherRef: modeTabContainerRef, searchRef: searchWrapRef } })` right after the `setMounted(true)` effect, destructuring `{ tourActive, tourStep, setTourStep, finishTour, startTour, steps: tourSteps }`.
+- Added a **「帮助」 Help button** in the top bar (between Settings and the dark-mode toggle): ghost icon button with `HelpCircle`, `aria-label="帮助 · 重新查看引导"`, tooltip "帮助 · 重新查看引导", `onClick={startTour}`. Hover state highlights in `claude-accent` to distinguish from other top-bar buttons.
+- Rendered `<TourOverlay tourActive={tourStep} … steps={tourSteps} />` as the last child inside the root `<div>` wrapper (after `<DbSetupWizard>`, before the closing `</div></TooltipProvider>`).
+
+### 4. Centered-mode UX
+Steps that don't have a specific element target (1, 3, 4, 5, 6, 7, 9 — i.e. everything except mode-switcher and search) now render as a centered modal-style card with a dark overlay behind it. This makes the tour usable even when the target element is inside a dynamically-loaded panel (e.g. the Run Center button is inside `<SettingsRunPanel>` which is `dynamic(... { ssr: false })`, so we can't reliably spotlight it — centered mode is the correct choice).
+
+### 5. Lint & Build
+- `npx eslint src/components/tour-overlay.tsx src/hooks/use-tour.ts src/components/pdb-tracker.tsx` → **0 errors, 0 warnings**.
+- `NEXT_TELEMETRY_DISABLED=1 NODE_OPTIONS="--max-old-space-size=4096" ./node_modules/.bin/next build --webpack` → **✓ Compiled successfully in 47s**, all 18 routes generated.
+- Copied `.next/static` + `public/` + `.env` + `prisma/schema.prisma` into `.next/standalone/`; recreated `.hermes/db-config.json`; `bunx prisma db push --skip-generate` → SQLite DB synced.
+- Standalone server started on port 3000; first curl → `page: 200`, page contains `<title>PDB Structure Tracker</title>` and `PDB Structure Tracker` shell text.
+- Verified the new tour code is present in the production JS bundle: chunk `1851.9b912155f5776a82.js` contains both `"引导已完成"` (the new finishTour toast) and `"pdb-tracker:tour-completed"` (the new localStorage key), confirming the new tour-overlay + use-tour modules are bundled.
+- Note: the standalone server (next-server) uses ~3.5 GB RSS and gets OOM-killed by the kernel after a few requests on this 4 GB sandbox — this is a pre-existing environment constraint (visible in `dmesg`: `Out of memory: Killed process 1561 (next-server … total-vm:49379640kB, anon-rss:3537744kB)`), not caused by the tour changes. The tour itself is a tiny React component (~7 KB added to chunk 1851). Server was restarted and verified to return 200 OK after the deploy step.
+
+Stage Summary:
+- The onboarding tour is no longer orphaned — it's wired into `pdb-tracker.tsx`, auto-starts on first visit (desktop), and can be re-triggered via the new 「帮助」 button in the top bar.
+- The 9-step tour content is fully Chinese and reflects the current app: Weekly / Evaluation / Literature mode switcher, the Run Center (运行中心) with its three sub-modules (蛋白靶点评估 / 每日文献检索 / PDB 周报生成), database configuration, and search/keyboard shortcuts.
+- `TourOverlay` now supports two render modes: spotlight (when `targetRef.current` exists) and centered (when it doesn't), so steps that don't target a specific element get a clean centered modal instead of being silently skipped.
+- The mode switcher (step 2) and the search input (step 8) are spotlighted via real refs (`modeTabContainerRef`, `searchWrapRef`); all other steps render centered.
+- localStorage key standardized to `pdb-tracker:tour-completed`.
+- Weekly / Literature / Evaluation modules and the Run Center panel (`settings-run-panel.tsx`) are untouched.
+- Lint clean, build clean, prod server returns 200 OK, tour code verified in bundle.
+
+---
+Task ID: verify-onboarding-tour
+Agent: main (Z.ai Code)
+Task: Verify the redesigned onboarding tour with Run Center guidance.
+
+Work Log:
+- Tour code verified in built chunk (1851.9b912155f5776a82.js):
+  - Contains "运行中心", "欢迎使用", "引导已完成", "pdb-tracker:tour-completed"
+  - 2 matches found confirming all key strings present
+- Lint passes (0 errors on tour-overlay.tsx, use-tour.ts, pdb-tracker.tsx)
+- Build succeeds (47s compile, 18 routes)
+- Server returns 200 when serving standalone
+- Browser verification limited by 4GB RAM OOM (Chrome + server = crash)
+- Tour auto-starts on first visit (1.5s delay, checks localStorage 'pdb-tracker:tour-completed')
+- Help button added to top bar for re-triggering tour
+
+Stage Summary:
+- 9-step Chinese onboarding tour designed and implemented:
+  1. 欢迎使用 PDB Structure Tracker
+  2. 模式切换 (Weekly/Evaluation/Literature)
+  3. 运行中心 (三大模块, SSE, z.ai SDK)
+  4. 数据库配置 (新建/选择)
+  5. 评估模块 (批量评估, 互作分析, 跳过BLAST)
+  6. 文献模块 (PubMed, 方法筛选, LLM摘要)
+  7. 周报模块 (对抗式生成, ISO周, 1-3 cycle)
+  8. 搜索与快捷键 (/, ?)
+  9. 开始使用
+- Tour supports both spotlight mode (target element) and centered mode (no target)
+- Auto-starts on first visit, re-triggerable via Help button
+- Lint passes, build succeeds, code verified in production chunk
