@@ -3951,7 +3951,7 @@ export default function PdbTracker() {
           <SettingsRunPanel
             onDbChanged={handleRetryAll}
             open={runCenterOpen}
-            onOpenChange={setRunCenterOpen}
+            onOpenChange={(open) => { if (!open && tourActive) return; setRunCenterOpen(open); }}
             activeTab={runCenterTab}
             onTabChange={setRunCenterTab}
           />
