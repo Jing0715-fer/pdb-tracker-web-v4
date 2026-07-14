@@ -2571,8 +2571,8 @@ export function SettingsRunPanel({
           </AnimatePresence>
         </div>
 
-        {/* Bottom spacer — matches px-6 horizontal padding */}
-        <div className="h-6 flex-shrink-0" />
+        {/* Bottom spacer — matches px-6 horizontal padding for visual balance */}
+        <div className="px-6 pb-6 flex-shrink-0" />
 
       </DialogContent>
     </Dialog>

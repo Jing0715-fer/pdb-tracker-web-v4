@@ -1060,6 +1060,9 @@ export default function PdbTracker() {
   // steps render as centered tooltips. The 「帮助」 button in the top bar
   // calls `startTour()` to re-trigger the tour on demand.
   const runCenterContentRef = useRef<HTMLDivElement>(null);
+  // Run Center controlled state (for tour integration) — declared BEFORE useTour
+  const [runCenterOpen, setRunCenterOpen] = useState(false);
+  const [runCenterTab, setRunCenterTab] = useState('evaluation');
   const {
     tourActive,
     tourStep,
@@ -1088,10 +1091,6 @@ export default function PdbTracker() {
     onSwitchLit: () => setRunCenterTab('literature'),
     onSwitchWeekly: () => setRunCenterTab('weekly'),
   });
-
-  // Run Center controlled state (for tour integration)
-  const [runCenterOpen, setRunCenterOpen] = useState(false);
-  const [runCenterTab, setRunCenterTab] = useState('evaluation');
 
   // ── First-run DB check ────────────────────────────────────────────────
   // Pop the setup wizard AFTER the tour completes (or if no tour needed).
