@@ -2,7 +2,7 @@ import { sseStream, sleep, type SseEvent } from '@/lib/sse';
 import { generateText } from '@/lib/llm';
 import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, type ReportChapterKey } from '@/lib/report-template';
 import { fetchPdbIdsForUniprot, fetchPdbEntryDetails, fetchUniprotMeta, type PdbEntryDetail } from '@/lib/rcsb';
-import { runBlast, fetchUniprotSequence } from '@/lib/blast';
+import { runBlast, runBlastDb, fetchUniprotSequence } from '@/lib/blast';
 import { db } from '@/lib/db';
 
 export const runtime = 'nodejs';
@@ -168,21 +168,42 @@ export async function POST(req: Request) {
           emit({ stage: 'transcribe', level: 'success', message: `转录完成: ${cleanDna.length}nt → ${aaSeq.length}aa`, progress: 10 });
         }
 
-        // Run BLASTp with the sequence
-        emit({ stage: 'blast', level: 'info', message: `BLASTp 同源检索（序列 ${sequence.length}aa, 上限 ${maxBlastHits}）`, progress: 15 });
+        // Run BLASTp with the sequence — first against pdbaa (PDB), fallback to nr if no hits or <95% identity
+        emit({ stage: 'blast', level: 'info', message: `BLASTp 同源检索 — pdbaa 数据库（序列 ${sequence.length}aa, 上限 ${maxBlastHits}）`, progress: 15 });
         let blastHits: any[] = [];
+        let usedNrFallback = false;
         try {
           const blastPromise = runBlast(sequence, maxBlastHits, (msg) => { emit({ stage: 'blast', level: 'info', message: msg, progress: 20 }); });
           const timeoutPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('BLAST 超时（180s）')), 180000));
           blastHits = await Promise.race([blastPromise, timeoutPromise]);
-          if (blastHits.length > 0) {
-            const topHit = blastHits[0];
-            emit({ stage: 'blast', level: 'success', message: `BLAST 命中 ${blastHits.length}/${maxBlastHits} 条同源（最高 identity=${topHit.identity}% · ${topHit.pdbId}）`, progress: 40 });
+          const topIdentity = blastHits.length > 0 ? blastHits[0].identity : 0;
+          if (blastHits.length === 0) {
+            emit({ stage: 'blast', level: 'warn', message: `pdbaa 数据库无命中，回退搜索 nr 数据库…`, progress: 25 });
+          } else if (topIdentity < 95) {
+            emit({ stage: 'blast', level: 'warn', message: `pdbaa 最高同源度 ${topIdentity}% < 95%，回退搜索 nr 数据库…`, progress: 25 });
           } else {
-            emit({ stage: 'blast', level: 'warn', message: `BLAST 完成，无同源命中`, progress: 40 });
+            emit({ stage: 'blast', level: 'success', message: `pdbaa 命中 ${blastHits.length}/${maxBlastHits} 条同源（最高 identity=${topIdentity}% · ${blastHits[0].pdbId}）`, progress: 40 });
+          }
+          // Fallback to nr database if no hits or top identity < 95%
+          if (blastHits.length === 0 || topIdentity < 95) {
+            emit({ stage: 'blast-nr', level: 'info', message: `BLASTp 同源检索 — nr 数据库（非冗余库, 上限 ${maxBlastHits}）`, progress: 28 });
+            try {
+              const nrPromise = runBlastDb(sequence, maxBlastHits, 'nr', (msg) => { emit({ stage: 'blast-nr', level: 'info', message: msg, progress: 30 }); });
+              const nrTimeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('BLAST nr 超时（180s）')), 180000));
+              const nrHits = await Promise.race([nrPromise, nrTimeout]);
+              if (nrHits.length > 0) {
+                usedNrFallback = true;
+                blastHits = nrHits;
+                emit({ stage: 'blast-nr', level: 'success', message: `nr 命中 ${nrHits.length}/${maxBlastHits} 条同源（最高 identity=${nrHits[0].identity}% · ${nrHits[0].uniprotRef}）`, progress: 40 });
+              } else {
+                emit({ stage: 'blast-nr', level: 'warn', message: `nr 数据库也无命中`, progress: 40 });
+              }
+            } catch (nrErr: any) {
+              emit({ stage: 'blast-nr', level: 'error', message: `nr 搜索失败：${nrErr?.message}`, progress: 40 });
+            }
           }
         } catch (err: any) {
-          emit({ stage: 'blast', level: 'error', message: `BLAST 失败：${err?.message}`, progress: 40 });
+          emit({ stage: 'blast', level: 'error', message: `BLAST pdbaa 失败：${err?.message}`, progress: 40 });
         }
 
         // Convert BLAST hits to PDB-like details for scoring and report
@@ -194,40 +215,64 @@ export async function POST(req: Request) {
         }));
 
         // ── Fetch UniProt metadata from the top BLAST hit ──
-        // The top hit's PDB ID is used to look up the associated UniProt accession
-        // via RCSB's entity API, then fetch UniProt metadata for supplementary info.
+        // For pdbaa hits: use PDB ID to look up UniProt accession via RCSB entity API
+        // For nr hits: the accession itself may be a UniProt ID or NCBI protein accession
         let uniprotInfo: any = { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length };
         if (blastHits.length > 0) {
           const topHit = blastHits[0];
-          emit({ stage: 'uniprot-lookup', level: 'info', message: `从最高同源性命中 (${topHit.pdbId}, identity=${topHit.identity}%) 查找 UniProt 元数据…`, progress: 42 });
+          emit({ stage: 'uniprot-lookup', level: 'info', message: `从最高同源性命中 (${usedNrFallback ? topHit.uniprotRef : topHit.pdbId}, identity=${topHit.identity}%) 查找 UniProt 元数据…`, progress: 42 });
           try {
-            // Query RCSB for the UniProt accession associated with this PDB entry
-            const rcsbRes = await fetch(`https://data.rcsb.org/rest/v1/core/polymer_entity/${topHit.pdbId}/1`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
-            if (rcsbRes.ok) {
-              const rcsbData = await rcsbRes.json();
-              const uniProts = rcsbData?.rcsb_polymer_entity_container_identifiers?.reference_sequence_identifiers || [];
-              const uniprotAcc = uniProts.find((r: any) => r.database_name === 'UniProt')?.database_accession;
-              if (uniprotAcc) {
-                emit({ stage: 'uniprot-lookup', level: 'info', message: `找到 UniProt accession: ${uniprotAcc}，获取元数据…`, progress: 44 });
-                const meta = await fetchUniprotMeta(uniprotAcc);
-                if (meta) {
-                  uniprotInfo = {
-                    uniprotId: uniprotAcc,
-                    entryName: meta.entryName,
-                    proteinName: meta.proteinName,
-                    geneNames: meta.geneNames,
-                    organism: meta.organism,
-                    sequenceLength: meta.sequenceLength,
-                    blastIdentity: topHit.identity,
-                    blastPdbId: topHit.pdbId,
-                  };
-                  emit({ stage: 'uniprot-lookup', level: 'success', message: `UniProt 元数据: ${meta.proteinName} · ${meta.organism} · ${meta.sequenceLength}aa (BLAST identity=${topHit.identity}%)`, progress: 46 });
-                } else {
-                  emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 元数据获取失败 (${uniprotAcc})`, progress: 46 });
-                }
+            let uniprotAcc: string | null = null;
+            if (usedNrFallback) {
+              // nr database hit — the accession may be a UniProt ID (e.g. sp|P00533|)
+              // or NCBI protein accession (e.g. WP_123456789.1)
+              const acc = topHit.uniprotRef;
+              // Try to extract UniProt ID from description (format: "sp|P00533|EGFR_HUMAN ...")
+              const uniMatch = (topHit.description || '').match(/sp\|([A-Z0-9]+)\|/);
+              if (uniMatch) {
+                uniprotAcc = uniMatch[1];
+              } else if (/^[A-NR-Z][0-9][A-Z0-9]{3}[0-9]/i.test(acc) || /^([A-Z0-9]{6,10})$/i.test(acc)) {
+                // Looks like a UniProt accession (e.g. P00533, Q8IVF2)
+                uniprotAcc = acc;
               } else {
-                emit({ stage: 'uniprot-lookup', level: 'warn', message: `PDB ${topHit.pdbId} 未关联 UniProt accession`, progress: 46 });
+                // Try NCBI protein → UniProt mapping via UniProt search API
+                emit({ stage: 'uniprot-lookup', level: 'info', message: `通过 NCBI accession ${acc} 搜索 UniProt…`, progress: 44 });
+                const uniSearchRes = await fetch(`https://rest.uniprot.org/uniprotkb/search?query=xref:${acc}&fields=accession&format=json&size=1`, { signal: AbortSignal.timeout(15000) });
+                if (uniSearchRes.ok) {
+                  const uniSearchData = await uniSearchRes.json();
+                  uniprotAcc = uniSearchData?.results?.[0]?.primaryAccession || null;
+                }
               }
+            } else {
+              // pdbaa hit — use RCSB entity API to find UniProt accession
+              const rcsbRes = await fetch(`https://data.rcsb.org/rest/v1/core/polymer_entity/${topHit.pdbId}/1`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(15000) });
+              if (rcsbRes.ok) {
+                const rcsbData = await rcsbRes.json();
+                const uniProts = rcsbData?.rcsb_polymer_entity_container_identifiers?.reference_sequence_identifiers || [];
+                uniprotAcc = uniProts.find((r: any) => r.database_name === 'UniProt')?.database_accession || null;
+              }
+            }
+            if (uniprotAcc) {
+              emit({ stage: 'uniprot-lookup', level: 'info', message: `找到 UniProt accession: ${uniprotAcc}，获取元数据…`, progress: 44 });
+              const meta = await fetchUniprotMeta(uniprotAcc);
+              if (meta) {
+                uniprotInfo = {
+                  uniprotId: uniprotAcc,
+                  entryName: meta.entryName,
+                  proteinName: meta.proteinName,
+                  geneNames: meta.geneNames,
+                  organism: meta.organism,
+                  sequenceLength: meta.sequenceLength,
+                  blastIdentity: topHit.identity,
+                  blastPdbId: topHit.pdbId,
+                  blastSource: usedNrFallback ? 'nr' : 'pdbaa',
+                };
+                emit({ stage: 'uniprot-lookup', level: 'success', message: `UniProt 元数据: ${meta.proteinName} · ${meta.organism} · ${meta.sequenceLength}aa (BLAST identity=${topHit.identity}% via ${usedNrFallback ? 'nr' : 'pdbaa'})`, progress: 46 });
+              } else {
+                emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 元数据获取失败 (${uniprotAcc})`, progress: 46 });
+              }
+            } else {
+              emit({ stage: 'uniprot-lookup', level: 'warn', message: `未找到关联的 UniProt accession`, progress: 46 });
             }
           } catch (err: any) {
             emit({ stage: 'uniprot-lookup', level: 'warn', message: `UniProt 查找失败: ${err?.message}`, progress: 46 });

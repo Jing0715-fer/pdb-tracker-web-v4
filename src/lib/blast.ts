@@ -1,9 +1,17 @@
 export interface BlastHit { pdbId: string; uniprotRef: string; description: string; identity: number; evalue: string; queryCoverage: number; targetCoverage?: number; taxonomyId?: string; }
 const BLAST_URL = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi';
-export async function runBlast(sequence: string, maxHits = 20, onProgress?: (msg: string) => void): Promise<BlastHit[]> {
+
+/**
+ * Run BLASTp against a specified NCBI database.
+ * @param sequence Amino acid sequence
+ * @param maxHits Maximum number of hits
+ * @param database NCBI database name ('pdbaa' for PDB, 'nr' for non-redundant)
+ * @param onProgress Optional progress callback
+ */
+export async function runBlastDb(sequence: string, maxHits = 20, database = 'pdbaa', onProgress?: (msg: string) => void): Promise<BlastHit[]> {
   if (!sequence || sequence.length < 30) { onProgress?.('序列过短（<30 aa），跳过 BLAST'); return []; }
-  onProgress?.('提交 BLASTp 任务到 NCBI…');
-  const submitBody = new URLSearchParams({ CMD: 'Put', PROGRAM: 'blastp', DATABASE: 'pdbaa', QUERY: sequence, HITLIST_SIZE: String(maxHits), EXPECT: '1e-5', FILTER: 'F' });
+  onProgress?.(`提交 BLASTp 任务到 NCBI (数据库: ${database})…`);
+  const submitBody = new URLSearchParams({ CMD: 'Put', PROGRAM: 'blastp', DATABASE: database, QUERY: sequence, HITLIST_SIZE: String(maxHits), EXPECT: '1e-5', FILTER: 'F' });
   const submitRes = await fetch(BLAST_URL, { method: 'POST', body: submitBody, signal: AbortSignal.timeout(30000) });
   if (!submitRes.ok) throw new Error(`BLAST submit ${submitRes.status}`);
   const submitText = await submitRes.text();
@@ -29,6 +37,12 @@ export async function runBlast(sequence: string, maxHits = 20, onProgress?: (msg
   }
   throw new Error(`BLAST polling timed out after ${maxAttempts} attempts (RID=${rid})`);
 }
+
+/** Backward-compatible wrapper: BLASTp against pdbaa (PDB database). */
+export async function runBlast(sequence: string, maxHits = 20, onProgress?: (msg: string) => void): Promise<BlastHit[]> {
+  return runBlastDb(sequence, maxHits, 'pdbaa', onProgress);
+}
+
 function parseBlastXml(xml: string): BlastHit[] {
   const hits: BlastHit[] = [];
   const hitRe = /<Hit>([\s\S]*?)<\/Hit>/g;
