@@ -1113,6 +1113,8 @@ export function SettingsRunPanel({
 
   // Load DB path on mount
   useEffect(() => { loadDbPath(); }, [loadDbPath]);
+  // Reload DB status when the Run Center dialog is opened (in case DB was changed externally)
+  useEffect(() => { if (open) loadDbPath(); }, [open, loadDbPath]);
   const [evalGenerateReport, setEvalGenerateReport] = useState(true);
   const [evalSaveReportFile, setEvalSaveReportFile] = useState(true);
 
@@ -1868,22 +1870,22 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── Tabbed module panels ─────────────────────────────────────── */}
-        <div className="px-6 py-3 pb-4 max-h-[calc(92vh-280px)] overflow-y-auto">
+        <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-2">
             <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
-              <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
+              <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <FlaskConical className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">① 蛋白靶点评估</span>
                 <span className="sm:hidden">① 评估</span>
                 {isRunning('eval') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
-              <TabsTrigger value="literature" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
+              <TabsTrigger value="literature" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <BookOpen className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">② 每日文献检索</span>
                 <span className="sm:hidden">② 文献</span>
                 {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
-              <TabsTrigger value="weekly" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
+              <TabsTrigger value="weekly" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <CalendarClock className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">③ PDB 周报生成</span>
                 <span className="sm:hidden">③ 周报</span>
@@ -2103,12 +2105,6 @@ export function SettingsRunPanel({
                     <Switch checked={evalSaveReportFile} onCheckedChange={setEvalSaveReportFile} disabled={!evalGenerateReport} className="scale-90" />
                     写入 LLM-Wiki 文件
                   </label>
-                  {evalGenerateReport && (
-                    <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                      <Zap className="h-2.5 w-2.5 text-amber-500" />
-                      默认原子任务 (评估 + 报告 ~50s)
-                    </Badge>
-                  )}
                 </div>
               </ModuleCard>
             </TabsContent>
@@ -2451,8 +2447,8 @@ export function SettingsRunPanel({
           </AnimatePresence>
         </div>
 
-        {/* Bottom spacer for visual breathing room */}
-        <div className="h-3 flex-shrink-0" />
+        {/* Bottom spacer — matches px-6 horizontal padding */}
+        <div className="h-6 flex-shrink-0" />
 
       </DialogContent>
     </Dialog>
