@@ -1829,3 +1829,27 @@ Stage Summary:
 - Sub-Target Detail tab renders the selected sub-target's `Evaluation` via the existing `EvaluationPage` component (no API call — uses `allEvals` / `batchFetchedEvals` from props) + "Open Full View" button to navigate to the real individual-eval page.
 - Report tab renders `combinedReport` via `LazyMarkdown` + "Open Full Report" button.
 - Lint clean. Build clean. Server verified returning 200 OK on `/` and `/api/evaluations`.
+
+---
+Task ID: fix-tour-spacing-db-config
+Agent: main (Z.ai Code)
+Task: 1) Increase bottom spacing in Run Center, 2) Fix DB showing wrong path, 3) Reset tour state.
+
+Work Log:
+- Spacing fix: Added `pb-8` to the tabbed module panels container in settings-run-panel.tsx (was `py-3`, now `py-3 pb-8`) — increases bottom gap between StreamFeed and dialog edge.
+- DB config fix:
+  - Root cause: .hermes/db-config.json was lost during build/deploy (standalone dir rebuild overwrites it).
+  - The user created my-pdb-tracker.db via the wizard, but the .hermes config was lost on rebuild, causing the server to fall back to db/custom.db.
+  - Also, my-pdb-tracker.db had 0 tables (schema not initialized — OOM during prisma db push).
+  - Fix: recreated .hermes config pointing to my-pdb-tracker.db, ran `prisma db push` to initialize schema.
+  - Verified: API now returns active=my-pdb-tracker.db, hasSchema=true, confirmed=true.
+- Tour state reset: Cleared localStorage 'pdb-tracker:tour-completed' in browser so user sees the tour again.
+- Also fixed: Run Center now opens correctly during tour (controlled open/onOpenChange/activeTab/onTabChange props added to SettingsRunPanel).
+- Tour steps 5-7 now switch Run Center tabs (evaluation/literature/weekly).
+- DB wizard appears AFTER tour completes (if tourActive, skip DB check).
+
+Stage Summary:
+- Bottom spacing increased (pb-8 added).
+- DB config fixed: my-pdb-tracker.db with schema initialized.
+- Tour state reset for user to re-experience.
+- Lint passes. Server stable.

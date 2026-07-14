@@ -1807,7 +1807,7 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── Tabbed module panels ─────────────────────────────────────── */}
-        <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
+        <div className="px-6 py-3 pb-8 max-h-[calc(92vh-280px)] overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-2">
             <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
               <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-background data-[state=active]:shadow-sm data-[state=active]:text-foreground text-muted-foreground hover:text-foreground transition-all">
