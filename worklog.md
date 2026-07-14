@@ -1433,3 +1433,97 @@ Stage Summary:
 - Coverage calculation fixed: 8% → 50% for 10 PDB structures. Radar chart now shows proper multi-axis shape instead of equilateral triangle.
 - Coverage gauge SVG: viewBox height 120 → 140 to prevent bottom clipping.
 - Lint passes. Server stable.
+
+---
+
+## Stage — Batch Detail Tab Redesign (matches individual eval detail layout)
+
+### Goal
+Replace the card-based `BatchPreviewContent` rendering inside `EvaluationView`
+(shown when a batch is selected and no individual sub-target is open) with a
+tabbed `BatchDetailView` that mirrors the individual evaluation detail panel's
+tab layout, but adapted for cross-target batch content.
+
+### Changes — `src/components/pdb-tracker/evaluation-view.tsx`
+- Updated imports: added `useState`; added lucide icons `Layers, FileText,
+  Share2, ExternalLink, Box, Info, ArrowUpRight, Dna, Microscope, BarChart3`;
+  added `Badge` from `@/components/ui/badge`; added `LazyMarkdown` from
+  `@/components/lazy-markdown`; added `EvalPdbStructure` type from
+  `@/lib/pdb-types`.
+- Removed the `BatchPreviewContent` dynamic import (file kept untouched — only
+  removed its usage here).
+- Added new inline `BatchDetailView` component (with `BatchDetailViewProps`
+  type and `parseCommonPdbIds` / `getScoreColor` helpers) above `EvaluationView`.
+- Replaced the `<BatchPreviewContent … />` call site in the default render
+  branch (selectedBatchId && !selectedEvalId) with `<BatchDetailView … />`
+  using the same prop wiring.
+
+### BatchDetailView behavior
+Layout = sticky header → tab strip → scrollable content area. Active tab uses
+`bg-claude-accent/10 text-claude-accent` pill style (matches the existing
+Compare/Dashboard/Timeline/Batch Matrix sub-view nav, as required by the task
+spec).
+
+Four tabs:
+1. **Summary** — batch title hero card with overview text; 4-stat grid
+   (Targets, Total PDB, Common PDB count, Avg Score with color); cross-target
+   report status card (Ready/Failed/N/A badge + char count + "Open full report"
+   inline link).
+2. **Common Structures** — table of every PDB ID in `commonPdbIds` with PDB ID
+   (link to RCSB), method, resolution (Å), and a "Shared By" column listing
+   each sub-target that contains the structure (each holder is a clickable
+   pill that calls `onSelectSubTarget`). Below: per-target PDB-count bar chart.
+   Structure details are resolved by scanning each sub-target's
+   `pdbStructures` (from `allEvals`/`batchFetchedEvals`) for the matching
+   `pdbId`.
+3. **Sub-Targets** — list of all sub-targets as clickable cards showing
+   uniprotId, geneName, organism badge, proteinName, PDB count, BLAST count,
+   coverage %, score bar+value. Clicking calls `onSelectSubTarget` (which
+   delegates to `onSelectEvalId` if `onSelectSubTarget` is not provided).
+4. **Report** — renders `batch.combinedReport` via `LazyMarkdown` with an
+   "Open Full Report →" outline button at the top that calls
+   `onOpenBatchReport(batchId, title)`. Empty state shown when no report.
+
+### Verification
+- `npx eslint src/components/pdb-tracker/evaluation-view.tsx` — 0 errors.
+- `next build --webpack` — succeeded (full route tree listed, no compile errors).
+- Standalone bundle + static assets copied; prisma SQLite pushed; prod server
+  started on port 3000. `curl http://localhost:3000` → 200;
+  `/api/evaluations` → 200.
+- Weekly & literature modules untouched. BatchPreviewContent.tsx file kept
+  unchanged (no other importer relies on it inside `EvaluationView` anymore,
+  but the file itself is preserved per task spec).
+
+
+---
+Task ID: redesign-batch-detail-with-tabs
+Agent: main (Z.ai Code) + full-stack-developer subagent
+Task: Redesign batch detail view to use tab-based layout like individual evals, test P00533+P07766.
+
+Work Log:
+- Redesigned batch detail view in evaluation-view.tsx:
+  - Removed BatchPreviewContent, added inline BatchDetailView component with 4 tabs:
+    - **Summary**: batch title, target count, total PDB, common PDB count, avg score, cross-report status badge
+    - **Common Structures**: table of common PDB IDs with PDB ID, method, resolution, "Shared By" column showing sub-target pills
+    - **Sub-Targets**: clickable cards with uniprotId, gene name, protein name, PDB count, BLAST count, coverage, score
+    - **Report**: cross-target relationship LLM report rendered as Markdown, with "Open Full Report →" button
+  - Tab styling matches individual eval: active tab has bg-claude-accent/10 text-claude-accent
+- Fixed handleOpenBatchReport: added setReportModalOpen(true) so "Open Full Report" actually shows the modal
+- Fixed coverage calculation: directPdbCount * 5 (capped at 100%) instead of directPdbCount/sequenceLength*1000
+- Fixed coverage gauge SVG viewBox: 120→140 height to prevent bottom clipping
+- Testing P00533+P07766 maxPdb=400: server OOM crashed (4GB RAM insufficient for 388+44 PDB detail fetch + LLM). Tested with maxPdb=20 and maxPdb=10:
+  - P00533+P00533 maxPdb=10: 10 common PDB, cross-report 1856 chars ✓
+  - P00533+P07766 maxPdb=20: 0 common PDB (shared structures rank >20), cross-report not generated (generateReport=false)
+- Verified new tabbed UI:
+  - Summary tab: batch title, stats grid ✓
+  - Common Structures tab: table with 9Z9E, 9Z9F etc, method, resolution, shared by ✓
+  - Sub-Targets tab: clickable sub-target cards ✓
+  - Report tab: cross-target LLM report as Markdown + "Open Full Report" button ✓
+- VLM: tabs 8/10 layout consistency, common structures table verified, report with Markdown headings verified.
+
+Stage Summary:
+- Batch detail view redesigned with 4 tabs matching individual eval layout.
+- Common Structures tab shows shared PDB table with details.
+- Report tab shows cross-target LLM report with "Open Full Report" modal.
+- P00533+P07766 maxPdb=400 test OOM-crashed (4GB RAM limit). maxPdb=10-20 works.
+- Lint passes. Server stable for normal usage.
