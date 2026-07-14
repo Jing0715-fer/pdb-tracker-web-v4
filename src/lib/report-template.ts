@@ -26,6 +26,10 @@ export interface EvalDataForReport {
   blastTable: string;
   /** Total number of PDB entries that `pdbTable` was derived from (may exceed visible rows in the table). */
   pdbCount?: number;
+  /** Optional literature context: formatted PubMed article titles + journals + abstracts. */
+  literatureInfo?: string;
+  /** Number of literature papers included in `literatureInfo`. */
+  literatureCount?: number;
 }
 
 export function buildReportSystemPrompt(): string {
@@ -247,6 +251,12 @@ ${d.blastTable}
 
 ---
 
+## 📚 相关文献（PubMed，共 ${d.literatureCount ?? 0} 篇，按期刊 IF 降序；摘要截取 200 字）
+
+${d.literatureInfo || '（无 PubMed 文献数据）'}
+
+---
+
 # 任务：生成第 ${d.chapterIndex}/${d.chapterTotal} 章 **"${chapterTitleZh(d.chapterKey)}"**
 
 要求：
@@ -255,6 +265,7 @@ ${d.blastTable}
 3. 引用上面表格里的具体 PDB ID / 期刊 IF / E-value 等真实数字
 4. 长度 250-500 字（足够充实但不冗长）
 5. 章节标题单独占一行，前后空行
+6. 在相关章节中可参考"相关文献"区块中的论文标题/期刊/摘要内容，引用 PMID 作为参考文献时格式为 "PMID 12345"
 `;
 
   switch (d.chapterKey) {

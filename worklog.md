@@ -1658,3 +1658,70 @@ Stage Summary:
 - Tour step 2 (运行中心) opens the actual Run Center dialog during the tour — user sees real UI with overlay explanation.
 - Tour step 4 (数据库配置) explains DB setup while user can see the Run Center's DB section.
 - Lint passes, build succeeds, server stable.
+
+---
+Task ID: eval-report-lit-collapse-batchpreviews
+Agent: main (Z.ai Code)
+Task: 5 fixes — (1) eval report tab truncated to 4 chapters, (2) ChapterStream can't collapse + scroll too small, (3) add literature info to LLM report generation, (4) add maxLitCount UI control, (5) show all target reports in Run Center during batch execution.
+
+Work Log:
+
+### Fix 1: evalReportTab truncation (pdb-tracker.tsx)
+- Root cause: the report container `<div>` had `whitespace-pre-wrap` which interfered with Markdown rendering — long lines (8-chapter reports ~3700 chars) were treated as a single preformatted block, breaking `LazyMarkdown`'s block-level parsing so only the first few `##` headings rendered correctly.
+- Fix: removed `whitespace-pre-wrap` from BOTH branches (evalReportContent + selectedEval.report) and added `max-h-[36rem] overflow-y-auto thin-scroll` so long reports scroll properly inside the inline preview card.
+- File: `src/components/pdb-tracker.tsx` lines ~3402-3420.
+
+### Fix 2: ChapterStream collapse + scroll (settings-run-panel.tsx)
+- Added `const [collapsed, setCollapsed] = useState(false)` state to ChapterStream.
+- Wrapped the existing header `<div>` in a clickable button with `role="button" tabIndex={0}"` + `onClick={() => setCollapsed(v => !v)}` + `onKeyDown` for Enter/Space accessibility. Added `aria-expanded` + `aria-label`.
+- The `ChevronRight` icon now rotates 90° when expanded (matches the per-chapter `<details>` chevron behavior).
+- Added a "展开/收起" hint label on the right side of the header.
+- Changed `max-h-[28rem]` (448px) → `max-h-[40rem]` (640px) so 8 chapters with content fit better.
+- Wrapped the `max-h-[40rem]` content div in `{!collapsed && ( ... )}` so the entire list hides when collapsed.
+- The scroll container already had `thin-scroll` (kept).
+
+### Fix 3: Literature info in LLM report generation (evaluations/run/route.ts)
+- Added new helper function `buildLiteratureInfo(pdbDetails, maxLitCount)` (lines 17-106):
+  1. Collects non-empty `pubmedId` values from PdbEntryDetail[]
+  2. Queries `PubMedArticle` table for those IDs (gracefully returns empty if table doesn't exist or query fails)
+  3. Backfills `journalIf` from `PdbStructure` table for any PMIDs whose IF is null
+  4. Builds candidate paper list with [pubmedId, title, journal, ifVal, abstract]
+  5. Sorts by journal IF desc (then title asc as tie-breaker)
+  6. Caps at `maxLitCount`
+  7. Formats each paper as `• [PMID xxx] Title — Journal (IF xx.x)\n  摘要: <200-char-truncated abstract>`
+- Added `maxLitCount` parameter from request body (default 20, clamped 0-200) at the top of POST handler.
+- Primary target report: added `litInfo` lookup before `reportData`, included `literatureInfo` + `literatureCount` fields in `reportData`. Emits a new SSE event "📚 已附加 N 篇 PubMed 文献（按 IF 降序）到 LLM 上下文".
+- Updated `EvalDataForReport` interface in `src/lib/report-template.ts` to include optional `literatureInfo?: string` + `literatureCount?: number`.
+- Updated `buildChapterPrompt`'s `ctxHeader` to include a new "📚 相关文献" section between BLAST table and the chapter task description, with explicit instruction "在相关章节中可参考'相关文献'区块中的论文标题/期刊/摘要内容，引用 PMID 作为参考文献时格式为 'PMID 12345'".
+- Batch target reports (in the batch loop): added `bLitInfo` lookup using the same `buildLiteratureInfo(bPdbDetails, maxLitCount)` helper, appended a "相关 PubMed 文献" block to the LLM user prompt. Updated the success SSE message to include "· 附 N 篇文献" when litInfo.count > 0.
+- Cross-target report: aggregated PDB details from ALL batch targets via `batchResults.flatMap(r => r.pdbDetails || [])`, then called `buildLiteratureInfo` once with the combined list (still capped at maxLitCount). Added a new "### 五、文献综合" section to the cross-target report template (now 6 sections instead of 5), with instruction to cite PMIDs. Added `literatureCount` to the crossReport payload.
+- Also surfaced per-target `report` field in the final `result.batchResults` payload (was previously excluded — only had uniprot/proteinName/pdbCount/overall/cached) so the frontend can render an LLMPreview per batch target.
+
+### Fix 4: maxLitCount UI control (settings-run-panel.tsx)
+- Added `evalMaxLitCount` state with localStorage persistence (key `evalMaxLitCount`, default 20, clamped 0-200), modeled after the existing `evalMaxBlastHits` pattern.
+- Added a new `Field` "最大文献数" with `Input type="number" min={0} max={200}` on row 0 only (between BLAST and the ToggleChips), with a tooltip explaining "LLM 报告上下文中附加的 PubMed 文献数量上限（按期刊 IF 降序截取）".
+- The `runEvaluation` callback now sends `maxLitCount: evalMaxLitCount` in the eval request body.
+
+### Fix 5: All target reports in Run Center (settings-run-panel.tsx)
+- Extended `LLMPreview`'s `accent` prop type from `'emerald' | 'sky'` to `'emerald' | 'sky' | 'violet' | 'amber'` and added `violet` + `amber` entries to the accentMap (matching the color palette used elsewhere in the panel for batch + cross-target badges).
+- Added a new block after the primary report's LLMPreview (lines ~1912-1942) that renders an LLMPreview per non-primary batch target (from `evalStream.state.result.batchResults[].report`). Uses `Array.map` to preserve the original index, then filters out idx=0 (primary, already shown above) and entries without `report.content`. Title: `LLM 报告 · {proteinName}（Batch {idx+1}/{total}）{· 缓存}`. Accent: violet.
+- Added a third block (lines ~1944-1959) for the cross-target relationship report from `evalStream.state.result.crossAnalysis.crossReport`. Title: "靶点间相关性分析报告 · Batch Cross-Target". Accent: amber.
+
+### Build & Deploy
+- `npx eslint` on all 4 changed files (pdb-tracker.tsx, settings-run-panel.tsx, route.ts, report-template.ts): 0 errors, 0 warnings.
+- `next build --webpack`: ✓ Compiled successfully, all routes generated.
+- Copied `.next/static` + `public/` + `.env` + `prisma/schema.prisma` to `.next/standalone/`.
+- Created `.hermes/db-config.json` with the standalone DB path.
+- `bunx prisma db push --skip-generate` on the standalone DB: ✓ schema synced.
+- Started standalone server on port 3000. Verified:
+  - `curl http://localhost:3000/` → 200
+  - `curl http://localhost:3000/api/evaluations` → 200
+- Updated `.zscripts/keepalive-prod.sh` to use `setsid bash -c '... exec node server.js'` instead of plain `node server.js &` so the standalone server survives between sandbox tool calls.
+
+Stage Summary:
+- Fix 1 (eval report tab): removed `whitespace-pre-wrap` + added `max-h-[36rem] overflow-y-auto thin-scroll` — full 8-chapter Markdown reports now render correctly via LazyMarkdown with proper scrolling.
+- Fix 2 (ChapterStream): added collapse toggle (click header to hide entire chapter list), `max-h-[28rem]` → `max-h-[40rem]`, kept `thin-scroll` scrollbar styling.
+- Fix 3 (literature in LLM): new `buildLiteratureInfo` helper surfaces PubMed articles (titles + journals + 200-char abstracts) sorted by journal IF desc, capped at `maxLitCount`. Included in primary target's 8-chapter prompt (new "📚 相关文献" section in ctxHeader), batch target prompts, and cross-target prompt (new "### 五、文献综合" section).
+- Fix 4 (maxLitCount UI): new "最大文献数" Field on row 0 of the eval target list, persisted to localStorage, sent as `maxLitCount` in eval request body.
+- Fix 5 (all batch reports): per-batch-target LLMPreview cards (violet accent) + cross-target relationship LLMPreview card (amber accent) now render below the primary report after a batch run completes. `LLMPreview` accent type extended to support violet + amber.
+- Weekly and literature modules untouched. Lint clean. Build clean. Server verified returning 200 OK on / and /api/evaluations.

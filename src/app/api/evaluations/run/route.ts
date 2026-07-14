@@ -14,6 +14,97 @@ function buildPdbTableFromReal(details: PdbEntryDetail[]): string {
     .join('\n');
 }
 
+/**
+ * Build a formatted literature/paper info string for the LLM prompt.
+ *
+ * Given a list of PDB entry details, this:
+ *   1. Collects all non-empty `pubmedId` values
+ *   2. Queries the `PubMedArticle` table for any matching articles
+ *   3. Joins each PubMedArticle with the journal IF from the PDB entry that
+ *      references it (via `PdbStructure.journalIf` / `PdbEntryDetail.journalIf`)
+ *   4. If more than `maxLitCount` papers, sorts by journal IF desc and keeps top N
+ *   5. Returns a formatted multi-line string with title + journal (IF) + abstract
+ *      (truncated to 200 chars). Empty string when no PubMed articles found.
+ *
+ * Also reads `PdbStructure.journalIf` directly as a fallback in case
+ * PubMedArticle query returns hits but PdbEntryDetail.journalIf is null.
+ */
+async function buildLiteratureInfo(
+  pdbDetails: PdbEntryDetail[],
+  maxLitCount: number,
+): Promise<{ text: string; count: number }> {
+  // Collect pubmedIds (non-empty) from the PDB details.
+  const pmidToIf = new Map<string, number | null>();
+  for (const e of pdbDetails) {
+    const pm = (e.pubmedId || '').toString().trim();
+    if (!pm) continue;
+    // Prefer the highest journalIf when multiple PDBs cite the same paper.
+    const cur = pmidToIf.get(pm) ?? null;
+    if (e.journalIf != null && (cur == null || e.journalIf > cur)) {
+      pmidToIf.set(pm, e.journalIf);
+    } else if (!pmidToIf.has(pm)) {
+      pmidToIf.set(pm, null);
+    }
+  }
+  const pmids = Array.from(pmidToIf.keys());
+  if (pmids.length === 0) return { text: '', count: 0 };
+
+  // Query PubMedArticle table for any matching articles.
+  let articles: Array<{ pubmedId: string; title: string | null; journal: string | null; abstract: string | null }> = [];
+  try {
+    const rows = await db.$queryRaw<any[]>`SELECT pubmedId, title, journal, abstract FROM PubMedArticle WHERE pubmedId IN (${pmids})`;
+    articles = (rows as any[]).map((r) => ({ pubmedId: r.pubmedId, title: r.title, journal: r.journal, abstract: r.abstract }));
+  } catch {
+    // PubMedArticle table may not exist or be empty — degrade gracefully.
+    return { text: '', count: 0 };
+  }
+  if (articles.length === 0) return { text: '', count: 0 };
+
+  // Backfill journal IF from PdbStructure table for any PMIDs whose IF is null.
+  const nullIfPmids = articles
+    .map((a) => a.pubmedId)
+    .filter((pm) => pmidToIf.get(pm) == null);
+  if (nullIfPmids.length > 0) {
+    try {
+      const ifRows = await db.$queryRaw<any[]>`SELECT pubmedId, journalIf FROM PdbStructure WHERE pubmedId IN (${nullIfPmids}) AND journalIf IS NOT NULL`;
+      for (const r of ifRows as any[]) {
+        const pm = r.pubmedId?.toString();
+        if (!pm) continue;
+        const v = typeof r.journalIf === 'number' ? r.journalIf : Number(r.journalIf);
+        if (!Number.isNaN(v)) pmidToIf.set(pm, v);
+      }
+    } catch {
+      // PdbStructure may not exist (depends on schema state) — ignore.
+    }
+  }
+
+  // Build candidate paper list with [pubmedId, title, journal, if, abstract].
+  type Paper = { pubmedId: string; title: string; journal: string; ifVal: number; abstract: string };
+  const papers: Paper[] = articles.map((a) => ({
+    pubmedId: a.pubmedId,
+    title: (a.title || '').trim() || '(无标题)',
+    journal: (a.journal || '').trim() || '(未知期刊)',
+    ifVal: pmidToIf.get(a.pubmedId) ?? 0,
+    abstract: (a.abstract || '').trim(),
+  }));
+
+  // Sort by journal IF desc, then by title asc as a tie-breaker.
+  papers.sort((a, b) => b.ifVal - a.ifVal || a.title.localeCompare(b.title));
+
+  // Cap at maxLitCount.
+  const capped = papers.slice(0, Math.max(0, Math.floor(maxLitCount)));
+  if (capped.length === 0) return { text: '', count: 0 };
+
+  // Format each paper: title + journal (IF) + abstract (truncated 200 chars).
+  const lines = capped.map((p) => {
+    const ifStr = p.ifVal > 0 ? ` (IF ${p.ifVal.toFixed(1)})` : '';
+    const abs = p.abstract ? p.abstract.slice(0, 200) : '(无摘要)';
+    return `• [PMID ${p.pubmedId}] ${p.title} — ${p.journal}${ifStr}\n  摘要: ${abs}`;
+  });
+  const text = lines.join('\n\n');
+  return { text, count: capped.length };
+}
+
 export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   // Support both flat fields (single target) and targets[] array (batch mode).
@@ -27,6 +118,9 @@ export async function POST(req: Request) {
   const maxPdb = Number(body.maxPdb ?? primaryTarget.maxPdb ?? 80);
   // BLAST homolog cap. Default 50 (NCBI BLAST pdbaa typical sensible max). UI-configurable.
   const maxBlastHits = Number(body.maxBlastHits ?? primaryTarget.maxBlastHits ?? body.maxBlast ?? 50);
+  // Literature cap for LLM prompt context (PubMed articles surfaced alongside PDB details).
+  // Default 20. UI-configurable. Papers beyond this are filtered by journal IF desc.
+  const maxLitCount = Math.max(0, Math.min(200, Number(body.maxLitCount ?? 20)));
   const generateReport = body.generateReport !== false;
   const saveReportFile = body.saveReportFile !== false;
   const isBatch = !!body.isBatch && targets.length > 1;
@@ -181,6 +275,16 @@ export async function POST(req: Request) {
           ? '| PDB ID | UniProt | Identity | E-value | Description |\n|--------|---------|----------|---------|-------------|\n| (BLAST 已跳过) | - | - | - | - |'
           : buildDetailedBlastTable(blastHits, BLAST_CAP);
 
+        // ── Literature info: fetch PubMedArticle rows for the PDB structures' pubmedIds ──
+        // Sort by journal IF desc, cap at maxLitCount. Empty when no articles in DB.
+        const litInfo = await buildLiteratureInfo(pdbDetails, maxLitCount);
+        const literatureInfo = litInfo.count > 0
+          ? `共 ${litInfo.count} 篇相关文献（按期刊影响因子降序，已截取前 ${litInfo.count} 篇；摘要截取 200 字）：\n\n${litInfo.text}`
+          : '（无 PubMed 文献数据 — PubMedArticle 表为空或这些 PDB 结构无对应文献）';
+        if (litInfo.count > 0) {
+          emit({ stage: 'llm-report', level: 'info', message: `📚 已附加 ${litInfo.count} 篇 PubMed 文献（按 IF 降序）到 LLM 上下文`, progress: 65 });
+        }
+
         const reportData = {
           uniprot,
           entryName: uniprotInfo.entryName,
@@ -196,6 +300,8 @@ export async function POST(req: Request) {
           scores,
           pdbTable,
           blastTable,
+          literatureInfo,
+          literatureCount: litInfo.count,
         };
 
         // ── Chapter-streaming mode: each chapter = its own short LLM call. ──────
@@ -414,11 +520,16 @@ export async function POST(req: Request) {
               try {
                 // Use a single-call summary report (not 7-chapter) to reduce memory/time
                 const topPdbs = bPdbDetails.slice(0, 10).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)}`).join('\n');
+                // Literature info for this batch target (capped at maxLitCount, IF desc).
+                const bLitInfo = await buildLiteratureInfo(bPdbDetails, maxLitCount);
+                const bLitBlock = bLitInfo.count > 0
+                  ? `\n\n相关 PubMed 文献（共 ${bLitInfo.count} 篇，按 IF 降序，摘要 200 字截断）：\n${bLitInfo.text}`
+                  : '\n\n（无 PubMed 文献数据）';
                 const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白靶点评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 蛋白功能概述、## PDB 结构分析、## 可成药性评估、## 实验建议、## 总结。';
-                const bUserPrompt = `UniProt: ${bUid}\n蛋白名称: ${bInfo.proteinName}\n基因名: ${bInfo.geneNames}\n物种: ${bInfo.organism}\n序列长度: ${bInfo.sequenceLength} aa\nPDB 结构数: ${bPdbDetails.length}\n评分: overall=${bScores.overall.score}/10 (X-ray=${bScores.xray.score}/${bXray}条, Cryo-EM=${bScores.cryoem.score}/${bCryoem}条, NMR=${bScores.nmr.score}/${bNmr}条)\nBLAST: ${bSkipBlast ? '已跳过' : '未执行'}\n\n代表性 PDB 结构（前 10 个）:\n${topPdbs || '（无 PDB 结构）'}\n\n请生成完整的评估报告。`;
+                const bUserPrompt = `UniProt: ${bUid}\n蛋白名称: ${bInfo.proteinName}\n基因名: ${bInfo.geneNames}\n物种: ${bInfo.organism}\n序列长度: ${bInfo.sequenceLength} aa\nPDB 结构数: ${bPdbDetails.length}\n评分: overall=${bScores.overall.score}/10 (X-ray=${bScores.xray.score}/${bXray}条, Cryo-EM=${bScores.cryoem.score}/${bCryoem}条, NMR=${bScores.nmr.score}/${bNmr}条)\nBLAST: ${bSkipBlast ? '已跳过' : '未执行'}\n\n代表性 PDB 结构（前 10 个）:\n${topPdbs || '（无 PDB 结构）'}${bLitBlock}\n\n请生成完整的评估报告，在"实验建议"和"总结"中可引用文献 PMID 作为参考。`;
                 const br = await generateText(bSysPrompt, bUserPrompt, { maxChars: 2000, llm: body.llm });
                 bReport = { ok: br.ok, content: br.content, provider: br.provider, model: br.model, durationMs: br.durationMs, contentChars: br.content?.length || 0 };
-                if (br.ok) emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 报告已生成 · ${bReport.contentChars} chars · ${(br.durationMs / 1000).toFixed(1)}s`, progress: 100 });
+                if (br.ok) emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 报告已生成 · ${bReport.contentChars} chars · ${(br.durationMs / 1000).toFixed(1)}s${bLitInfo.count > 0 ? ` · 附 ${bLitInfo.count} 篇文献` : ''}`, progress: 100 });
                 else emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 报告失败：${br.error}`, progress: 100 });
               } catch (err: any) {
                 emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 生成失败：${err?.message}`, progress: 100 });
@@ -481,6 +592,12 @@ export async function POST(req: Request) {
             const overlapSummary = Object.entries(pdbOverlap).length > 0
               ? Object.entries(pdbOverlap).map(([pair, ids]) => `${pair}: ${ids.length} 个共有结构 (${ids.slice(0, 5).join(', ')})`).join('\n')
               : '无两两共有结构';
+            // Aggregate literature from ALL batch targets (cap at maxLitCount total, IF desc).
+            const allBatchPdbs: PdbEntryDetail[] = batchResults.flatMap((r) => r.pdbDetails || []);
+            const crossLit = await buildLiteratureInfo(allBatchPdbs, maxLitCount);
+            const crossLitBlock = crossLit.count > 0
+              ? `\n\n相关 PubMed 文献（聚合全部 ${batchResults.length} 个靶点，共 ${crossLit.count} 篇，按 IF 降序）：\n${crossLit.text}`
+              : '\n\n（无 PubMed 文献数据）';
             const crossUserPrompt = `请分析以下 ${batchResults.length} 个蛋白靶点的结构相关性与功能关系：
 
 ${targetSummary}
@@ -488,7 +605,7 @@ ${targetSummary}
 共有结构分析：
 - 全部靶点共有的结构: ${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 10).join(', ')})` : ''}
 - 两两重叠:
-${overlapSummary}
+${overlapSummary}${crossLitBlock}
 
 请按以下结构生成报告：
 ## 靶点间相关性分析报告
@@ -505,11 +622,14 @@ ${overlapSummary}
 ### 四、结构相似性推断
 （从共有结构推断靶点间的结构相似性，讨论对药物设计或交叉研究的意义）
 
-### 五、总结与建议
+### 五、文献综合
+（结合相关文献区块中的 PMID 列表，简述跨靶点文献证据，引用 PMID 编号）
+
+### 六、总结与建议
 （总结靶点间关系，提出后续研究建议）`;
             const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
-            crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap };
-            if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 相关性分析报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 100 });
+            crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
+            if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 相关性分析报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: 100 });
             else emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析 LLM 失败：${r.error}`, progress: 100 });
           } catch (err: any) {
             emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析失败：${err?.message}`, progress: 100 });
@@ -550,7 +670,27 @@ ${overlapSummary}
           });
         } catch { /* ignore */ }
 
-        (result as any).batchResults = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score, cached: r.cached }));
+        (result as any).batchResults = batchResults.map(r => ({
+          uniprot: r.uniprot,
+          proteinName: r.uniprotInfo?.proteinName,
+          pdbCount: r.pdbDetails?.length || 0,
+          overall: r.scores?.overall?.score,
+          cached: r.cached,
+          // Surface the individual LLM report so the Run Center can render
+          // an LLMPreview card per batch target after execution.
+          report: r.report
+            ? {
+                ok: !!r.report.ok,
+                content: r.report.content || '',
+                provider: r.report.provider || '',
+                model: r.report.model || '',
+                durationMs: r.report.durationMs || 0,
+                contentChars: r.report.contentChars || 0,
+                cached: !!r.report.cached,
+                error: r.report.error,
+              }
+            : undefined,
+        }));
         (result as any).crossAnalysis = { commonPdbIds, pdbOverlap, crossReport };
         emit({ stage: 'batch-done', level: 'success', message: `Batch 完成 · ${batchResults.length} 靶点 (${batchResults.filter(r => r.cached).length} 缓存) · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? '相关性报告 ✓' : '相关性报告 ✗'} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 100 });
       }

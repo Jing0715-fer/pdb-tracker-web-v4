@@ -399,7 +399,7 @@ function LLMPreview({
   ok?: boolean;
   dbSaved?: boolean;
   chars?: number;
-  accent?: 'emerald' | 'sky';
+  accent?: 'emerald' | 'sky' | 'violet' | 'amber';
 }) {
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -410,6 +410,8 @@ function LLMPreview({
   const accentMap = {
     emerald: { ring: 'border-emerald-500/30', bg: 'from-emerald-500/5', icon: 'text-emerald-500', badge: 'border-emerald-500/30 text-emerald-600 dark:text-emerald-300 bg-emerald-500/10' },
     sky: { ring: 'border-sky-500/30', bg: 'from-sky-500/5', icon: 'text-sky-500', badge: 'border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/10' },
+    violet: { ring: 'border-violet-500/30', bg: 'from-violet-500/5', icon: 'text-violet-500', badge: 'border-violet-500/30 text-violet-600 dark:text-violet-300 bg-violet-500/10' },
+    amber: { ring: 'border-amber-500/30', bg: 'from-amber-500/5', icon: 'text-amber-500', badge: 'border-amber-500/30 text-amber-600 dark:text-amber-300 bg-amber-500/10' },
   };
   const a = accentMap[accent];
   // Override styling for failure state.
@@ -680,6 +682,8 @@ function ChapterStream({
   running: boolean;
   done: boolean;
 }) {
+  // Collapse state for the whole chapter list — click header to toggle.
+  const [collapsed, setCollapsed] = useState(false);
   // Pull ordered chapters from the event stream.
   // Two flavors:
   //   chapter_done    — finalised, has chapterContent (real Markdown)
@@ -745,9 +749,17 @@ function ChapterStream({
       animate={{ opacity: 1, y: 0 }}
       className="mt-3 rounded-lg border border-violet-500/30 bg-gradient-to-br from-violet-500/5 via-transparent to-transparent overflow-hidden"
     >
-      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/40 bg-background/40">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => setCollapsed((v) => !v)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed((v) => !v); } }}
+        className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/40 bg-background/40 cursor-pointer hover:bg-background/60 transition-colors select-none"
+        aria-expanded={!collapsed}
+        aria-label="折叠/展开 LLM 思考过程章节列表"
+      >
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <ChevronRight className="h-3 w-3 text-violet-500 shrink-0" />
+          <ChevronRight className={`h-3 w-3 text-violet-500 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
           <span className="text-3xs font-semibold truncate">LLM 思考过程 · 分章流式</span>
           <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
             <Sparkles className="h-2 w-2" /> {completedCount}/{rows.length} 章节
@@ -769,8 +781,10 @@ function ChapterStream({
             </span>
           )}
         </div>
+        <span className="text-3xs text-muted-foreground/70 shrink-0">{collapsed ? '展开' : '收起'}</span>
       </div>
-      <div className="max-h-[28rem] overflow-y-auto thin-scroll p-2 space-y-1.5">
+      {!collapsed && (
+      <div className="max-h-[40rem] overflow-y-auto thin-scroll p-2 space-y-1.5">
         {rows.map((r) => {
           const isRunning = r.status === 'running';
           const isError = r.status === 'error';
@@ -819,6 +833,7 @@ function ChapterStream({
           );
         })}
       </div>
+      )}
     </motion.div>
   );
 }
@@ -972,6 +987,17 @@ export function SettingsRunPanel({
   useEffect(() => {
     try { window.localStorage.setItem('evalMaxBlastHits', String(evalMaxBlastHits)); } catch {}
   }, [evalMaxBlastHits]);
+  // Max literature count for LLM report context. Cap of PubMed articles
+  // surfaced alongside PDB details (sorted by journal IF desc). Persisted.
+  const [evalMaxLitCount, setEvalMaxLitCount] = useState<number>(() => {
+    if (typeof window === 'undefined') return 20;
+    const v = window.localStorage.getItem('evalMaxLitCount');
+    const parsed = v ? parseInt(v, 10) : NaN;
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : 20;
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem('evalMaxLitCount', String(evalMaxLitCount)); } catch {}
+  }, [evalMaxLitCount]);
 
   // Multi-target evaluation state — each target has independent params.
   // When more than one target is present, the run is treated as a batch
@@ -1288,6 +1314,7 @@ export function SettingsRunPanel({
       skipBlast: targets[0].skipBlast,
       maxPdb: targets[0].maxPdb,
       maxBlastHits: targets[0].maxBlastHits,
+      maxLitCount: evalMaxLitCount,
       targets,
       isBatch,
       generateReport: evalGenerateReport,
@@ -1830,6 +1857,13 @@ export function SettingsRunPanel({
                           <Input type="number" min={1} max={500} value={t.maxBlastHits} onChange={e => updateEvalTarget(i, 'maxBlastHits', parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
+                      {i === 0 && (
+                        <div className="w-20 shrink-0" title="LLM 报告上下文中附加的 PubMed 文献数量上限（按期刊 IF 降序截取）">
+                          <Field label="最大文献数">
+                            <Input type="number" min={0} max={200} value={evalMaxLitCount} onChange={e => setEvalMaxLitCount(Math.max(0, Math.min(200, parseInt(e.target.value || '20') || 0)))} className="h-8 px-2 text-xs md:text-xs font-mono" />
+                          </Field>
+                        </div>
+                      )}
                       <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制BLAST" disabled={t.skipBlast} />
                       <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过BLAST" disabled={t.forceBlast} />
                       {i === 0 && (
@@ -1874,6 +1908,58 @@ export function SettingsRunPanel({
                     dbSaved={evalStream.state.result.dbSaved}
                     chars={evalStream.state.result.report.contentChars}
                     accent="emerald"
+                  />
+                )}
+
+                {/* Batch-mode: per-target LLM report previews (one card per
+                    non-primary batch target). The primary target's report is
+                    rendered by the block above. Each subsequent target's report
+                    is surfaced as its own collapsible LLMPreview so the user
+                    can review every individual evaluation produced during a
+                    batch run without leaving the Run Center. */}
+                {evalStream.state.done && evalStream.state.result?.batchResults
+                  && Array.isArray(evalStream.state.result.batchResults)
+                  && evalStream.state.result.batchResults
+                      // Preserve the original index so the "Batch N/M" label is
+                      // accurate (primary = Batch 1, subsequent = Batch 2/3…).
+                      .map((br: any, idx: number) => ({ br, idx }))
+                      // Skip the primary target (already shown above) and any
+                      // entries that didn't produce a report.
+                      .filter(({ br, idx }) => idx > 0 && br?.report?.content)
+                      .map(({ br, idx }) => (
+                        <LLMPreview
+                          key={`batch-report-${br.uniprot}-${idx}`}
+                          content={br.report.content}
+                          title={`LLM 报告 · ${br.proteinName || br.uniprot}（Batch ${idx + 1}/${evalStream.state.result.batchResults.length}）${br.cached ? ' · 缓存' : ''}`}
+                          provider={br.report.provider}
+                          model={br.report.model}
+                          durationMs={br.report.durationMs}
+                          fallback={false}
+                          error={br.report.error}
+                          ok={br.report.ok}
+                          dbSaved={!!br.report.ok}
+                          chars={br.report.contentChars}
+                          accent="violet"
+                        />
+                      ))}
+
+                {/* Cross-target relationship LLM report preview (batch mode only).
+                    Surfaced as its own LLMPreview so the user can review the
+                    cross-target analysis alongside the per-target reports. */}
+                {evalStream.state.done
+                  && evalStream.state.result?.crossAnalysis?.crossReport?.content && (
+                  <LLMPreview
+                    content={evalStream.state.result.crossAnalysis.crossReport.content}
+                    title="靶点间相关性分析报告 · Batch Cross-Target"
+                    provider={evalStream.state.result.crossAnalysis.crossReport.provider}
+                    model={evalStream.state.result.crossAnalysis.crossReport.model}
+                    durationMs={evalStream.state.result.crossAnalysis.crossReport.durationMs}
+                    fallback={false}
+                    error={evalStream.state.result.crossAnalysis.crossReport.error}
+                    ok={evalStream.state.result.crossAnalysis.crossReport.ok}
+                    dbSaved={!!evalStream.state.result.crossAnalysis.crossReport.ok}
+                    chars={evalStream.state.result.crossAnalysis.crossReport.contentChars}
+                    accent="amber"
                   />
                 )}
 

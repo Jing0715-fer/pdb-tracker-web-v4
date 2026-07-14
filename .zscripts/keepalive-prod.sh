@@ -10,9 +10,14 @@ while true; do
     pkill -9 -f "node server.js" 2>/dev/null
     sleep 1
     cd /home/z/my-project/.next/standalone
-    NEXT_TELEMETRY_DISABLED=1 node server.js > /home/z/my-project/prod.log 2>&1 &
+    # Use setsid + nohup so the node process survives even if this bash script's
+    # parent shell exits between sandbox tool calls. Double-fork via setsid
+    # detaches the process from any controlling terminal.
+    setsid bash -c 'NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000 exec node server.js' < /dev/null > /home/z/my-project/prod.log 2>&1 &
+    disown 2>/dev/null || true
     cd /home/z/my-project
-    sleep 3
+    sleep 5
   fi
   sleep 5
 done
+

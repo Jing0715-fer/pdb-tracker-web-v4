@@ -3402,13 +3402,13 @@ export default function PdbTracker() {
       const evalReportTab = (
         <div className="space-y-3">
           {evalReportContent ? (
-            <div className="text-xs text-claude-text-secondary leading-relaxed whitespace-pre-wrap p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
+            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50 max-h-[36rem] overflow-y-auto thin-scroll">
               <div className="markdown-content">
                 <LazyMarkdown>{evalReportContent}</LazyMarkdown>
               </div>
             </div>
           ) : selectedEval.report ? (
-            <div className="text-xs text-claude-text-secondary leading-relaxed whitespace-pre-wrap p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
+            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50 max-h-[36rem] overflow-y-auto thin-scroll">
               <div className="markdown-content">
                 <LazyMarkdown>{selectedEval.report}</LazyMarkdown>
               </div>
