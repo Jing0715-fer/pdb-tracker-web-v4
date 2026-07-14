@@ -407,9 +407,30 @@ export async function POST(req: Request) {
             const calcS = (c: number) => Math.min(10, Math.max(1, Math.round(c / 5) + 3));
             const bScores = { xray: { score: calcS(bXray), structures: bXray }, cryoem: { score: calcS(bCryoem), structures: bCryoem }, nmr: { score: calcS(bNmr), structures: bNmr }, overall: { score: Math.min(10, Math.max(1, Math.round((calcS(bXray) + calcS(bCryoem) + calcS(bNmr)) / 3))) } };
             // Write to DB — skip PDB structure insert if cache hit
+            let bReport: any = undefined;
+            // Generate individual LLM report for this batch target (unless cached with existing report)
+            if (generateReport && !(bCacheHit && bCached?.report)) {
+              emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] 生成 ${bUid} 的 LLM 报告…`, progress: 100 });
+              try {
+                // Use a single-call summary report (not 7-chapter) to reduce memory/time
+                const topPdbs = bPdbDetails.slice(0, 10).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)}`).join('\n');
+                const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白靶点评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 蛋白功能概述、## PDB 结构分析、## 可成药性评估、## 实验建议、## 总结。';
+                const bUserPrompt = `UniProt: ${bUid}\n蛋白名称: ${bInfo.proteinName}\n基因名: ${bInfo.geneNames}\n物种: ${bInfo.organism}\n序列长度: ${bInfo.sequenceLength} aa\nPDB 结构数: ${bPdbDetails.length}\n评分: overall=${bScores.overall.score}/10 (X-ray=${bScores.xray.score}/${bXray}条, Cryo-EM=${bScores.cryoem.score}/${bCryoem}条, NMR=${bScores.nmr.score}/${bNmr}条)\nBLAST: ${bSkipBlast ? '已跳过' : '未执行'}\n\n代表性 PDB 结构（前 10 个）:\n${topPdbs || '（无 PDB 结构）'}\n\n请生成完整的评估报告。`;
+                const br = await generateText(bSysPrompt, bUserPrompt, { maxChars: 2000, llm: body.llm });
+                bReport = { ok: br.ok, content: br.content, provider: br.provider, model: br.model, durationMs: br.durationMs, contentChars: br.content?.length || 0 };
+                if (br.ok) emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 报告已生成 · ${bReport.contentChars} chars · ${(br.durationMs / 1000).toFixed(1)}s`, progress: 100 });
+                else emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 报告失败：${br.error}`, progress: 100 });
+              } catch (err: any) {
+                emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 生成失败：${err?.message}`, progress: 100 });
+              }
+            } else if (bCacheHit && bCached?.report) {
+              bReport = { ok: true, content: bCached.report, provider: '(cached)', model: '(cached)', durationMs: 0, contentChars: bCached.report.length, cached: true };
+              emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 使用已有 LLM 报告（缓存）· ${bReport.contentChars} chars`, progress: 100 });
+            }
             try {
               const bScoresJson = JSON.stringify({ 'X-ray': { score: bScores.xray.score }, 'Cryo-EM': { score: bScores.cryoem.score }, 'NMR': { score: bScores.nmr.score }, 'Overall': { score: bScores.overall.score } });
-              await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${bUid}, ${bInfo.entryName}, ${bInfo.proteinName}, ${bInfo.geneNames}, ${bInfo.organism}, ${bInfo.sequenceLength}, 0, ${bScoresJson}, ${bCacheHit && bCached.report ? bCached.report : null}, ${bMaxPdb}, ${bSkipBlast && !bForceBlast}, ${bDirectPdbCount}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, scores = excluded.scores, maxPdbUsed = excluded.maxPdbUsed, blastWasSkipped = excluded.blastWasSkipped, pdbCountAtEval = excluded.pdbCountAtEval, updatedAt = CURRENT_TIMESTAMP`;
+              const bReportContent = bReport?.ok ? bReport.content : (bCacheHit && bCached?.report ? bCached.report : null);
+              await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${bUid}, ${bInfo.entryName}, ${bInfo.proteinName}, ${bInfo.geneNames}, ${bInfo.organism}, ${bInfo.sequenceLength}, 0, ${bScoresJson}, ${bReportContent}, ${bMaxPdb}, ${bSkipBlast && !bForceBlast}, ${bDirectPdbCount}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, scores = excluded.scores, report = excluded.report, maxPdbUsed = excluded.maxPdbUsed, blastWasSkipped = excluded.blastWasSkipped, pdbCountAtEval = excluded.pdbCountAtEval, updatedAt = CURRENT_TIMESTAMP`;
               if (!bCacheHit) {
                 await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
                 for (const e of bPdbDetails) {
@@ -421,8 +442,8 @@ export async function POST(req: Request) {
             } catch (dbErr: any) {
               emit({ stage: `batch-${bi}`, level: 'error', message: `[Batch ${bi + 1}] DB 写入失败：${dbErr?.message}`, progress: 100 });
             }
-            batchResults.push({ uniprot: bUid, uniprotInfo: bInfo, pdbDetails: bPdbDetails, scores: bScores, cached: bCacheHit });
-            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10${bCacheHit ? ' · 缓存' : ''}`, progress: 100 });
+            batchResults.push({ uniprot: bUid, uniprotInfo: bInfo, pdbDetails: bPdbDetails, scores: bScores, cached: bCacheHit, report: bReport });
+            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10${bCacheHit ? ' · 缓存' : ''}${bReport?.ok ? ` · LLM ✓ (${bReport.contentChars} chars)` : ''}`, progress: 100 });
           } catch (err: any) {
             emit({ stage: `batch-${bi}`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} 失败：${err?.message}`, progress: 100 });
           }
