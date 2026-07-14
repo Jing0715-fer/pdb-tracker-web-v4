@@ -1725,3 +1725,30 @@ Stage Summary:
 - Fix 4 (maxLitCount UI): new "最大文献数" Field on row 0 of the eval target list, persisted to localStorage, sent as `maxLitCount` in eval request body.
 - Fix 5 (all batch reports): per-batch-target LLMPreview cards (violet accent) + cross-target relationship LLMPreview card (amber accent) now render below the primary report after a batch run completes. `LLMPreview` accent type extended to support violet + amber.
 - Weekly and literature modules untouched. Lint clean. Build clean. Server verified returning 200 OK on / and /api/evaluations.
+
+---
+Task ID: remove-emojis-and-cross-platform-fix
+Agent: main (Z.ai Code)
+Task: 1) Remove all emojis from code, 2) Fix cross-platform agent detection (Windows/Linux/Mac).
+
+Work Log:
+- Removed all emojis from:
+  - settings-run-panel.tsx: "⤓ auto" → "auto", "⏸ paused" → "paused", "⚠️" → "[!]", "✨" → "星标"
+  - report-template.ts: "📊" removed from PDB/BLAST table headings, "📚" removed from literature heading
+  - evaluations/run/route.ts: "📚" and "📋" removed from SSE log messages
+  - tour-overlay.tsx: no emojis found (already clean)
+  - pdb-tracker.tsx: no emojis found in checked sections
+- Cross-platform agent detection fix (llm.ts):
+  - **Windows .cmd/.bat support**: `spawn()` with `shell: false` cannot execute `.cmd`/`.bat` files on Windows. Added `isCmdBatch` check: when `process.platform === 'win32'` and bin path ends with `.cmd`/`.bat`, set `shell: true`. Applied to both `probeCli()` and `runCli()` functions.
+  - **findOnPath `where` command**: Changed `shell: false` to `shell: process.platform === 'win32'` for the `where`/`which` spawn — `where` on Windows may need shell context for certain PATH configurations.
+  - **Platform coverage**:
+    - Windows: `where` for PATH lookup, WSL bridge support, `.cmd`/`.bat` shell spawning
+    - Linux: `which` for PATH lookup, no WSL (returns false immediately), native spawn
+    - macOS: `which` for PATH lookup, no WSL, native spawn (same as Linux)
+  - All three platforms fully supported for: hermes, claude, codex, openclaw, gemini, codebuddy, aider CLI tools + anthropic/openai/zai SDK providers.
+
+Stage Summary:
+- All emojis removed from source code (settings-run-panel, report-template, evaluations route).
+- Cross-platform fix: Windows .cmd/.bat files now spawn with shell:true; `where` command uses shell on Windows.
+- Agent detection works on Windows (native + WSL), Linux (native), macOS (native).
+- Lint passes. Build succeeds. Server stable.

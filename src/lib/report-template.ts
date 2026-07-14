@@ -235,7 +235,7 @@ export function buildChapterPrompt(
 
 ---
 
-## 📊 完整 PDB 数据表（共 ${d.pdbCount ?? d.directPdbCount} 条，按分辨率/IF 排序）
+## 完整 PDB 数据表（共 ${d.pdbCount ?? d.directPdbCount} 条，按分辨率/IF 排序）
 
 | # | PDB | 方法 | 分辨率(Å) | 期刊 (IF) | 配体 | 标题 |
 |---|------|------|-----------|----------|------|------|
@@ -243,7 +243,7 @@ ${d.pdbTable}
 
 ---
 
-## 📊 完整 BLAST 同源数据表（共 ${d.blastHitCount} 条）
+## 完整 BLAST 同源数据表（共 ${d.blastHitCount} 条）
 
 | # | PDB | UniProt Ref | Description | Identity% | E-value | Query Cov. |
 |---|------|-----------|-------------|-----------|---------|------------|
@@ -251,7 +251,7 @@ ${d.blastTable}
 
 ---
 
-## 📚 相关文献（PubMed，共 ${d.literatureCount ?? 0} 篇，按期刊 IF 降序；摘要截取 200 字）
+## 相关文献（PubMed，共 ${d.literatureCount ?? 0} 篇，按期刊 IF 降序；摘要截取 200 字）
 
 ${d.literatureInfo || '（无 PubMed 文献数据）'}
 

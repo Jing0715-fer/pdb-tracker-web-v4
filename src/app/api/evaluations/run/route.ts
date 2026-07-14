@@ -282,7 +282,7 @@ export async function POST(req: Request) {
           ? `共 ${litInfo.count} 篇相关文献（按期刊影响因子降序，已截取前 ${litInfo.count} 篇；摘要截取 200 字）：\n\n${litInfo.text}`
           : '（无 PubMed 文献数据 — PubMedArticle 表为空或这些 PDB 结构无对应文献）';
         if (litInfo.count > 0) {
-          emit({ stage: 'llm-report', level: 'info', message: `📚 已附加 ${litInfo.count} 篇 PubMed 文献（按 IF 降序）到 LLM 上下文`, progress: 65 });
+          emit({ stage: 'llm-report', level: 'info', message: `已附加 ${litInfo.count} 篇 PubMed 文献（按 IF 降序）到 LLM 上下文`, progress: 65 });
         }
 
         const reportData = {
@@ -317,7 +317,7 @@ export async function POST(req: Request) {
         let perChapterFailCount = 0;
         const tReportStart = Date.now();
 
-        emit({ stage: 'llm-report', level: 'info', message: `📋 准备分 ${totalChapters} 章节并发生成报告 (${provider})… 共 ${pdbDetails.length} 个 PDB + ${blastHitCount} 个 BLAST 已加载到上下文`, progress: 66 });
+        emit({ stage: 'llm-report', level: 'info', message: `准备分 ${totalChapters} 章节并发生成报告 (${provider})… 共 ${pdbDetails.length} 个 PDB + ${blastHitCount} 个 BLAST 已加载到上下文`, progress: 66 });
 
         for (let i = 0; i < chapters.length; i++) {
           const ck = chapters[i];

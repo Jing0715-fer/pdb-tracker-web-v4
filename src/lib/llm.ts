@@ -539,7 +539,8 @@ function findOnPath(bin: string, extras?: string[]): Promise<string | null> {
     // 3. PATH lookup (where / which).
     if (resolved) return;
     const cmd = process.platform === 'win32' ? 'where' : 'which';
-    const r = spawn(cmd, [bin], { stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+    // On Windows, `where` may need shell:true for certain PATH configurations.
+    const r = spawn(cmd, [bin], { stdio: ['ignore', 'pipe', 'pipe'], shell: process.platform === 'win32' });
     let out = '';
     r.stdout.on('data', (b) => { out += b.toString(); });
     r.on('error', () => { if (!resolved) { resolved = true; resolve(null); } });
@@ -568,9 +569,11 @@ async function probeCli(adapter: CliAdapter): Promise<ProbeOk | ProbeErr> {
 
   return new Promise((resolve) => {
     // WorkBuddy-style shims are Node.js scripts — launch via `node <bin> ...args`
+    // On Windows, .cmd/.bat files need shell:true to spawn correctly.
+    const isCmdBatch = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
     const child = adapter.needsNode
       ? spawn(process.execPath, [bin, ...args], { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...adapter.extraEnv } })
-      : spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...adapter.extraEnv } });
+      : spawn(bin, args, { stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, ...adapter.extraEnv }, shell: isCmdBatch });
     let stdout = '';
     let stderr = '';
     let done = false;
@@ -969,6 +972,10 @@ function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string 
 
   return new Promise((resolve, reject) => {
     // WorkBuddy-style shims are Node.js scripts — invoke via `node <bin> ...args`.
+    // On Windows, CLI tools installed via npm are typically .cmd wrappers —
+    // spawn() with shell:false cannot execute .cmd files, so we set shell:true
+    // when the bin path ends with .cmd or .bat (Windows-only).
+    const isCmdBatch = process.platform === 'win32' && /\.(cmd|bat)$/i.test(bin);
     const child = adapter.needsNode
       ? spawn(process.execPath, [bin, ...args], {
           stdio: ['ignore', 'pipe', 'pipe'],
@@ -977,6 +984,7 @@ function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string 
       : spawn(bin, args, {
           stdio: ['ignore', 'pipe', 'pipe'],
           env: { ...process.env, ...adapter.extraEnv },
+          shell: isCmdBatch,
         });
 
     let stdout = '';

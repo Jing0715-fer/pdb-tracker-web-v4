@@ -264,7 +264,7 @@ function StreamFeed({
             className={`text-xs font-medium px-2 h-5 gap-1 rounded-md border transition-colors inline-flex items-center ${autoScroll ? 'border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/10' : 'border-border/60 text-muted-foreground hover:text-foreground bg-muted/40'}`}
             title={autoScroll ? '自动滚动中，点击暂停' : '已暂停，点击恢复'}
           >
-            {autoScroll ? '⤓ auto' : '⏸ paused'}
+            {autoScroll ? 'auto' : 'paused'}
           </button>
           <StatusPill running={running} done={done} ok={ok} />
         </div>
@@ -1369,7 +1369,7 @@ export function SettingsRunPanel({
       const repInfo = d.report
         ? (d.report.ok
             ? ` + 报告 ${d.report.savedToFile ? `已落盘 ${d.report.filename}` : '已生成'} (${d.report.provider}/${d.report.model}, ${Math.round((d.report.durationMs || 0) / 100) / 10}s)`
-            : ` ⚠️ 报告生成失败: ${d.report.error}`)
+            : ` [!] 报告生成失败: ${d.report.error}`)
         : ' (跳过报告)';
       log({
         ts: new Date().toISOString(),
@@ -2051,7 +2051,7 @@ export function SettingsRunPanel({
                   <div className="mt-3 pt-3 border-t border-border/40">
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
                       <FileText className="h-3 w-3" /> 历史报告 ({litExistingReports.length} 天)
-                      <span className="normal-case tracking-normal text-muted-foreground/60 flex items-center gap-0.5 ml-1" title="带 ✨ 图标的日期已生成 LLM 摘要">
+                      <span className="normal-case tracking-normal text-muted-foreground/60 flex items-center gap-0.5 ml-1" title="带星标图标的日期已生成 LLM 摘要">
                         <Sparkles className="h-2.5 w-2.5 text-purple-400" /> = 有 LLM 摘要（点击查看）
                       </span>
                     </div>
