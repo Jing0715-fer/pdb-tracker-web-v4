@@ -2110,3 +2110,46 @@ Stage Summary:
 - API requests proxied with keep-alive disabled (prevents Caddy crash)
 - Total memory: ~700MB for 4 Node workers, leaving ~3.3GB for browser/Chrome
 - Start command: `bash /home/z/my-project/start-standalone.sh`
+
+---
+Task ID: tour-tab-panel-spotlight
+Agent: main
+Task: Fix tour steps 5/6/7 to spotlight the tab content panel (below tabs), improve tour tooltip aesthetics
+
+Work Log:
+- Added `tabContentRef` prop to SettingsRunPanel in settings-run-panel.tsx
+- Wrapped the 3 TabsContent elements (evaluation/literature/weekly) in a div with ref={tabContentRef}
+- Updated use-tour.ts: steps 4/5/6 now spotlight `tabContentRef` (tab content panel) instead of `runCenterContentRef` (whole dialog)
+- Step 3 (运行中心) still spotlights `runCenterContentRef` (the dialog)
+- Added `tabContentRef` to pdb-tracker.tsx and passed to SettingsRunPanel + useTour refs
+- Redesigned tour tooltip card for better aesthetics:
+  - Rounded-2xl corners with subtle border (black/6% light, white/8% dark)
+  - Top accent gradient bar (3px, claude-accent → transparent)
+  - Larger icon container (h-8 w-8, rounded-lg, gradient bg)
+  - Step indicator as "1 / 9" with tabular-nums (cleaner than badge)
+  - Title: 15px font-semibold, tracking-tight
+  - Description: 12.5px, leading-[1.65] for better readability
+  - Segmented progress bar (full-width, h-[3px], flex-1 segments) replaces dots
+  - Buttons: h-8 rounded-lg with shadow-sm and hover shadow
+  - Close button: h-6 w-6 rounded-md with hover bg
+  - Multi-layer shadow for depth: [0_20px_60px_-15px_rgba(0,0,0,0.4),0_8px_25px_-8px_rgba(0,0,0,0.3)]
+- Improved spotlight frame:
+  - Rounded-[10px] mask + rounded-[12px] border frame
+  - Corner accent marks (L-shaped, 10px) at each corner for "scanner/selection" aesthetic
+  - Slower pulse animation (2.4s vs 2s)
+- Fixed tooltip position: when both right+bottom overflow (large spotlight), tooltip now stays at bottom-right by overlaying inside the spotlight's lower-right corner (instead of jumping to top-left)
+- Saved server scripts to /home/z/my-project/server-scripts/ (custom-server.js, api-server.js) since build overwrites .next/standalone/
+- Updated start-standalone.sh to copy scripts from server-scripts/ on each start
+- Rebuilt standalone, deployed, verified via agent-browser + VLM:
+  - Step 1 (centered): 8/10 polish, gradient bar + segmented progress bar ✓
+  - Step 4 (Run Center): spotlight on dialog, corner accents, 8/10 ✓
+  - Step 5 (评估): spotlight on tab content panel, tooltip at bottom-right, 7/10 ✓
+  - Step 6 (文献): spotlight on tab content panel, tooltip at bottom-right, 8/10 ✓
+  - Step 7 (周报): spotlight on tab content panel, tooltip at bottom-right, 8/10 ✓
+
+Stage Summary:
+- Tour steps 5/6/7 now correctly spotlight the tab content panel (below the 3 tab buttons), not the whole dialog
+- Tooltip position stays at bottom-right even when the spotlight is large (overlays inside the spotlight's lower-right corner)
+- Visual polish improved: rounded-2xl card, top accent gradient bar, segmented progress bar, corner accent marks on spotlight frame, better typography and spacing
+- Server scripts preserved in /home/z/my-project/server-scripts/ to survive rebuilds
+- Key files: tour-overlay.tsx (positioning + aesthetics), use-tour.ts (step→ref mapping), settings-run-panel.tsx (tabContentRef), pdb-tracker.tsx (wiring)

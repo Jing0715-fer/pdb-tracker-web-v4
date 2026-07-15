@@ -1061,6 +1061,7 @@ export default function PdbTracker() {
   // calls `startTour()` to re-trigger the tour on demand.
   const runCenterContentRef = useRef<HTMLDivElement>(null);
   const dbWizardContentRef = useRef<HTMLDivElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
   // Run Center controlled state (for tour integration) — declared BEFORE useTour
   const [runCenterOpen, setRunCenterOpen] = useState(false);
   const [runCenterTab, setRunCenterTab] = useState('evaluation');
@@ -1078,6 +1079,7 @@ export default function PdbTracker() {
       searchRef: searchWrapRef,
       dbWizardContentRef,
       runCenterContentRef,
+      tabContentRef,
     },
     onOpenDbWizard: () => setDbWizardOpen(true),
     onCloseDbWizard: () => setDbWizardOpen(false),
@@ -3975,6 +3977,7 @@ export default function PdbTracker() {
             activeTab={runCenterTab}
             onTabChange={setRunCenterTab}
             contentRef={runCenterContentRef}
+            tabContentRef={tabContentRef}
           />
 
           {/* Settings Button */}

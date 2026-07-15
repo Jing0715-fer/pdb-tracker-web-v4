@@ -106,8 +106,16 @@ interface TooltipPos {
 
 /**
  * Compute tooltip position. The tooltip prefers the **bottom-right** of the
- * spotlight. If it would overflow the viewport, it flips to other corners in
- * this priority order: bottom-left → top-right → top-left.
+ * spotlight (just past the right edge, below the bottom edge).
+ *
+ * Overflow handling (in priority order):
+ *   1. If the tooltip fits at bottom-right → use it.
+ *   2. If only the right overflows → flip to bottom-left.
+ *   3. If only the bottom overflows → place at top-right.
+ *   4. If both overflow → place the tooltip INSIDE the spotlight area,
+ *      anchored to its bottom-right corner (the tooltip overlays the
+ *      spotlight's lower-right portion). This keeps the tooltip visible
+ *      at the bottom-right without jumping to the top-left.
  *
  * For centered mode (no spotlight), the tooltip is placed at the center of
  * the viewport.
@@ -130,7 +138,7 @@ function computeTooltipPos(
 
   const h = tooltipH || 220;
 
-  // ── Try bottom-right (preferred) ──
+  // ── Try bottom-right (preferred): just past the right edge, below bottom ──
   let left = spotlight.right + TOOLTIP_GAP;
   let top = spotlight.bottom + TOOLTIP_GAP;
   let side: TooltipPos['side'] = 'bottom-right';
@@ -139,10 +147,12 @@ function computeTooltipPos(
   const overflowsBottom = top + h > vh - VIEWPORT_MARGIN;
 
   if (overflowsRight && overflowsBottom) {
-    // Both overflow → top-left
-    left = spotlight.left - TOOLTIP_GAP - TOOLTIP_WIDTH;
-    top = spotlight.top - TOOLTIP_GAP - h;
-    side = 'top-left';
+    // Both overflow → place inside the spotlight at its bottom-right corner.
+    // The tooltip overlays the lower-right portion of the spotlight, keeping
+    // it at the bottom-right without jumping to top-left.
+    left = Math.max(VIEWPORT_MARGIN, spotlight.right - TOOLTIP_WIDTH - 8);
+    top = Math.max(VIEWPORT_MARGIN, spotlight.bottom - h - 8);
+    side = 'bottom-right';
   } else if (overflowsRight) {
     // Right overflow → bottom-left
     left = spotlight.left - TOOLTIP_GAP - TOOLTIP_WIDTH;
@@ -283,7 +293,7 @@ export function TourOverlay({
              creates a dark mask everywhere EXCEPT the spotlight area. */
           <>
             <div
-              className="absolute pointer-events-none rounded-lg"
+              className="absolute pointer-events-none rounded-[10px]"
               style={{
                 top: spotlightRect.top,
                 left: spotlightRect.left,
@@ -294,23 +304,40 @@ export function TourOverlay({
             />
             {/* Animated border frame around the spotlight */}
             <motion.div
-              className="absolute rounded-lg border-2 border-claude-accent pointer-events-none"
+              className="absolute rounded-[12px] border-2 border-claude-accent pointer-events-none"
               style={{
                 top: spotlightRect.top - SPOTLIGHT_PADDING,
                 left: spotlightRect.left - SPOTLIGHT_PADDING,
                 width: spotlightRect.width + SPOTLIGHT_PADDING * 2,
                 height: spotlightRect.height + SPOTLIGHT_PADDING * 2,
-                boxShadow: '0 0 0 1px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3)',
+                boxShadow: '0 0 0 1px rgba(255,255,255,0.25), 0 0 24px rgba(0,0,0,0.35)',
               }}
               animate={{
                 boxShadow: [
-                  '0 0 0 1px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3)',
-                  '0 0 0 2px rgba(255,255,255,0.5), 0 0 24px rgba(0,0,0,0.4)',
-                  '0 0 0 1px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3)',
+                  '0 0 0 1px rgba(255,255,255,0.25), 0 0 24px rgba(0,0,0,0.35)',
+                  '0 0 0 2px rgba(255,255,255,0.45), 0 0 32px rgba(0,0,0,0.45)',
+                  '0 0 0 1px rgba(255,255,255,0.25), 0 0 24px rgba(0,0,0,0.35)',
                 ],
               }}
-              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
             />
+            {/* Corner accents — small L-shaped marks at each corner for a
+                "scanner/selection" aesthetic. */}
+            {[
+              { top: -SPOTLIGHT_PADDING - 3, left: -SPOTLIGHT_PADDING - 3, border: 'border-t-2 border-l-2', rounded: 'rounded-tl-[4px]' },
+              { top: -SPOTLIGHT_PADDING - 3, left: spotlightRect.width + SPOTLIGHT_PADDING - 7, border: 'border-t-2 border-r-2', rounded: 'rounded-tr-[4px]' },
+              { top: spotlightRect.height + SPOTLIGHT_PADDING - 7, left: -SPOTLIGHT_PADDING - 3, border: 'border-b-2 border-l-2', rounded: 'rounded-bl-[4px]' },
+              { top: spotlightRect.height + SPOTLIGHT_PADDING - 7, left: spotlightRect.width + SPOTLIGHT_PADDING - 7, border: 'border-b-2 border-r-2', rounded: 'rounded-br-[4px]' },
+            ].map((c, i) => (
+              <div
+                key={i}
+                className={`absolute w-[10px] h-[10px] border-claude-accent ${c.border} ${c.rounded} pointer-events-none`}
+                style={{
+                  top: spotlightRect.top + c.top,
+                  left: spotlightRect.left + c.left,
+                }}
+              />
+            ))}
           </>
         ) : (
           /* Spotlight step but target not yet found — show backdrop while
@@ -332,59 +359,68 @@ export function TourOverlay({
             width: TOOLTIP_WIDTH,
           }}
         >
-          <div className="relative bg-white dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-xl shadow-2xl overflow-hidden">
-            {/* Header bar */}
-            <div className="flex items-center gap-2 px-4 pt-3 pb-2 bg-gradient-to-r from-claude-accent/10 to-transparent">
-              <div className="h-7 w-7 rounded-md bg-gradient-to-br from-claude-accent/20 to-claude-accent/5 border border-claude-accent/20 flex items-center justify-center text-claude-accent flex-shrink-0">
-                {stepConfig.icon || <Sparkles className="h-3.5 w-3.5" />}
+          <div className="relative bg-white dark:bg-[#1f1d1b] rounded-2xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.4),0_8px_25px_-8px_rgba(0,0,0,0.3)] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden">
+            {/* Top accent gradient bar */}
+            <div className="h-[3px] bg-gradient-to-r from-claude-accent via-claude-accent/80 to-claude-accent/40" />
+
+            {/* Header — icon + step indicator + close */}
+            <div className="flex items-center gap-2.5 px-4 pt-3.5 pb-2">
+              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-claude-accent/15 to-claude-accent/5 border border-claude-accent/20 flex items-center justify-center text-claude-accent flex-shrink-0 shadow-sm">
+                {stepConfig.icon || <Sparkles className="h-4 w-4" />}
               </div>
-              <span className="text-[10px] font-mono text-claude-text-muted bg-claude-border-light dark:bg-[#3d3832] px-1.5 py-0.5 rounded">
-                {tourStep + 1} / {steps.length}
-              </span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[11px] font-semibold text-claude-accent tabular-nums">{tourStep + 1}</span>
+                <span className="text-[10px] text-claude-text-muted/60">/</span>
+                <span className="text-[10px] text-claude-text-muted tabular-nums">{steps.length}</span>
+              </div>
               <button
                 onClick={finishTour}
-                className="ml-auto text-claude-text-muted hover:text-claude-text transition-colors p-0.5"
+                className="ml-auto h-6 w-6 rounded-md flex items-center justify-center text-claude-text-muted/60 hover:text-claude-text hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-all"
                 aria-label="跳过引导"
               >
-                <X className="h-4 w-4" />
+                <X className="h-3.5 w-3.5" />
               </button>
             </div>
 
-            {/* Content */}
+            {/* Content body */}
             <div className="px-4 pb-3">
-              <h3 className="text-sm font-semibold text-claude-text leading-tight mb-1.5">{stepConfig.title}</h3>
-              <p className="text-xs text-claude-text-secondary leading-relaxed mb-3 max-h-[200px] overflow-y-auto thin-scroll">
+              <h3 className="text-[15px] font-semibold text-claude-text leading-snug mb-1.5 tracking-tight">{stepConfig.title}</h3>
+              <p className="text-[12.5px] text-claude-text-secondary leading-[1.65] mb-3.5 max-h-[220px] overflow-y-auto thin-scroll">
                 {stepConfig.description}
               </p>
 
-              {/* Progress dots */}
-              <div className="flex items-center gap-1 mb-3">
+              {/* Progress bar (segmented) */}
+              <div className="flex items-center gap-[3px] mb-3.5">
                 {Array.from({ length: steps.length }).map((_, i) => (
                   <span
                     key={i}
-                    className={`h-1 rounded-full transition-all duration-300 ${
-                      i === tourStep ? 'w-6 bg-claude-accent' : i < tourStep ? 'w-1.5 bg-claude-accent/40' : 'w-1.5 bg-claude-border-light dark:bg-[#3d3832]'
+                    className={`h-[3px] flex-1 rounded-full transition-all duration-400 ${
+                      i === tourStep
+                        ? 'bg-claude-accent'
+                        : i < tourStep
+                        ? 'bg-claude-accent/30'
+                        : 'bg-black/[0.06] dark:bg-white/[0.08]'
                     }`}
                   />
                 ))}
               </div>
 
-              {/* Buttons */}
-              <div className="flex items-center gap-1.5">
+              {/* Footer — buttons */}
+              <div className="flex items-center gap-2">
                 {tourStep > 0 && (
                   <button
                     onClick={() => setTourStep(tourStep - 1)}
-                    className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-claude-text-secondary hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
+                    className="flex items-center gap-1 px-3 h-8 rounded-lg text-xs font-medium text-claude-text-secondary hover:text-claude-text hover:bg-black/[0.04] dark:hover:bg-white/[0.06] border border-transparent hover:border-black/[0.06] dark:hover:border-white/[0.08] transition-all"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" /> 上一步
                   </button>
                 )}
                 <button
                   onClick={() => { if (isLastStep) finishTour(); else setTourStep(tourStep + 1); }}
-                  className={`flex items-center gap-1 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ml-auto ${
+                  className={`flex items-center gap-1.5 px-4 h-8 rounded-lg text-xs font-semibold transition-all ml-auto shadow-sm ${
                     isLastStep
-                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700'
-                      : 'bg-gradient-to-r from-claude-accent to-claude-accent-hover text-white hover:opacity-90'
+                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/20'
+                      : 'bg-gradient-to-r from-claude-accent to-claude-accent-hover text-white hover:shadow-md hover:shadow-claude-accent/20'
                   }`}
                 >
                   {isLastStep ? <>开始使用 <CheckCircle2 className="h-3.5 w-3.5" /></> : <>下一步 <ChevronRight className="h-3.5 w-3.5" /></>}

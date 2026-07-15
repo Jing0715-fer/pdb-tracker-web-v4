@@ -1024,6 +1024,7 @@ export function SettingsRunPanel({
   activeTab: externalTab,
   onTabChange: externalOnTabChange,
   contentRef,
+  tabContentRef,
 }: {
   onDbChanged?: () => void;
   /** Controlled open state (for tour integration). When provided, overrides internal state. */
@@ -1035,6 +1036,9 @@ export function SettingsRunPanel({
   /** Ref attached to the dialog's content element so external code (e.g. the
       onboarding tour) can spotlight it. */
   contentRef?: React.RefObject<HTMLElement | null>;
+  /** Ref attached to the tab content panel (below the TabsList) so the tour
+      can spotlight the module panel area for steps 4/5/6. */
+  tabContentRef?: React.RefObject<HTMLElement | null>;
 } = {}) {
   const [internalOpen, setInternalOpen] = useState(false);
   const [internalTab, setInternalTab] = useState('evaluation');
@@ -2014,8 +2018,10 @@ export function SettingsRunPanel({
               </TabsTrigger>
             </TabsList>
 
+            {/* Tab content panel — spotlighted by the tour (steps 4/5/6) */}
+            <div ref={tabContentRef} className="mt-2">
             {/* ═══ Module ① Target Evaluation ═══════════════════════════ */}
-            <TabsContent value="evaluation" className="mt-2">
+            <TabsContent value="evaluation" className="mt-0">
               <ModuleCard
                 icon={<FlaskConical className="h-4 w-4" />}
                 accent="emerald"
@@ -2459,6 +2465,7 @@ export function SettingsRunPanel({
                 />
               </ModuleCard>
               </TabsContent>
+            </div>
           </Tabs>
 
           {/* ── Execution log (shared) ─────────────────────────────────── */}

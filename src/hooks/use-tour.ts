@@ -11,10 +11,11 @@ export interface TourRefs {
   searchRef?: RefObject<HTMLElement | null>;
   /** DB Setup Wizard dialog content — spotlighted by the 数据库配置 step. */
   dbWizardContentRef?: RefObject<HTMLElement | null>;
-  /** Run Center dialog content area — spotlighted by the 运行中心 step and
-      the eval/lit/weekly module steps so the tour's tooltip anchors to
-      the open dialog. */
+  /** Run Center dialog content area — spotlighted by the 运行中心 step. */
   runCenterContentRef?: RefObject<HTMLElement | null>;
+  /** Tab content panel (below the TabsList) — spotlighted by the
+      评估/文献/周报 module steps so the tour highlights the module panel. */
+  tabContentRef?: RefObject<HTMLElement | null>;
 }
 
 export interface UseTourOptions {
@@ -59,9 +60,11 @@ function buildSteps(refs?: TourRefs): TourStepConfig[] {
     if (i === 1) targetRef = refs?.modeSwitcherRef;
     // Step index 2 = 数据库配置 → spotlight DB wizard dialog
     else if (i === 2) targetRef = refs?.dbWizardContentRef;
-    // Step indices 3 / 4 / 5 / 6 = 运行中心 + 评估 / 文献 / 周报 → spotlight
-    // the Run Center dialog content area.
-    else if (i === 3 || i === 4 || i === 5 || i === 6) targetRef = refs?.runCenterContentRef;
+    // Step index 3 = 运行中心 → spotlight the Run Center dialog content area
+    else if (i === 3) targetRef = refs?.runCenterContentRef;
+    // Step indices 4 / 5 / 6 = 评估 / 文献 / 周报 → spotlight the tab content
+    // panel (below the TabsList) so the tour highlights the module panel.
+    else if (i === 4 || i === 5 || i === 6) targetRef = refs?.tabContentRef;
     // Step index 7 = 搜索与快捷键 → spotlight search box
     else if (i === 7) targetRef = refs?.searchRef;
     return { ...step, targetRef };
