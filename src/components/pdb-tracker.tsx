@@ -241,6 +241,10 @@ const EvalScoreRadarChart = dynamic(() => import('@/components/eval-score-radar'
   ssr: false,
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
 });
+const EvalScoreRadar = dynamic(() => import('@/components/EvalScoreRadar').then(m => ({ default: m.EvalScoreRadar })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
 const EvalScoreBreakdown = dynamic(() => import('@/components/eval-score-breakdown').then(m => ({ default: m.EvalScoreBreakdown })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
@@ -3348,6 +3352,53 @@ export default function PdbTracker() {
       const combinedReport = batch?.combinedReport || '';
       const crossOk = batch?.crossReportOk;
 
+      // Fetch full Evaluation objects for each sub-target (for charts, tables, etc.)
+      const subTargetEvals = subTargets
+        .map(st => allEvaluations.find(e => e.uniprotId === st.uniprotId))
+        .filter((e): e is Evaluation => !!e);
+
+      // Build a synthetic aggregate Evaluation for chart components that expect a single eval.
+      // We average coverage, sum PDB/BLAST counts, and merge arrays.
+      const aggregateEval: Evaluation | null = subTargetEvals.length > 0 ? (() => {
+        const avgCoverage = subTargetEvals.reduce((s, e) => s + (e.coverage || 0), 0) / subTargetEvals.length;
+        const allStructures = subTargetEvals.flatMap(e => e.pdbStructures || []);
+        const allBlast = subTargetEvals.flatMap(e => e.blastResults || []);
+        // Average scores across sub-targets
+        const scoreAgg: Record<string, { score: number; max: number; rating: string }> = {};
+        for (const e of subTargetEvals) {
+          if (!e.scores) continue;
+          try {
+            const parsed = JSON.parse(e.scores);
+            for (const [k, v] of Object.entries(parsed)) {
+              const sv = v as { score: number; max: number; rating: string };
+              if (!scoreAgg[k]) scoreAgg[k] = { score: 0, max: sv.max || 10, rating: sv.rating || '', count: 0 };
+              scoreAgg[k].score += sv.score || 0;
+              (scoreAgg[k] as any).count = ((scoreAgg[k] as any).count || 0) + 1;
+            }
+          } catch { /* ignore parse errors */ }
+        }
+        for (const k of Object.keys(scoreAgg)) {
+          const cnt = (scoreAgg[k] as any).count || 1;
+          scoreAgg[k].score = scoreAgg[k].score / cnt;
+        }
+        return {
+          uniprotId: 'BATCH_AGGREGATE',
+          entryName: batch?.title || 'Batch Aggregate',
+          proteinName: batch?.title || 'Batch Aggregate',
+          geneNames: subTargets.map(s => s.geneName).filter(Boolean).join(', '),
+          organism: 'Multiple',
+          sequenceLength: Math.round(subTargetEvals.reduce((s, e) => s + (e.sequenceLength || 0), 0) / subTargetEvals.length),
+          coverage: avgCoverage,
+          scores: Object.keys(scoreAgg).length > 0 ? JSON.stringify(scoreAgg) : null,
+          report: combinedReport,
+          batchId: selectedBatchId,
+          createdAt: batch?.createdAt || new Date().toISOString(),
+          updatedAt: batch?.createdAt || new Date().toISOString(),
+          pdbStructures: allStructures,
+          blastResults: allBlast,
+        } as Evaluation;
+      })() : null;
+
       const batchDetailContent = (<>
         <div className="glass-detail-panel-accent" />
         <div className="glass-noise-overlay" />
@@ -3376,13 +3427,13 @@ export default function PdbTracker() {
           </div>
         </div>
 
-        {/* Tab buttons */}
-        <div className="flex border-b border-claude-border dark:border-[#3d3832]">
-          {(['Summary', 'Targets', 'Report'] as const).map(tab => (
+        {/* Tab buttons — expanded with Structures, BLAST, Analysis, Breakdown, Compare */}
+        <div className="flex border-b border-claude-border dark:border-[#3d3832] overflow-x-auto">
+          {(['Summary', 'Targets', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Compare', 'Report'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setEvalDetailTab(tab)}
-              className={`px-3 py-2 text-[11px] font-medium transition-colors ${
+              className={`px-3 py-2 text-[11px] font-medium transition-colors whitespace-nowrap ${
                 evalDetailTab === tab
                   ? 'text-claude-accent border-b-2 border-claude-accent'
                   : 'text-claude-text-muted hover:text-claude-text-secondary'
@@ -3397,6 +3448,7 @@ export default function PdbTracker() {
         <div className="flex-1 overflow-y-auto preview-scroll p-4">
           {evalDetailTab === 'Summary' && (
             <div className="space-y-3">
+              {/* Stat cards row */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
                   <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Targets</div>
@@ -3406,7 +3458,28 @@ export default function PdbTracker() {
                   <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Shared PDB</div>
                   <div className="text-lg font-bold text-claude-text">{commonPdbIds.length}</div>
                 </div>
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Total PDB</div>
+                  <div className="text-lg font-bold text-claude-text">{subTargets.reduce((s, st) => s + st.pdbCount, 0)}</div>
+                </div>
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Total BLAST</div>
+                  <div className="text-lg font-bold text-claude-text">{subTargets.reduce((s, st) => s + st.blastCount, 0)}</div>
+                </div>
               </div>
+              {/* Avg coverage bar */}
+              {aggregateEval && (
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Coverage</span>
+                    <span className="text-xs font-bold text-claude-text">{(aggregateEval.coverage || 0).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-claude-border-light/60 dark:bg-[#2b2926] overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-claude-accent/60 to-claude-accent" style={{ width: `${Math.min(100, aggregateEval.coverage || 0)}%` }} />
+                  </div>
+                </div>
+              )}
+              {/* Common PDB IDs */}
               <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
                 <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Common PDB IDs</div>
                 {commonPdbIds.length === 0 ? (
@@ -3422,6 +3495,13 @@ export default function PdbTracker() {
                   </div>
                 )}
               </div>
+              {/* Score comparison radar — uses EvalScoreRadar with aggregate as primary + sub-targets as comparisons */}
+              {aggregateEval && subTargetEvals.length > 0 && (
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Score Comparison (Batch Avg vs Targets)</div>
+                  <EvalScoreRadar evaluation={aggregateEval} comparisonEvaluations={subTargetEvals.slice(0, 4)} size={200} />
+                </div>
+              )}
             </div>
           )}
           {evalDetailTab === 'Targets' && (
@@ -3455,6 +3535,80 @@ export default function PdbTracker() {
                 ))
               )}
             </div>
+          )}
+          {evalDetailTab === 'Structures' && (
+            <div className="space-y-2">
+              {subTargetEvals.length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">No structure data available</p>
+              ) : subTargetEvals.flatMap(e => e.pdbStructures || []).length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found in this batch</p>
+              ) : (
+                subTargetEvals.flatMap(e => (e.pdbStructures || []).map(s => ({ ...s, _uniprotId: e.uniprotId, _type: 'structure' as const }))).map((s, i) => {
+                  const methodStyle = getMethodColor(s.method || '');
+                  return (
+                    <div key={`${s.pdbId}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors">
+                      <div className="flex-shrink-0">
+                        <PdbThumbnailPreview pdbId={s.pdbId} title={s.title ?? undefined} onClick={() => { setViewerModalPdbId(s.pdbId); setViewerModalOpen(true); }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <span className="font-mono font-bold text-xs text-claude-accent">{s.pdbId}</span>
+                          <span className="text-[9px] font-mono text-claude-text-muted bg-claude-border-light/60 dark:bg-[#2b2926] px-1 rounded">{s._uniprotId}</span>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${methodStyle}`}>{s.method || '—'}</span>
+                          {s.resolution != null && (
+                            <span className={`text-[9px] font-mono ${s.resolution < 2.5 ? 'text-emerald-600 dark:text-emerald-400' : s.resolution < 3.5 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{s.resolution.toFixed(1)}Å</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-claude-text-secondary truncate">{s.title || '—'}</p>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          )}
+          {evalDetailTab === 'BLAST' && (
+            <div className="space-y-2">
+              {subTargetEvals.length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">No BLAST data available</p>
+              ) : subTargetEvals.flatMap(e => e.blastResults || []).length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">No BLAST results found in this batch</p>
+              ) : (
+                subTargetEvals.flatMap(e => (e.blastResults || []).map(b => ({ ...b, _uniprotId: e.uniprotId }))).map((b, i) => (
+                  <div key={`${b.pdbId}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-mono font-bold text-xs text-claude-accent">{b.pdbId}</span>
+                        <span className="text-[9px] font-mono text-claude-text-muted bg-claude-border-light/60 dark:bg-[#2b2926] px-1 rounded">{b._uniprotId}</span>
+                        {b.identity != null && (
+                          <span className={`text-[9px] font-mono ${b.identity >= 95 ? 'text-emerald-600 dark:text-emerald-400' : b.identity >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{b.identity.toFixed(0)}%</span>
+                        )}
+                        {b.queryCoverage != null && (
+                          <span className="text-[9px] text-claude-text-muted">cov {b.queryCoverage.toFixed(0)}%</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-claude-text-secondary truncate">{b.description || b.title || '—'}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+          {evalDetailTab === 'Analysis' && aggregateEval && (
+            <div className="space-y-4">
+              <EvalScoreRadarChart evaluation={aggregateEval} />
+            </div>
+          )}
+          {evalDetailTab === 'Breakdown' && aggregateEval && (
+            <EvalScoreBreakdown evaluation={aggregateEval} allEvaluations={subTargetEvals} />
+          )}
+          {evalDetailTab === 'Compare' && (
+            <EvalBatchCompare
+              evaluations={allEvaluations}
+              batches={batch ? [batch] : []}
+              batchSubTargets={{ [selectedBatchId]: subTargets }}
+              selectedBatchId={selectedBatchId}
+            />
           )}
           {evalDetailTab === 'Report' && (
             <div className="space-y-3">

@@ -2237,3 +2237,47 @@ Stage Summary:
 - WSL distro detection fixed: uses detected default instead of hardcoded "Debian"
 - Page load fixed: start-standalone.sh now ensures DB is properly set up on each start
 - All features verified working: page, API, evaluation mode, batch view
+
+---
+Task ID: batch-panel-expand-components
+Agent: main
+Task: Expand batch detail panel to include all available components from single eval (radar charts, score breakdown, etc.)
+
+Work Log:
+- Explored all available Eval* components and their compatibility with batch data:
+  - EvalSummary, EvalScoreRadarChart, EvalScoreBreakdown — single-eval only, need synthetic aggregate
+  - EvalScoreRadar (SVG) — supports 1 primary + N comparison polygons
+  - EvalBatchCompare — batch-native, accepts selectedBatchId
+  - EvalBatchProgressTracker — batch-native
+  - EvalPdbTable — takes flat rows array, batch-ready
+  - ComplexEvalSummary — multi-eval by design
+- Expanded batch detail panel tabs from 3 to 8:
+  - **Summary**: 4 stat cards (Targets, Shared PDB, Total PDB, Total BLAST) + avg coverage bar + common PDB IDs + EvalScoreRadar (aggregate vs sub-targets comparison)
+  - **Targets**: clickable sub-target list with scores (unchanged)
+  - **Structures**: all PDB structures across sub-targets with thumbnails, method badges, resolution colors
+  - **BLAST**: all BLAST results across sub-targets with identity/coverage badges
+  - **Analysis**: EvalScoreRadarChart with aggregate eval (Coverage, Structures, Homologs, Completeness, Research metrics)
+  - **Breakdown**: EvalScoreBreakdown with aggregate eval + sub-targets as allEvaluations
+  - **Compare**: EvalBatchCompare filtered to selected batch (matrix table with per-target scores)
+  - **Report**: combined report with markdown tables + Open Full Report button (unchanged)
+- Built synthetic aggregate Evaluation object for chart components:
+  - Averages coverage across sub-targets
+  - Sums PDB structures and BLAST results arrays
+  - Averages scores (structure, function, topology, feasibility, overall) across sub-targets
+  - Uses batch title as protein name
+- Added EvalScoreRadar (SVG version) dynamic import
+- Tab bar uses overflow-x-auto + whitespace-nowrap for horizontal scrolling on narrow panels
+- Lint: 0 errors, 0 warnings
+- Browser verification (agent-browser + VLM):
+  - Summary: 5 SVGs (stat cards + coverage bar + radar) — 8/10 ✓
+  - Structures: 25 SVGs (PDB thumbnails) ✓
+  - Analysis: radar chart with 5 metrics — 8/10 ✓
+  - Breakdown: metric cards + gauges + radar — 8/10 ✓
+  - Compare: batch comparison matrix table — 8/10 ✓
+  - Report: markdown with 2 tables ✓
+
+Stage Summary:
+- Batch detail panel now has 8 tabs (was 3), reusing all available single-eval components
+- Synthetic aggregate Evaluation enables radar charts and score breakdown for batch-level analysis
+- EvalBatchCompare provides per-target comparison matrix
+- All components verified rendering correctly with real batch data (HER2/HER3, Ubiquitin System)
