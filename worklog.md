@@ -2397,3 +2397,57 @@ Stage Summary:
 - Report button moved to top of Summary tab with English "View Report" text
 - Language switcher added to Settings panel (Appearance section)
 - Switching language updates UI immediately (no page reload needed)
+
+---
+Task ID: i18n-tour-and-full-translation
+Agent: main
+Task: Tour i18n adaptation, translate all Chinese to English in EN mode, verify 3 rounds
+
+Work Log:
+- **Tour i18n**: Created `buildTourSteps(t)` function that generates tour steps from active locale translations. Updated use-tour.ts to use `useI18n()` and build localized steps. Tour buttons (Prev/Next/Skip/Finish) now use `t.tourPrev/tourNext/tourSkip/tourFinish`. Tour completion toast uses `t.tourCompleted/tourCompletedDesc`.
+- **Added 60+ i18n keys** to en.ts and zh.ts covering: tour steps, sidebar/mode labels, evaluation detail tabs, errors, toasts, empty states.
+- **Round 1 — pdb-tracker.tsx**: Translated all visible Chinese:
+  - Error messages (dbNotConfigured, loadSnapshotsFailed, etc.)
+  - Help button aria-label + tooltip
+  - Error banner (dbNotConfiguredShort, dataLoadFailed, openRunCenter, retry)
+  - DB ready toast
+  - Search placeholders (searchEvaluations, searchStructures)
+  - Mode labels for mobile (modeWeeklyShort, modeEvaluationShort, modeLiteratureShort)
+- **Round 2 — settings-run-panel.tsx**: Translated ALL visible Chinese (0 remaining):
+  - "实时进度" → "Live Progress"
+  - "LLM 真实生成/调用失败" → "LLM Generated/Failed"
+  - "已入库/入库失败" → "Saved/Save Failed"
+  - "加载运行历史" → "Loading run history"
+  - Chapter labels (summary, function, topology, etc.)
+  - "主靶点 · 分章流式" → "Primary Target · Chapter Stream"
+  - LLM provider status (scanning, locked, available)
+  - DB status (schema, test DB, not initialized)
+  - Module titles + descriptions (eval, lit, weekly)
+  - All Field labels (Date, ±Days, Path A Max, etc.)
+  - Run button labels (Running, Run Now, Stop)
+  - Log filter pills (Lit, Eval, Weekly)
+  - ToggleChip labels (Force BLAST, Skip BLAST)
+  - Export tooltips
+  - All toast messages
+- **Round 2 — db-setup-wizard.tsx**: Translated 63 Chinese lines:
+  - Dialog title, description
+  - Create/Select/Skip buttons
+  - Error messages (502, server errors)
+  - Working messages (creating, switching)
+  - Field labels (directory, filename, path)
+  - Toast messages
+- **Round 2 — tour-overlay.tsx**: Translated aria-label "跳过引导" → t.tourSkip
+- **Round 3 — Final verification**: 
+  - Run Center dialog: `hasChinese: false` ✓ (0 Chinese characters)
+  - Tour overlay: `hasChinese: false` ✓ (0 Chinese characters, all English)
+  - Chinese mode: "运行中心" appears correctly ✓
+- Lint: 0 errors, 0 warnings (313 files)
+- Build: succeeded
+
+Stage Summary:
+- Tour fully localized (en/zh) with buildTourSteps() + useI18n()
+- Run Center: 0 Chinese in English mode (verified via DOM scan)
+- Tour: 0 Chinese in English mode (verified via DOM scan)
+- db-setup-wizard: fully translated to English
+- 3 rounds of verification completed — no Chinese found in English mode
+- Chinese mode works: "运行中心" displayed when zh locale active

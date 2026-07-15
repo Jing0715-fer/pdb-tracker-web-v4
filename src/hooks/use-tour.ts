@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef, type RefObject } from 'react';
 import { toast } from 'sonner';
-import { TOUR_STEPS, type TourStepConfig } from '@/components/tour-overlay';
+import { TOUR_STEPS, buildTourSteps, type TourStepConfig } from '@/components/tour-overlay';
+import { useI18n } from '@/lib/i18n';
 
 export const TOUR_COMPLETED_KEY = 'pdb-tracker:tour-completed';
 
@@ -52,20 +53,21 @@ export interface UseTourReturn {
   steps: TourStepConfig[];
 }
 
-function buildSteps(refs?: TourRefs): TourStepConfig[] {
-  return TOUR_STEPS.map((step, i) => {
+function buildSteps(t: any, refs?: TourRefs): TourStepConfig[] {
+  const localizedSteps = buildTourSteps(t);
+  return localizedSteps.map((step, i) => {
     let targetRef: TourStepConfig['targetRef'];
     // Step 0 (welcome) and step 8 (start using) are centered — no spotlight.
-    // Step index 1 = 模式切换 → spotlight mode switcher
+    // Step index 1 = Mode Switcher → spotlight mode switcher
     if (i === 1) targetRef = refs?.modeSwitcherRef;
-    // Step index 2 = 数据库配置 → spotlight DB wizard dialog
+    // Step index 2 = Database Setup → spotlight DB wizard dialog
     else if (i === 2) targetRef = refs?.dbWizardContentRef;
-    // Step index 3 = 运行中心 → spotlight the Run Center dialog content area
+    // Step index 3 = Run Center → spotlight the Run Center dialog content area
     else if (i === 3) targetRef = refs?.runCenterContentRef;
-    // Step indices 4 / 5 / 6 = 评估 / 文献 / 周报 → spotlight the tab content
+    // Step indices 4 / 5 / 6 = Eval / Lit / Weekly → spotlight the tab content
     // panel (below the TabsList) so the tour highlights the module panel.
     else if (i === 4 || i === 5 || i === 6) targetRef = refs?.tabContentRef;
-    // Step index 7 = 搜索与快捷键 → spotlight search box
+    // Step index 7 = Search & Shortcuts → spotlight search box
     else if (i === 7) targetRef = refs?.searchRef;
     return { ...step, targetRef };
   });
@@ -84,10 +86,13 @@ export function useTour({
   onSwitchLit,
   onSwitchWeekly,
 }: UseTourOptions): UseTourReturn {
+  const { t } = useI18n();
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const autoStartedRef = useRef(false);
   const prevStepRef = useRef(-1);
+  // Build localized steps from the current locale
+  const localizedSteps = buildTourSteps(t);
 
   // Auto-start on first visit (desktop only)
   useEffect(() => {
@@ -119,12 +124,12 @@ export function useTour({
   //   8: 开始使用 (centered)
   useEffect(() => {
     if (!tourActive) return;
-    const step = TOUR_STEPS[tourStep];
+    const step = localizedSteps[tourStep];
     if (!step) return;
 
     // ── Exit previous step actions ──
     if (prevStepRef.current >= 0 && prevStepRef.current !== tourStep) {
-      const prevStep = TOUR_STEPS[prevStepRef.current];
+      const prevStep = localizedSteps[prevStepRef.current];
       if (prevStep?.onExit === 'closeDbWizard' && onCloseDbWizard) {
         onCloseDbWizard();
       }
@@ -166,6 +171,7 @@ export function useTour({
   }, [
     tourActive,
     tourStep,
+    localizedSteps,
     onOpenDbWizard,
     onCloseDbWizard,
     onOpenRunCenter,
@@ -187,10 +193,10 @@ export function useTour({
     try {
       localStorage.setItem(TOUR_COMPLETED_KEY, 'true');
     } catch { /* ignore */ }
-    toast('引导已完成', {
-      description: '随时点击右上角「帮助」按钮重新查看引导。',
+    toast(t.tourCompleted, {
+      description: t.tourCompletedDesc,
     });
-  }, [onCloseDbWizard, onCloseRunCenter]);
+  }, [onCloseDbWizard, onCloseRunCenter, t]);
 
   const startTour = useCallback(() => {
     setTourActive(true);
@@ -198,7 +204,7 @@ export function useTour({
     prevStepRef.current = -1;
   }, []);
 
-  const steps = buildSteps(refs);
+  const steps = buildSteps(t, refs);
 
   return { tourActive, tourStep, setTourStep, finishTour, startTour, steps };
 }

@@ -8,6 +8,7 @@ import {
   BookOpen, CalendarClock, Search, CheckCircle2,
   ChevronRight, ChevronLeft, X,
 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Tour Types & Config ──────────────────────────────────────────────────────
 
@@ -32,60 +33,76 @@ export interface TourStepConfig {
  *   7. 搜索与快捷键                      (spotlight: searchRef)
  *   8. 开始使用                          (centered modal)
  */
-export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
-  {
-    title: '欢迎使用 PDB Tracker',
-    description: '蛋白结构追踪平台，整合 PDB 周报、靶点评估、文献监控三大功能。本引导将带你了解核心操作，约需 1 分钟。',
-    icon: <Sparkles className="h-4 w-4" />,
-  },
-  {
-    title: '模式切换',
-    description: '顶部三个按钮切换工作模式：Weekly 浏览每周 PDB 发布，Evaluation 评估蛋白靶点可成药性，Literature 追踪结构生物学文献。',
-    icon: <LayoutGrid className="h-4 w-4" />,
-  },
-  {
-    title: '数据库配置',
-    description: '首次使用需创建数据库。在运行中心内点击「新建」创建 SQLite 数据库，或「选择」已有数据库。所有模块共用此数据库。',
-    icon: <Database className="h-4 w-4" />,
-    onEnter: 'openDbWizard',
-    onExit: 'closeDbWizard',
-  },
-  {
-    title: '运行中心',
-    description: '点击顶部「运行中心」按钮打开操作面板，包含评估、文献、周报三个模块，支持并行执行和 SSE 实时进度。',
-    icon: <Rocket className="h-4 w-4" />,
-    onEnter: 'openRunCenter',
-  },
-  {
-    title: '评估模块',
-    description: '输入 UniProt ID 或氨基酸序列，自动获取 PDB 结构、BLAST 同源、PubMed 文献，LLM 生成 8 章节可成药性评估报告。支持多靶点批量评估与跨靶点相关性分析。',
-    icon: <FlaskConical className="h-4 w-4" />,
-    onEnter: 'switchEval',
-  },
-  {
-    title: '文献模块',
-    description: 'PubMed 双通路检索（关键词 + 期刊 RSS），按实验方法筛选（Cryo-EM / X-ray / NMR），LLM 生成中文摘要聚合，支持历史回看。',
-    icon: <BookOpen className="h-4 w-4" />,
-    onEnter: 'switchLit',
-  },
-  {
-    title: '周报模块',
-    description: '对抗式生成 PDB 周报：Generator → Critic → Synthesis 三阶段迭代，支持 1–3 cycle 提升质量，自动检测最近可用 ISO 周。',
-    icon: <CalendarClock className="h-4 w-4" />,
-    onEnter: 'switchWeekly',
-    onExit: 'closeRunCenter',
-  },
-  {
-    title: '搜索与快捷键',
-    description: '按 / 快速聚焦搜索框，按 ? 查看全部快捷键。搜索支持 PDB ID、UniProt ID、基因名、蛋白名。',
-    icon: <Search className="h-4 w-4" />,
-  },
-  {
-    title: '准备就绪',
-    description: '设置完成！点击右上角帮助按钮可随时重新查看引导。现在开始探索 PDB Structure Tracker 吧。',
-    icon: <CheckCircle2 className="h-4 w-4" />,
-  },
-];
+/**
+ * Build tour steps from the active locale's translations.
+ * Called by useTour() so the tour re-renders when the language changes.
+ */
+export function buildTourSteps(t: any): Omit<TourStepConfig, 'targetRef'>[] {
+  return [
+    {
+      title: t.tourStep1Title,
+      description: t.tourStep1Desc,
+      icon: <Sparkles className="h-4 w-4" />,
+    },
+    {
+      title: t.tourStep2Title,
+      description: t.tourStep2Desc,
+      icon: <LayoutGrid className="h-4 w-4" />,
+    },
+    {
+      title: t.tourStep3Title,
+      description: t.tourStep3Desc,
+      icon: <Database className="h-4 w-4" />,
+      onEnter: 'openDbWizard',
+      onExit: 'closeDbWizard',
+    },
+    {
+      title: t.tourStep4Title,
+      description: t.tourStep4Desc,
+      icon: <Rocket className="h-4 w-4" />,
+      onEnter: 'openRunCenter',
+    },
+    {
+      title: t.tourStep5Title,
+      description: t.tourStep5Desc,
+      icon: <FlaskConical className="h-4 w-4" />,
+      onEnter: 'switchEval',
+    },
+    {
+      title: t.tourStep6Title,
+      description: t.tourStep6Desc,
+      icon: <BookOpen className="h-4 w-4" />,
+      onEnter: 'switchLit',
+    },
+    {
+      title: t.tourStep7Title,
+      description: t.tourStep7Desc,
+      icon: <CalendarClock className="h-4 w-4" />,
+      onEnter: 'switchWeekly',
+      onExit: 'closeRunCenter',
+    },
+    {
+      title: t.tourStep8Title,
+      description: t.tourStep8Desc,
+      icon: <Search className="h-4 w-4" />,
+    },
+    {
+      title: t.tourStep9Title,
+      description: t.tourStep9Desc,
+      icon: <CheckCircle2 className="h-4 w-4" />,
+    },
+  ];
+}
+
+// Keep a static reference for backward compatibility (use-tour.ts imports it)
+// — the actual localized steps are built at runtime via buildTourSteps().
+export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = buildTourSteps({
+  tourStep1Title: 'Step 1', tourStep1Desc: '', tourStep2Title: 'Step 2', tourStep2Desc: '',
+  tourStep3Title: 'Step 3', tourStep3Desc: '', tourStep4Title: 'Step 4', tourStep4Desc: '',
+  tourStep5Title: 'Step 5', tourStep5Desc: '', tourStep6Title: 'Step 6', tourStep6Desc: '',
+  tourStep7Title: 'Step 7', tourStep7Desc: '', tourStep8Title: 'Step 8', tourStep8Desc: '',
+  tourStep9Title: 'Step 9', tourStep9Desc: '',
+});
 
 // ─── Layout constants ────────────────────────────────────────────────────────
 
@@ -191,10 +208,11 @@ export function TourOverlay({
   const [tooltipHeight, setTooltipHeight] = useState(220);
   const tooltipRef = useRef<HTMLDivElement | null>(null);
   const rafRef = useRef<number | null>(null);
+  const { t } = useI18n();
 
   const currentStep = steps[tourStep];
   const isLastStep = tourStep === steps.length - 1;
-  const stepConfig = TOUR_STEPS[tourStep];
+  const stepConfig = steps[tourStep];
   const isFirstStep = tourStep === 0;
   const isCentered = isFirstStep || isLastStep;
 
@@ -368,7 +386,7 @@ export function TourOverlay({
               <button
                 onClick={finishTour}
                 className="h-6 w-6 rounded-md flex items-center justify-center text-claude-text-muted/50 hover:text-claude-text hover:bg-black/[0.05] dark:hover:bg-white/[0.06] transition-colors"
-                aria-label="跳过引导"
+                aria-label={t.tourSkip}
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -415,7 +433,7 @@ export function TourOverlay({
                     onClick={() => setTourStep(tourStep - 1)}
                     className="flex items-center gap-0.5 px-2.5 h-7 rounded-md text-[11px] font-medium text-claude-text-secondary hover:text-claude-text hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
                   >
-                    <ChevronLeft className="h-3.5 w-3.5" /> 上一步
+                    <ChevronLeft className="h-3.5 w-3.5" /> {t.tourPrev}
                   </button>
                 )}
                 {/* Skip tour text button */}
@@ -423,7 +441,7 @@ export function TourOverlay({
                   onClick={finishTour}
                   className="text-[10px] text-claude-text-muted/60 hover:text-claude-text-muted transition-colors hidden sm:block"
                 >
-                  跳过
+                  {t.tourSkip}
                 </button>
                 <button
                   onClick={() => { if (isLastStep) finishTour(); else setTourStep(tourStep + 1); }}
@@ -433,7 +451,7 @@ export function TourOverlay({
                       : 'bg-claude-accent text-white hover:bg-claude-accent-hover'
                   }`}
                 >
-                  {isLastStep ? <>完成 <CheckCircle2 className="h-3 w-3" /></> : <>下一步 <ChevronRight className="h-3 w-3" /></>}
+                  {isLastStep ? <>{t.tourFinish} <CheckCircle2 className="h-3 w-3" /></> : <>{t.tourNext} <ChevronRight className="h-3 w-3" /></>}
                 </button>
               </div>
             </div>

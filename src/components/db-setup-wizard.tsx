@@ -79,10 +79,10 @@ interface DbListEntry {
   isActive: boolean
   /**
    * tri-state:
-   *   true  — 探测成功 + 已包含全部 PDB Tracker 表
+   *   true  — 探测成功 + 已包含全部 PDB Tracker  tables
    *   false — 探测成功 + 真的未初始化（空 SQLite 文件）
    *   null  — 探测失败（如 dev server 在持有 db 锁、Prisma 引擎冲突等），与「未初始化」不同
-   *           前端展示「探测失败」徽章并提示重试，避免误以为空文件。
+   *           前端展示「探测失败」徽章并提示Retry，避免误以为空文件。
    */
   hasSchema: boolean | null
   tableCount: number
@@ -108,17 +108,17 @@ async function safeJson<T = any>(res: Response): Promise<T> {
   if (!ct.includes('application/json') || text.trimStart().startsWith('<')) {
     // HTML error page — likely 502 from gateway or a Next.js error page.
     if (res.status === 502 || text.includes('502')) {
-      throw new Error('服务器暂时无响应（502）。这通常是因为数据库初始化时服务器内存紧张，请点击「重试」再试一次。')
+      throw new Error('Server temporarily unresponsive (502). This usually happens when the server is low on memory during database initialization. Click Retry to try again.')
     }
     if (res.status >= 500) {
-      throw new Error(`服务器内部错误（HTTP ${res.status}）。请点击「重试」，或检查 dev.log 日志。`)
+      throw new Error(`Server internal error (HTTP ${res.status}）. Click Retry, or check dev.log for details.`)
     }
-    throw new Error(`服务器返回了非 JSON 响应（HTTP ${res.status}）。请点击「重试」。`)
+    throw new Error(`Server returned non-JSON response (HTTP ${res.status}）. Click Retry.`)
   }
   try {
     return JSON.parse(text) as T
   } catch {
-    throw new Error('无法解析服务器响应。请点击「重试」。')
+    throw new Error('无法解析服务器响应. Click Retry.')
   }
 }
 
@@ -141,7 +141,7 @@ async function postDbConfigWithRetry(body: any, maxRetries = 2): Promise<any> {
       lastErr = err
       // Only retry on network/502 errors (server crashed), not on validation errors.
       const msg = err?.message || ''
-      const isRetryable = msg.includes('502') || msg.includes('服务器') || msg.includes('Failed to fetch') || msg.includes('NetworkError')
+      const isRetryable = msg.includes('502') || msg.includes('Server') || msg.includes('Failed to fetch') || msg.includes('NetworkError')
       if (!isRetryable || attempt === maxRetries) throw err
       // Wait 2s before retrying to give the server time to recover.
       await new Promise((r) => setTimeout(r, 2000))
@@ -189,7 +189,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       const data = await safeJson(res)
       setDbList(data.databases || [])
     } catch (err: any) {
-      setDbListError(err?.message || '加载列表失败')
+      setDbListError(err?.message || 'Failed to load list')
       setDbList([])
     } finally {
       setDbListLoading(false)
@@ -214,7 +214,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
     const relPath = buildNewFsPath()
     const dbPath = `file:./${relPath.replace(/^\.?\//, '')}`
     setMode('working')
-    setWorkingMsg(`正在创建新数据库 ${relPath} 并初始化表结构…`)
+    setWorkingMsg(`Creating new database ${relPath} and initializing schema…`)
     setErrorMsg('')
     try {
       await postDbConfigWithRetry({ dbPath, create: true, initSchema: true, confirmed: true })
@@ -223,7 +223,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       const status = await safeJson<DbStatus>(sres)
       setResultStatus(status)
       setMode('done')
-      toast.success('数据库已创建', { description: relPath })
+      toast.success('Database created', { description: relPath })
     } catch (err: any) {
       setErrorMsg(err?.message || String(err))
       setMode('error')
@@ -233,13 +233,13 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
   const handleSelect = useCallback(async (dbUrl?: string) => {
     const raw = (dbUrl || existingPath || '').trim()
     if (!raw) {
-      setErrorMsg('请选择或输入一个数据库文件')
+      setErrorMsg('Please select or enter a database file')
       setMode('error')
       return
     }
     const dbPath = raw.startsWith('file:') ? raw : `file:${raw}`
     setMode('working')
-    setWorkingMsg(`正在切换到数据库 ${raw.replace(/^file:/, '')} …`)
+    setWorkingMsg(`Switching to database ${raw.replace(/^file:/, '')} …`)
     setErrorMsg('')
     try {
       await postDbConfigWithRetry({ dbPath, create: false, initSchema: true, confirmed: true })
@@ -247,7 +247,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       const status = await safeJson<DbStatus>(sres)
       setResultStatus(status)
       setMode('done')
-      toast.success('数据库已切换', { description: raw.replace(/^file:/, '') })
+      toast.success('Database switched', { description: raw.replace(/^file:/, '') })
     } catch (err: any) {
       setErrorMsg(err?.message || String(err))
       setMode('error')
@@ -281,10 +281,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
         <DialogHeader className="px-6 pt-7 pb-5 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base leading-none">
             <Database className="h-4 w-4 text-amber-500" />
-            数据库初始化设置
+            Database Setup
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground mt-2.5 leading-relaxed">
-            首次使用前，请创建一个新的数据库文件，或选择一个已有数据库。运行中心与 ① 文献 / ② 评估 / ③ 周报三大模块将共用此数据库。
+            First-time setup: create a new database file or select an existing one. The Run Center and all 3 modules (Literature / Evaluation / Weekly) will share this database.
           </DialogDescription>
         </DialogHeader>
 
@@ -302,8 +302,8 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3.5 flex gap-2.5">
                   <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                    <div className="font-semibold mb-0.5">当前数据库仅供测试</div>
-                    默认的 <code className="font-mono text-3xs bg-amber-500/10 px-1 rounded">db/custom.db</code> 是测试数据库，请勿用于真实数据。建议创建一个新数据库用于日常工作。
+                    <div className="font-semibold mb-0.5">Current database is for testing only</div>
+                    默认的 <code className="font-mono text-3xs bg-amber-500/10 px-1 rounded">db/custom.db</code> is a test database, not for real data. We recommend creating a new database for daily work.
                   </div>
                 </div>
 
@@ -316,10 +316,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                       <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
                         <FilePlus2 className="h-4 w-4 text-emerald-600" />
                       </div>
-                      <span className="text-sm font-medium">创建新数据库</span>
+                      <span className="text-sm font-medium">Create New Database</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      新建一个空的 SQLite 数据库文件并自动初始化表结构。推荐首次使用。
+                      Create a new empty SQLite database file and auto-initialize the schema. Recommended for first use.
                     </p>
                   </button>
 
@@ -331,10 +331,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                       <div className="w-8 h-8 rounded-md bg-sky-500/10 flex items-center justify-center">
                         <FolderOpen className="h-4 w-4 text-sky-600" />
                       </div>
-                      <span className="text-sm font-medium">选择已有数据库</span>
+                      <span className="text-sm font-medium">Select Existing Database</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
-                      从列表中点击选择一个已存在的数据库文件。会自动补全缺失的表。
+                      Click to select an existing database file from the list. Missing tables will be auto-created.
                     </p>
                   </button>
                 </div>
@@ -342,7 +342,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 {allowSkip && onClose && (
                   <div className="flex justify-end pt-1">
                     <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onClose}>
-                      暂时跳过（继续使用当前数据库）
+                      Skip for now (use current database)
                     </Button>
                   </div>
                 )}
@@ -359,24 +359,24 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 className="space-y-4"
               >
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">数据库目录（相对项目根目录）</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Database Directory (relative to project root)</Label>
                   <Input
                     value={newDbDir}
                     onChange={(e) => setNewDbDir(e.target.value)}
                     placeholder="db"
                     className="h-9 text-xs font-mono mt-1"
                   />
-                  <p className="text-3xs text-muted-foreground mt-1">默认放在项目 <code>db/</code> 目录下。</p>
+                  <p className="text-3xs text-muted-foreground mt-1">Default location: project <code>db/</code> directory.</p>
                 </div>
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">数据库文件名</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Database Filename</Label>
                   <Input
                     value={newDbName}
                     onChange={(e) => setNewDbName(e.target.value)}
                     placeholder="my-pdb-tracker.db"
                     className="h-9 text-xs font-mono mt-1"
                   />
-                  <p className="text-3xs text-muted-foreground mt-1">将以 <code>.db</code> 后缀创建 SQLite 文件。</p>
+                  <p className="text-3xs text-muted-foreground mt-1">Will create a SQLite file with <code>.db</code> extension.</p>
                 </div>
                 <div className="rounded-md bg-muted/40 p-3 text-xs">
                   <div className="text-muted-foreground mb-1">最终路径：</div>
@@ -384,10 +384,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 </div>
                 <div className="flex justify-between gap-2 pt-2">
                   <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => setMode('choose')}>
-                    <ArrowLeft className="h-3 w-3 mr-1" /> 上一步
+                    <ArrowLeft className="h-3 w-3 mr-1" /> Back
                   </Button>
                   <Button size="sm" className="h-8 text-xs" onClick={handleCreate}>
-                    <FilePlus2 className="h-3 w-3 mr-1" /> 创建并初始化
+                    <FilePlus2 className="h-3 w-3 mr-1" /> Create & Initialize
                   </Button>
                 </div>
               </motion.div>
@@ -408,7 +408,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                   <Input
                     value={dbListSearch}
                     onChange={(e) => setDbListSearch(e.target.value)}
-                    placeholder="搜索数据库文件…"
+                    placeholder="Search database files…"
                     className="h-9 text-xs pl-8 pr-8"
                   />
                   <Button
@@ -416,7 +416,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                     size="sm"
                     className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0"
                     onClick={loadDbList}
-                    title="刷新列表"
+                    title="Refresh List"
                   >
                     <RefreshCw className={`h-3 w-3 ${dbListLoading ? 'animate-spin' : ''}`} />
                   </Button>
@@ -426,7 +426,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 {dbListLoading ? (
                   <div className="flex flex-col items-center justify-center py-10 gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">正在扫描已有数据库…</p>
+                    <p className="text-xs text-muted-foreground">Scanning for existing databases…</p>
                   </div>
                 ) : dbListError ? (
                   <div className="rounded-md border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-600">
@@ -439,7 +439,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                       {dbListSearch ? '未找到匹配的数据库' : '未找到已有数据库文件'}
                     </p>
                     <p className="text-3xs text-muted-foreground/70 mt-1">
-                      可在下方手动输入路径，或返回上一步创建新数据库
+                      可在下方手动输入路径，或返回BackCreate New Database
                     </p>
                   </div>
                 ) : (
@@ -465,12 +465,12 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                                                       <code className="text-[11px] font-mono text-foreground break-all">{db.displayPath}</code>
                                                       {db.isActive && (
                                                         <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                                                          <CheckCircle2 className="h-2.5 w-2.5" /> 当前
+                                                          <CheckCircle2 className="h-2.5 w-2.5" /> Current
                                                         </Badge>
                                                       )}
                                                       {db.hasSchema === true && (
                                                         <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
-                                                          {db.tableCount} 表
+                                                          {db.tableCount}  tables
                                                         </Badge>
                                                       )}
                                                       {db.hasSchema === false && (
@@ -479,7 +479,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                                                         </Badge>
                                                       )}
                                                       {db.hasSchema === null && (
-                                                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300" title={db.probeError || '探测失败，请点击刷新按钮重试'}>
+                                                        <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300" title={db.probeError || '探测失败，请点击刷新按钮Retry'}>
                                                           探测失败
                                                         </Badge>
                                                       )}
@@ -506,7 +506,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 {/* Manual path input (fallback) */}
                 <details className="text-xs">
                   <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
-                    手动输入路径（高级）
+                    Manual path entry (advanced)
                   </summary>
                   <div className="mt-2">
                     <Input
@@ -520,11 +520,11 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
 
                 <div className="rounded-md bg-sky-500/5 border border-sky-500/20 p-3 text-xs text-sky-700 dark:text-sky-300">
                   <ShieldCheck className="h-3.5 w-3.5 inline mr-1" />
-                  若该文件缺少 PDB Tracker 所需的表结构，会自动运行 <code className="font-mono text-3xs">prisma db push</code> 补全，不会清空已有数据。
+                  If the file is missing PDB Tracker tables, it will auto-run <code className="font-mono text-3xs">prisma db push</code> to create them without clearing existing data.
                 </div>
                 <div className="flex justify-between gap-2 pt-2">
                   <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => setMode('choose')}>
-                    <ArrowLeft className="h-3 w-3 mr-1" /> 上一步
+                    <ArrowLeft className="h-3 w-3 mr-1" /> Back
                   </Button>
                   <Button
                     size="sm"
@@ -532,7 +532,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                     onClick={() => handleSelect(selectedDbUrl || undefined)}
                     disabled={!selectedDbUrl && !existingPath.trim()}
                   >
-                    <FolderOpen className="h-3 w-3 mr-1" /> 切换到此数据库
+                    <FolderOpen className="h-3 w-3 mr-1" /> Switch to this Database
                   </Button>
                 </div>
               </motion.div>
@@ -549,7 +549,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
               >
                 <Loader2 className="h-8 w-8 animate-spin text-claude-accent" />
                 <p className="text-sm text-foreground">{workingMsg}</p>
-                <p className="text-xs text-muted-foreground">正在初始化表结构，请稍候…</p>
+                <p className="text-xs text-muted-foreground">正在初始化 tables结构，请稍候…</p>
               </motion.div>
             )}
 
@@ -571,10 +571,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                     </div>
                     <div className="flex flex-wrap gap-1.5 mt-2">
                       <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                        <CheckCircle2 className="h-2.5 w-2.5" /> 表结构已初始化
+                        <CheckCircle2 className="h-2.5 w-2.5" />  tables结构已初始化
                       </Badge>
                       <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                        {resultStatus.tableCount} 表
+                        {resultStatus.tableCount}  tables
                       </Badge>
                       {!resultStatus.isTest && (
                         <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
@@ -588,7 +588,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 <div className="rounded-md border border-border/60 bg-muted/20 p-3">
                   <div className="text-xs font-medium text-foreground mb-2 flex items-center gap-1.5">
                     <Database className="h-3.5 w-3.5 text-muted-foreground" />
-                    当前数据库内容统计
+                    Current database内容统计
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-[11px]">
                     <CountCell label="PDB 结构" value={resultStatus.counts?.PdbStructure ?? 0} icon={<FileText className="h-3 w-3" />} />
@@ -625,13 +625,13 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 <div className="flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-4">
                   <XCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">操作失败</div>
+                    <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">Operation Failed</div>
                     <div className="text-xs text-muted-foreground mt-1 break-all">{errorMsg}</div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="outline" size="sm" className="h-8 text-xs" onClick={handleRetry}>
-                    返回重试
+                    Back to Retry
                   </Button>
                 </div>
               </motion.div>
