@@ -2045,3 +2045,34 @@ Stage Summary:
   4. Tooltip card at bottom-right of spotlight (with smart corner-flipping on overflow) ✓
 - All 9 steps verified visually via VLM analysis of screenshots
 - Key files: tour-overlay.tsx (rewritten), use-tour.ts (updated), db-setup-wizard.tsx (contentRef added), pdb-tracker.tsx (dbWizardContentRef added)
+
+---
+Task ID: standalone-build
+Agent: main
+Task: Build standalone production server (page won't load via dev server due to OOM)
+
+Work Log:
+- Ran `NODE_OPTIONS="--max-old-space-size=3072" bun run build` — build succeeded
+- Copied .next/static to .next/standalone/.next/static (required for production assets)
+- Copied prisma/schema.prisma to .next/standalone/prisma/ (for prisma db push)
+- Copied db/pdb-tracker.db to .next/standalone/db/ (for standalone DB access)
+- Updated .next/standalone/.env with DATABASE_URL=file:/home/z/my-project/db/pdb-tracker.db
+- Confirmed .hermes/db-config.json exists with confirmed:true
+- Started standalone server: `node --max-old-space-size=2048 server.js`
+  - Note: needed 2GB heap (512MB/768MB caused silent crashes on API requests)
+  - Note: cannot use `-r dotenv/config` (dotenv not in standalone node_modules)
+  - Used DATABASE_URL env var directly instead
+- Verified all routes work: page 200, db-config 200, entries 200, snapshots 200, activity 200
+- Browser verification (agent-browser):
+  - Page loads fully with all UI elements (mode switcher, search, Run Center button, etc.)
+  - Tour: all 9 steps work (centered first/last, spotlight+mask for middle steps)
+  - Run Center: opens with all 3 modules (评估/文献/周报), layout fix verified
+    - Dialog bottom (554px) within viewport (577px)
+    - Scrollable area has proper padding, no clipping
+- Server runs at ~100-130MB RSS, stable for page loads and API requests
+
+Stage Summary:
+- Standalone production server built and deployed successfully
+- Start command: `cd .next/standalone && node --max-old-space-size=2048 server.js` with DATABASE_URL env var
+- All features verified working: page load, tour (9 steps), Run Center (3 modules), layout fix
+- The dev server was crashing due to OOM during webpack compilation; standalone build avoids this by pre-compiling everything
