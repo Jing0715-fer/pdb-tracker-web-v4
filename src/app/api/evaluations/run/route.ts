@@ -954,24 +954,85 @@ ${overlapSummary}${crossLitBlock}
             let bReport: any = undefined;
             // Generate individual LLM report for this batch target (unless cached with existing report)
             if (generateReport && !(bCacheHit && bCached?.report)) {
-              emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] 生成 ${bUid} 的 LLM 报告…`, progress: 100 });
+              emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] 生成 ${bUid} 的 LLM 报告（8 章节流式，跟 primary 模板一致）…`, progress: 100 });
               try {
-                // Use a single-call summary report (not 7-chapter) to reduce memory/time
-                const topPdbs = bPdbDetails.slice(0, 10).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)}`).join('\n');
-                // Literature info for this batch target (capped at maxLitCount, IF desc).
+                // ── Per-chapter LLM streaming (same 8-chapter flow as primary target,
+                //    so batch target reports share the same template). Each chapter
+                //    is its own short LLM call so the front-end can render
+                //    incrementally via SSE `batch-${bi}-chapter` / `batch-${bi}-chapter_done`.
+                const PDB_CAP = 80;
+                const BLAST_CAP = Math.min(maxBlastHits, 50);
+                const bPdbTable = bPdbDetails.length > 0
+                  ? buildDetailedPdbTable(bPdbDetails, PDB_CAP)
+                  : '| PDB ID | Method | Resolution | Journal (IF) | Title |\n|--------|--------|------------|--------------|-------|\n| (无 PDB 结构数据) | - | - | - | - |';
+                const bBlastTable = bSkipBlast
+                  ? '| PDB ID | UniProt | Identity | E-value | Description |\n|--------|---------|----------|---------|-------------|\n| (BLAST 已跳过) | - | - | - | - |'
+                  : (bCached?.blastResults ? buildDetailedBlastTable(bCached.blastResults, BLAST_CAP) : '| PDB ID | UniProt | Identity | E-value | Description |\n|--------|---------|----------|---------|-------------|\n| (无 BLAST 数据) | - | - | - | - |');
                 const bLitInfo = await buildLiteratureInfo(bPdbDetails, maxLitCount);
-                const bLitBlock = bLitInfo.count > 0
-                  ? `\n\n相关 PubMed 文献（共 ${bLitInfo.count} 篇，按 IF 降序，摘要 200 字截断）：\n${bLitInfo.text}`
-                  : '\n\n（无 PubMed 文献数据）';
-                const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白靶点评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 蛋白功能概述、## PDB 结构分析、## 可成药性评估、## 实验建议、## 总结。';
-                // Build full PDB table and BLAST table for batch target
-                const bFullPdbTable = bPdbDetails.length > 0 ? buildDetailedPdbTable(bPdbDetails, 80) : '（无 PDB 结构数据）';
-                const bFullBlastTable = bSkipBlast ? '（BLAST 已跳过）' : (bCached?.blastResults ? buildDetailedBlastTable(bCached.blastResults, bMaxPdb) : '（无 BLAST 数据）');
-                const bUserPrompt = `UniProt: ${bUid}\n蛋白名称: ${bInfo.proteinName}\n基因名: ${bInfo.geneNames}\n物种: ${bInfo.organism}\n序列长度: ${bInfo.sequenceLength} aa\nPDB 结构数: ${bPdbDetails.length}\n评分: overall=${bScores.overall.score}/10 (X-ray=${bScores.xray.score}/${bXray}条, Cryo-EM=${bScores.cryoem.score}/${bCryoem}条, NMR=${bScores.nmr.score}/${bNmr}条)\n\n完整 PDB 数据表:\n| # | PDB | 方法 | 分辨率(Å) | 期刊 (IF) | 配体 | 标题 |\n|---|------|------|-----------|----------|------|------|\n${bFullPdbTable}\n\nBLAST 同源数据:\n${bFullBlastTable}\n\n代表性 PDB 结构（前 10 个）:\n${topPdbs || '（无 PDB 结构）'}${bLitBlock}\n\n请生成完整的评估报告，在"实验建议"和"总结"中可引用文献 PMID 作为参考。`;
-                const br = await generateText(bSysPrompt, bUserPrompt, { maxChars: 2000, llm: body.llm });
-                bReport = { ok: br.ok, content: br.content, provider: br.provider, model: br.model, durationMs: br.durationMs, contentChars: br.content?.length || 0 };
-                if (br.ok) emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 报告已生成 · ${bReport.contentChars} chars · ${(br.durationMs / 1000).toFixed(1)}s${bLitInfo.count > 0 ? ` · 附 ${bLitInfo.count} 篇文献` : ''}`, progress: 100 });
-                else emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 报告失败：${br.error}`, progress: 100 });
+                const bLiteratureInfo = bLitInfo.count > 0
+                  ? `共 ${bLitInfo.count} 篇相关文献（按期刊影响因子降序，已截取前 ${bLitInfo.count} 篇；摘要截取 200 字）：\n\n${bLitInfo.text}`
+                  : '（无 PubMed 文献数据 — PubMedArticle 表为空或这些 PDB 结构无对应文献）';
+                const bReportData = {
+                  uniprot: bUid,
+                  entryName: bInfo.entryName,
+                  proteinName: bInfo.proteinName,
+                  geneNames: bInfo.geneNames,
+                  organism: bInfo.organism,
+                  sequenceLength: bInfo.sequenceLength,
+                  coverage: 0,
+                  directPdbCount: bDirectPdbCount,
+                  blastHitCount: bSkipBlast ? 0 : (bCached?.blastResults?.length || 0),
+                  pdbCount: bPdbDetails.length,
+                  maxBlastHitsRequested: maxBlastHits,
+                  scores: bScores,
+                  pdbTable: bPdbTable,
+                  blastTable: bBlastTable,
+                  literatureInfo: bLiteratureInfo,
+                  literatureCount: bLitInfo.count,
+                };
+                const chapters: ReportChapterKey[] = [
+                  'summary', 'function', 'topology', 'pdb_analysis',
+                  'feasibility', 'experimental', 'references', 'conclusion',
+                ];
+                const chapterContents: Record<string, string> = {};
+                let perChapterOkCount = 0;
+                let perChapterFailCount = 0;
+                const tBatchReportStart = Date.now();
+                emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] ${bUid} 准备分 ${chapters.length} 章节生成报告 (${provider})… 共 ${bPdbDetails.length} 个 PDB${bLitInfo.count > 0 ? ` + ${bLitInfo.count} 篇文献` : ''} 已加载到上下文`, progress: 100 });
+                for (let i = 0; i < chapters.length; i++) {
+                  const ck = chapters[i];
+                  const chapterIdx = i + 1;
+                  emit({ stage: `batch-${bi}-chapter`, level: 'info', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} — 开始生成`, progress: 100, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
+                  const userPrompt = buildChapterPrompt({ ...bReportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
+                  const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
+                  const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
+                  if (r.ok) {
+                    perChapterOkCount++;
+                    chapterContents[ck] = r.content;
+                    emit({ stage: `batch-${bi}-chapter_done`, level: 'success', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} ✓ ${r.content.length} chars · ${(r.durationMs / 1000).toFixed(1)}s`, progress: 100, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length, chapterContent: r.content });
+                  } else {
+                    perChapterFailCount++;
+                    chapterContents[ck] = `_(${labelOf(ck)}: LLM 调用失败 — ${r.error?.slice(0, 120) ?? 'unknown'})_`;
+                    emit({ stage: `batch-${bi}-chapter_done`, level: 'error', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} ✗ ${r.error?.slice(0, 100) ?? 'unknown'}`, progress: 100, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
+                  }
+                }
+                const finalReport = chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n');
+                const allOk = perChapterFailCount === 0;
+                bReport = {
+                  ok: allOk,
+                  content: finalReport,
+                  provider,
+                  model,
+                  durationMs: Date.now() - tBatchReportStart,
+                  contentChars: finalReport.length,
+                  perChapterOkCount,
+                  perChapterFailCount,
+                };
+                if (allOk) {
+                  emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 分章报告完成 · ${perChapterOkCount}/${chapters.length} 章 · ${finalReport.length} chars · ${((Date.now() - tBatchReportStart) / 1000).toFixed(1)}s · ${provider}/${model}`, progress: 100 });
+                } else {
+                  emit({ stage: `batch-${bi}-llm`, level: 'warn', message: `⚠ [Batch ${bi + 1}] ${bUid} LLM 分章部分失败 · ${perChapterOkCount}✓ ${perChapterFailCount}✗ · ${finalReport.length} chars · ${provider}/${model}`, progress: 100 });
+                }
               } catch (err: any) {
                 emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 生成失败：${err?.message}`, progress: 100 });
               }

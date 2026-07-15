@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: false,
   serverExternalPackages: ["molstar"],
+  // Next.js 16 dev mode blocks cross-origin HMR by default. Playwright
+  // headless chromium sees 127.0.0.1:3000 as cross-origin. Allow it.
+  allowedDevOrigins: ['127.0.0.1', 'localhost'],
   async headers() {
     return [
       {

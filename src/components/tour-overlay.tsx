@@ -369,8 +369,20 @@ export function TourOverlay({
             top: realPos.top,
             left: realPos.left,
             width: TOOLTIP_WIDTH,
-            // Centered mode: anchor card to bottom-right corner via transform.
-            transform: spotlightRect ? undefined : 'translate(-100%, -100%)',
+            // Centered mode: anchor card to bottom-right corner. Framer-motion
+            // overrides any inline `transform`, so we use `right`/`bottom` plus
+            // an `x: 0, y: 0` motion to keep the initial/exit offset animation
+            // working. Without this fix, the tooltip rendered outside the
+            // viewport (x ≈ vw + 218, y ≈ vh + 122) because the inline
+            // `transform: translate(-100%, -100%)` was being clobbered.
+            ...(spotlightRect
+              ? {}
+              : {
+                  right: 16,
+                  bottom: 16,
+                  left: 'auto',
+                  top: 'auto',
+                }),
           }}
         >
           <div className="relative bg-white dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-xl shadow-2xl overflow-hidden">
