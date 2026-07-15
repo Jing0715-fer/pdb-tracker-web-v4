@@ -585,16 +585,29 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
       child.stderr.on('data', (b) => { stderr += b.toString(); });
       child.on('error', (err) => { clearTimeout(killTimer); finish(1, stdout, stderr + '\nspawn: ' + err.message); });
       child.on('close', (code) => { clearTimeout(killTimer); finish(code ?? -1, stdout, stderr); });
-      // Build the script: tolerate source failures (`set +e` is implied because
-      // non-interactive bash already runs without errexit), prepend PATH
-      // extensions, then run the user-supplied command.
+      // Build the script: source the user's profile/bashrc FIRST so PATH is
+      // populated from their environment, then PREPEND (not export-overwrite)
+      // a small set of well-known user-local bin directories that npm/pip/cargo/
+      // brew etc. install into but which may not be in the user's $PATH depending
+      // on the distro (Debian/Ubuntu often lacks them in non-login shells).
+      // Sourcing the rc files is best-effort (`|| true`) so the script never
+      // aborts on a missing file.
       const script = [
-        `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/opt/homebrew/bin:$PATH"`,
-        // Try to source the user's profile files but don't fail if missing.
+        `set +e`,
+        // Source the user's login shell startup files. `bash -l` would also
+        // do this but it triggers a slow mesg(1) call; sourcing the files
+        // ourselves keeps startup under a second.
         `[ -r "$HOME/.profile" ] && . "$HOME/.profile" 2>/dev/null || true`,
         `[ -r "$HOME/.bash_profile" ] && . "$HOME/.bash_profile" 2>/dev/null || true`,
         `[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc" 2>/dev/null || true`,
-        `set +e`,
+        // Prepend well-known user-local bin directories. This covers:
+        //   Linux/macOS:  pip install --user, cargo, go, npm-global, etc.
+        //   macOS:         /opt/homebrew/bin (Apple Silicon brew)
+        //   Linux:         /usr/local/bin (system npm, pip)
+        //   WSL:           /mnt/c/... (interop to host binaries)
+        // We APPEND (not overwrite) the existing $PATH so anything the user
+        // has set in their rc files is preserved.
+        `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.cargo/bin:$HOME/go/bin:$HOME/.bun/bin:$HOME/Library/Python/3.12/bin:$HOME/Library/Python/3.11/bin:/opt/homebrew/bin:/usr/local/bin:/snap/bin:$PATH"`,
         bashCmd,
       ].join('\n');
       child.stdin.write(script + '\n');
