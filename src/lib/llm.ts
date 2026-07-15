@@ -559,6 +559,12 @@ function wslAvailable(): Promise<boolean> {
 /** Run `bash -lc '...'` inside the configured WSL distro and capture stdout/stderr. */
 function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number; stdout: string; stderr: string }> {
   const distro = wslTargetDistro();
+  // Critical: pass the bash command via stdin to avoid the Windows `wsl.exe`
+  // argv parser mishandling shell metacharacters like `||`, `2>/dev/null`, `*`
+  // when they appear as bare tokens. We also prepend PATH extensions so the
+  // user's `~/.local/bin` and `~/.nvm/.../bin` are in PATH even when bash
+  // doesn't source the user's `~/.bashrc` / `~/.profile` (which happens for
+  // non-interactive non-login shells started via `wsl.exe -- bash`).
   return new Promise((resolve, reject) => {
     let done = false;
     const finish = (code: number, stdout: string, stderr: string) => {
@@ -567,10 +573,8 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
       resolve({ code, stdout, stderr });
     };
     try {
-      const child = spawn('wsl.exe', ['-d', distro, '--', 'bash', '-lc', bashCmd], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      });
+      const child = spawn('wsl.exe', ['-d', distro, '--', 'bash'],
+        { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
       let stdout = '';
       let stderr = '';
       const killTimer = setTimeout(() => {
@@ -581,8 +585,21 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
       child.stderr.on('data', (b) => { stderr += b.toString(); });
       child.on('error', (err) => { clearTimeout(killTimer); finish(1, stdout, stderr + '\nspawn: ' + err.message); });
       child.on('close', (code) => { clearTimeout(killTimer); finish(code ?? -1, stdout, stderr); });
+      // Build the script: tolerate source failures (`set +e` is implied because
+      // non-interactive bash already runs without errexit), prepend PATH
+      // extensions, then run the user-supplied command.
+      const script = [
+        `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:/opt/homebrew/bin:$PATH"`,
+        // Try to source the user's profile files but don't fail if missing.
+        `[ -r "$HOME/.profile" ] && . "$HOME/.profile" 2>/dev/null || true`,
+        `[ -r "$HOME/.bash_profile" ] && . "$HOME/.bash_profile" 2>/dev/null || true`,
+        `[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc" 2>/dev/null || true`,
+        `set +e`,
+        bashCmd,
+      ].join('\n');
+      child.stdin.write(script + '\n');
+      child.stdin.end();
     } catch (err) {
-      // Make sure promise resolves even if spawn throws synchronously.
       finish(1, '', 'spawn: ' + (err as Error).message);
     }
   });
@@ -591,14 +608,8 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
 /** Try to find `bin` inside WSL PATH. Returns path or null. */
 async function findOnWsl(bin: string): Promise<string | null> {
   try {
-    // NB: must use `bash -lc '<cmd>'` form, NOT `wsl.exe -d <distro> -- <cmd>`.
-    // The latter treats the entire `<cmd>` string as a single executable
-    // path, so `command -v claude 2>/dev/null || which claude 2>/dev/null`
-    // fails with exit 127 / "No such file or directory" (the whole
-    // shell-snippet is taken as a filename). Using bash -lc with the
-    // command wrapped in single quotes is the form that `probeCliInWsl`
-    // already uses successfully (line below).
-    const r = await runInWsl(`bash -lc "command -v ${bin} 2>/dev/null || which ${bin} 2>/dev/null"`, 30_000);
+    const bashCmd = `command -v ${bin} 2>/dev/null || which ${bin} 2>/dev/null`;
+    const r = await runInWsl(bashCmd, 30_000);
     if (r.code !== 0) return null;
     const first = r.stdout.split('\n').map((line) => line.trim()).find(Boolean);
     return first || null;
