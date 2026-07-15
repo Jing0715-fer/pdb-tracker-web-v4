@@ -253,6 +253,31 @@ export const zh = {
   defaultBehavior: '默认行为',
   dataDisplay: '数据显示',
   notifications: '通知',
+
+  // ─── Sidebar & breadcrumb ────────────────────────────────────────────────
+  pdbTracker: 'PDB 追踪器',
+  weeklySnapshotsTitle: '每周快照',
+  evaluationsTitle: '评估列表',
+  litReportsTitle: '文献报告',
+  structuresCount: '个结构',
+  proteinsCount: '个蛋白',
+  batchesCount: '个批次',
+  targetsCount: '个靶点',
+  sharedPdbCount: '共有 PDB',
+  noActivityThisWeekFull: '本周暂无活动',
+  attentionScore: '关注度评分',
+  menu: '菜单',
+  trends: '趋势',
+  sort: '排序',
+  date: '日期',
+  // Tab names in detail panel
+  tabSummary: '概览',
+  tabTargets: '靶点',
+  tabStructures: '结构',
+  tabBLAST: 'BLAST',
+  tabAnalysis: '分析',
+  tabBreakdown: '分解',
+  tabCompare: '对比',
 } as const;
 
 export type Locale = typeof zh;

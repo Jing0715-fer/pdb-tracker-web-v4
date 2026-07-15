@@ -1794,7 +1794,7 @@ export default function PdbTracker() {
           {(!sidebarCollapsed || mobile) && (
             <div className="flex items-center gap-1.5">
               <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">
-                Weekly Snapshots
+                {t.weeklySnapshotsTitle}
               </h3>
             </div>
           )}
@@ -1870,7 +1870,7 @@ export default function PdbTracker() {
                             <span className="snapshot-method-btn-label">X</span>
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right"><p>X-ray Report</p></TooltipContent>
+                        <TooltipContent side="right"><p>{t.xrayReport}</p></TooltipContent>
                       </Tooltip>
                       {getReportCountForWeek(snap.weekId) > 1 && (
                         <Tooltip>
@@ -1879,7 +1879,7 @@ export default function PdbTracker() {
                               <span className="snapshot-method-btn-label">E</span>
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="right"><p>Cryo-EM Report</p></TooltipContent>
+                          <TooltipContent side="right"><p>{t.cryoemReport}</p></TooltipContent>
                         </Tooltip>
                       )}
                       {getReportCountForWeek(snap.weekId) > 2 && (
@@ -1889,7 +1889,7 @@ export default function PdbTracker() {
                               <span className="snapshot-method-btn-label">N</span>
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="right"><p>NMR Report</p></TooltipContent>
+                          <TooltipContent side="right"><p>{t.nmrReport}</p></TooltipContent>
                         </Tooltip>
                       )}
                     </div>
@@ -1966,7 +1966,7 @@ export default function PdbTracker() {
       <div className="px-3 py-3 border-b border-claude-border dark:border-[#3d3832]">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">
-            Evaluations
+            {t.evaluationsTitle}
           </h3>
           {mobile && (
             <Button
@@ -2004,7 +2004,7 @@ export default function PdbTracker() {
       <div className="px-3 py-3 border-b border-claude-border dark:border-[#3d3832]">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">
-            Literature
+            {t.modeLiterature}
           </h3>
           {mobile && (
             <Button
@@ -2768,7 +2768,7 @@ export default function PdbTracker() {
               )}
               {paper.pubdate && (
                 <div>
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Date</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{t.date}</div>
                   <div className="text-xs text-claude-text-secondary">{paper.pubdate}</div>
                 </div>
               )}
@@ -2855,7 +2855,7 @@ export default function PdbTracker() {
                         </svg>
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent>Attention score: {score}/100 (based on IF, PDB structures, metadata)</TooltipContent>
+                    <TooltipContent>{t.attentionScore}: {score}/100</TooltipContent>
                   </Tooltip>
                 );
               })()}
@@ -3431,7 +3431,9 @@ export default function PdbTracker() {
 
         {/* Tab buttons — Report moved into Summary as a button */}
         <div className="flex border-b border-claude-border dark:border-[#3d3832] overflow-x-auto">
-          {(['Summary', 'Targets', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Compare'] as const).map(tab => (
+          {(['Summary', 'Targets', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Compare'] as const).map(tab => {
+            const tabLabel = tab === 'Summary' ? t.tabSummary : tab === 'Targets' ? t.tabTargets : tab === 'Structures' ? t.tabStructures : tab === 'BLAST' ? t.tabBLAST : tab === 'Analysis' ? t.tabAnalysis : tab === 'Breakdown' ? t.tabBreakdown : t.tabCompare;
+            return (
             <button
               key={tab}
               onClick={() => setEvalDetailTab(tab)}
@@ -3441,9 +3443,10 @@ export default function PdbTracker() {
                   : 'text-claude-text-muted hover:text-claude-text-secondary'
               }`}
             >
-              {tab}
+              {tabLabel}
             </button>
-          ))}
+          );
+          })}
         </div>
 
         {/* Tab content */}
@@ -3812,7 +3815,9 @@ export default function PdbTracker() {
 
           {/* Tab buttons */}
           <div className="flex border-b border-claude-border dark:border-[#3d3832]">
-            {evalTabNames.map(tab => (
+            {evalTabNames.map(tab => {
+              const tabLabel = tab === 'Summary' ? t.tabSummary : tab === 'Structures' ? t.tabStructures : tab === 'BLAST' ? t.tabBLAST : tab === 'Analysis' ? t.tabAnalysis : t.tabBreakdown;
+              return (
               <button
                 key={tab}
                 onClick={() => setEvalDetailTab(tab)}
@@ -3822,9 +3827,10 @@ export default function PdbTracker() {
                     : 'text-claude-text-muted hover:text-claude-text-secondary'
                 }`}
               >
-                {tab}
+                {tabLabel}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Tab content */}
@@ -4156,7 +4162,7 @@ export default function PdbTracker() {
                   <Menu className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p>Menu</p></TooltipContent>
+              <TooltipContent side="bottom"><p>{t.menu}</p></TooltipContent>
             </Tooltip>
             <div className="header-icon-wrap h-8 w-8 rounded-lg bg-gradient-to-br from-claude-accent via-[#d4784f] to-[#c9872e] flex items-center justify-center shadow-md shadow-claude-accent/25 ring-1 ring-claude-accent/20">
               <Atom className="h-4.5 w-4.5 text-white header-icon-spin" />
@@ -4266,7 +4272,7 @@ export default function PdbTracker() {
                     <TrendingUp className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom"><p>Trends</p></TooltipContent>
+                <TooltipContent side="bottom"><p>{t.trends}</p></TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>

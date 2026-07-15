@@ -2487,3 +2487,55 @@ Stage Summary:
 - Applied i18n to all toolbar tooltips, settings panel section headers, eval detail empty states
 - Chinese mode now shows: 运行中心, LLM 提供方, 数据库, 蛋白靶点评估, 每日文献检索, PDB 周报生成, 执行日志, 外观, 主题, 浅色/深色/跟随系统, 语言, 默认行为, 数据显示, 通知, 键盘快捷键, 关于
 - English mode remains fully English (0 Chinese verified via DOM scan)
+
+---
+Task ID: i18n-chinese-mode-expansion
+Agent: main
+Task: Systematic expansion of Chinese mode translations
+
+Work Log:
+- Added 25+ new i18n keys to en.ts and zh.ts:
+  - Sidebar headers: weeklySnapshotsTitle, evaluationsTitle, litReportsTitle
+  - Count labels: structuresCount, proteinsCount, batchesCount, targetsCount, sharedPdbCount
+  - UI labels: pdbTracker, noActivityThisWeekFull, attentionScore, menu, trends, sort, date
+  - Tab names: tabSummary, tabTargets, tabStructures, tabBLAST, tabAnalysis, tabBreakdown, tabCompare
+  - Settings sections: defaultBehavior, dataDisplay, notifications
+- Applied i18n to pdb-tracker.tsx:
+  - Sidebar headers: "Weekly Snapshots" → t.weeklySnapshotsTitle, "Evaluations" → t.evaluationsTitle, "Literature" → t.modeLiterature
+  - Toolbar tooltips: X-ray Report, Cryo-EM Report, NMR Report, Menu, Trends → translated
+  - Attention score tooltip → t.attentionScore
+  - Date label → t.date
+  - Dashboard Charts label + structures count → locale-aware
+  - Batch detail tab names → t.tabSummary/tabTargets/tabStructures/tabBLAST/tabAnalysis/tabBreakdown/tabCompare
+  - Single eval detail tab names → same i18n keys
+  - Empty states → t.noSharedStructures, t.noSubTargets, etc.
+- Applied i18n to weekly-page.tsx:
+  - Filter chips: All, Bookmarks, Cryo-EM, X-ray, NMR, High IF, Top IF → useFilterChips() hook
+  - Sort options: Date, Resolution, Method → useSortOptions() hook with locale-aware labels
+- Applied i18n to quick-stats-panel.tsx:
+  - "Quick Stats" → t.quickStats
+  - "structures" count → locale-aware
+- Applied i18n to WeeklyActivityFeed.tsx:
+  - "Recent Activity" → t.recentActivity
+  - "No activity for this week" → t.noActivityThisWeekFull
+- Applied i18n to settings-panel.tsx:
+  - Section headers: Appearance→外观, Default Behavior→默认行为, Data Display→数据显示, Notifications→通知, Keyboard Shortcuts→键盘快捷键, About→关于
+  - Theme labels: Light→浅色, Dark→深色, System→跟随系统
+  - Compact Mode → 紧凑模式
+- Lint: 0 errors, 0 warnings
+- Browser verification (Chinese mode):
+  - Weekly Snapshots → 每周快照 ✓
+  - Evaluations → 评估列表 ✓
+  - Literature → 文献 ✓
+  - Quick Stats → 快速统计 ✓
+  - Recent Activity → 最近活动 ✓
+  - No activity → 本周暂无活动 ✓
+  - Filter buttons: All→全部, Bookmarks→★收藏, High IF→高IF, Top IF→顶级IF ✓
+  - Sort labels: Date→日期, Resolution→分辨率, Method→方法 ✓
+  - Eval detail tabs: Summary→概览, Structures→结构, Analysis→分析, Breakdown→分解 ✓
+  - Batch detail tabs: same + Targets→靶点, Compare→对比 ✓
+
+Stage Summary:
+- Chinese mode now covers: sidebar headers, filter buttons, sort labels, quick stats, activity feed, eval/batch detail tab names, settings panel sections, toolbar tooltips, empty states
+- Scientific terms (Cryo-EM, X-ray, NMR, PDB ID, BLAST, IF) kept in English as they are standard terminology
+- Brand name "PDB Tracker" kept in English

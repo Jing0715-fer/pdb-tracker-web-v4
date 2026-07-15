@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, BarChart3 } from 'lucide-react';
 import type { PdbEntry, WeeklySnapshot, Evaluation, LitPaper } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,7 @@ function ResolutionDistribution({ entries }: { entries: PdbEntry[] }) {
 
 export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers = [], snapshots = [], currentSnapshot }: QuickStatsPanelProps) {
   const [expanded, setExpanded] = useState(false);
+  const { t, locale } = useI18n();
 
   // Weekly stats
   const weeklyStats = useMemo(() => {
@@ -235,10 +237,10 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
       >
         {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
         <BarChart3 className="h-3 w-3" />
-        Quick Stats
+        {t.quickStats}
         {mode === 'weekly' && weeklyStats && (
           <span className="ml-1 text-[10px] text-claude-text-muted">
-            · {weeklyStats.total} structures
+            · {weeklyStats.total} {locale === 'zh' ? '个结构' : 'structures'}
             {weeklyStats.avgRes != null && ` · avg ${weeklyStats.avgRes.toFixed(2)}Å`}
           </span>
         )}

@@ -253,6 +253,31 @@ export const en = {
   defaultBehavior: 'DEFAULT BEHAVIOR',
   dataDisplay: 'DATA DISPLAY',
   notifications: 'NOTIFICATIONS',
+
+  // ─── Sidebar & breadcrumb ────────────────────────────────────────────────
+  pdbTracker: 'PDB Tracker',
+  weeklySnapshotsTitle: 'WEEKLY SNAPSHOTS',
+  evaluationsTitle: 'EVALUATIONS',
+  litReportsTitle: 'LITERATURE REPORTS',
+  structuresCount: 'structures',
+  proteinsCount: 'proteins',
+  batchesCount: 'batches',
+  targetsCount: 'targets',
+  sharedPdbCount: 'shared PDB',
+  noActivityThisWeekFull: 'No activity for this week',
+  attentionScore: 'Attention score',
+  menu: 'Menu',
+  trends: 'Trends',
+  sort: 'Sort',
+  date: 'Date',
+  // Tab names in detail panel
+  tabSummary: 'Summary',
+  tabTargets: 'Targets',
+  tabStructures: 'Structures',
+  tabBLAST: 'BLAST',
+  tabAnalysis: 'Analysis',
+  tabBreakdown: 'Breakdown',
+  tabCompare: 'Compare',
 } as const;
 
 export type Locale = typeof en;
