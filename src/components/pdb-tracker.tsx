@@ -4206,7 +4206,7 @@ export default function PdbTracker() {
                 }`}
                 title={`${tab.label} (${tab.shortcut})`}
               >
-                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="hidden sm:inline">{tab.mode === 'weekly' ? t.modeWeeklyFull : tab.mode === 'evaluation' ? t.modeEvaluationFull : t.modeLiteratureFull}</span>
                 <span className="sm:hidden text-[11px]">{tab.mode === 'weekly' ? t.modeWeeklyShort : tab.mode === 'evaluation' ? t.modeEvaluationShort : t.modeLiteratureShort}</span>
               </button>
             ))}

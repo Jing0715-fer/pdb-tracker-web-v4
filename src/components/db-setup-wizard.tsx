@@ -37,6 +37,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
 } from '@/components/ui/dialog'
+import { useI18n } from '@/lib/i18n'
 import { toast } from 'sonner'
 
 export interface DbStatus {
@@ -151,6 +152,7 @@ async function postDbConfigWithRetry(body: any, maxRetries = 2): Promise<any> {
 }
 
 export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMode = 'choose', contentRef }: DbSetupWizardProps) {
+  const { t, locale } = useI18n()
   const [mode, setMode] = useState<Mode>('choose')
   const [newDbName, setNewDbName] = useState(DEFAULT_NEW_DB_NAME)
   const [newDbDir, setNewDbDir] = useState(DEFAULT_NEW_DB_DIR)
@@ -214,7 +216,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
     const relPath = buildNewFsPath()
     const dbPath = `file:./${relPath.replace(/^\.?\//, '')}`
     setMode('working')
-    setWorkingMsg(`Creating new database ${relPath} and initializing schema…`)
+    setWorkingMsg(`${t.dbSetupCreating} ${relPath} and initializing schema…`)
     setErrorMsg('')
     try {
       await postDbConfigWithRetry({ dbPath, create: true, initSchema: true, confirmed: true })
@@ -223,7 +225,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       const status = await safeJson<DbStatus>(sres)
       setResultStatus(status)
       setMode('done')
-      toast.success('Database created', { description: relPath })
+      toast.success(t.dbSetupCreated, { description: relPath })
     } catch (err: any) {
       setErrorMsg(err?.message || String(err))
       setMode('error')
@@ -233,13 +235,13 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
   const handleSelect = useCallback(async (dbUrl?: string) => {
     const raw = (dbUrl || existingPath || '').trim()
     if (!raw) {
-      setErrorMsg('Please select or enter a database file')
+      setErrorMsg(t.dbSetupSelectPrompt)
       setMode('error')
       return
     }
     const dbPath = raw.startsWith('file:') ? raw : `file:${raw}`
     setMode('working')
-    setWorkingMsg(`Switching to database ${raw.replace(/^file:/, '')} …`)
+    setWorkingMsg(`${t.dbSetupSwitching} ${raw.replace(/^file:/, '')} …`)
     setErrorMsg('')
     try {
       await postDbConfigWithRetry({ dbPath, create: false, initSchema: true, confirmed: true })
@@ -247,7 +249,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       const status = await safeJson<DbStatus>(sres)
       setResultStatus(status)
       setMode('done')
-      toast.success('Database switched', { description: raw.replace(/^file:/, '') })
+      toast.success(t.dbSetupSwitched, { description: raw.replace(/^file:/, '') })
     } catch (err: any) {
       setErrorMsg(err?.message || String(err))
       setMode('error')
@@ -281,10 +283,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
         <DialogHeader className="px-6 pt-7 pb-5 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base leading-none">
             <Database className="h-4 w-4 text-amber-500" />
-            Database Setup
+            {t.dbSetupTitle}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground mt-2.5 leading-relaxed">
-            First-time setup: create a new database file or select an existing one. The Run Center and all 3 modules (Literature / Evaluation / Weekly) will share this database.
+            {t.dbSetupDesc}
           </DialogDescription>
         </DialogHeader>
 
@@ -302,7 +304,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3.5 flex gap-2.5">
                   <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0 mt-0.5" />
                   <div className="text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
-                    <div className="font-semibold mb-0.5">Current database is for testing only</div>
+                    <div className="font-semibold mb-0.5">{t.dbSetupTestTitle}</div>
                     默认的 <code className="font-mono text-3xs bg-amber-500/10 px-1 rounded">db/custom.db</code> is a test database, not for real data. We recommend creating a new database for daily work.
                   </div>
                 </div>
@@ -316,7 +318,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                       <div className="w-8 h-8 rounded-md bg-emerald-500/10 flex items-center justify-center">
                         <FilePlus2 className="h-4 w-4 text-emerald-600" />
                       </div>
-                      <span className="text-sm font-medium">Create New Database</span>
+                      <span className="text-sm font-medium">{t.dbSetupCreate}</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Create a new empty SQLite database file and auto-initialize the schema. Recommended for first use.
@@ -331,7 +333,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                       <div className="w-8 h-8 rounded-md bg-sky-500/10 flex items-center justify-center">
                         <FolderOpen className="h-4 w-4 text-sky-600" />
                       </div>
-                      <span className="text-sm font-medium">Select Existing Database</span>
+                      <span className="text-sm font-medium">{t.dbSetupSelect}</span>
                     </div>
                     <p className="text-xs text-muted-foreground leading-relaxed">
                       Click to select an existing database file from the list. Missing tables will be auto-created.
@@ -342,7 +344,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 {allowSkip && onClose && (
                   <div className="flex justify-end pt-1">
                     <Button variant="ghost" size="sm" className="text-xs h-7" onClick={onClose}>
-                      Skip for now (use current database)
+                      {t.dbSetupSkip}
                     </Button>
                   </div>
                 )}
@@ -359,7 +361,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 className="space-y-4"
               >
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Database Directory (relative to project root)</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t.dbSetupDbDir}</Label>
                   <Input
                     value={newDbDir}
                     onChange={(e) => setNewDbDir(e.target.value)}
@@ -369,7 +371,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                   <p className="text-3xs text-muted-foreground mt-1">Default location: project <code>db/</code> directory.</p>
                 </div>
                 <div>
-                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">Database Filename</Label>
+                  <Label className="text-xs uppercase tracking-wider text-muted-foreground">{t.dbSetupDbName}</Label>
                   <Input
                     value={newDbName}
                     onChange={(e) => setNewDbName(e.target.value)}
@@ -387,7 +389,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                     <ArrowLeft className="h-3 w-3 mr-1" /> Back
                   </Button>
                   <Button size="sm" className="h-8 text-xs" onClick={handleCreate}>
-                    <FilePlus2 className="h-3 w-3 mr-1" /> Create & Initialize
+                    <FilePlus2 className="h-3 w-3 mr-1" /> {t.dbSetupCreateInit}
                   </Button>
                 </div>
               </motion.div>
@@ -408,7 +410,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                   <Input
                     value={dbListSearch}
                     onChange={(e) => setDbListSearch(e.target.value)}
-                    placeholder="Search database files…"
+                    placeholder={t.dbSetupSearchDb}
                     className="h-9 text-xs pl-8 pr-8"
                   />
                   <Button
@@ -426,7 +428,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 {dbListLoading ? (
                   <div className="flex flex-col items-center justify-center py-10 gap-2">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <p className="text-xs text-muted-foreground">Scanning for existing databases…</p>
+                    <p className="text-xs text-muted-foreground">{t.dbSetupScanning}</p>
                   </div>
                 ) : dbListError ? (
                   <div className="rounded-md border border-rose-500/30 bg-rose-500/5 p-3 text-xs text-rose-600">
@@ -436,10 +438,10 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                   <div className="rounded-md border border-dashed border-border/60 bg-muted/20 px-3 py-6 text-center">
                     <FolderOpen className="mx-auto h-5 w-5 text-muted-foreground/60" />
                     <p className="mt-1.5 text-xs text-muted-foreground">
-                      {dbListSearch ? '未找到匹配的数据库' : '未找到已有数据库文件'}
+                      {dbListSearch ? (locale === 'zh' ? '未找到匹配的数据库' : 'No matching databases') : (locale === 'zh' ? '未找到已有数据库文件' : 'No existing database files found')}
                     </p>
                     <p className="text-3xs text-muted-foreground/70 mt-1">
-                      可在下方手动输入路径，或返回BackCreate New Database
+                      {locale === 'zh' ? '可在下方手动输入路径，或返回' : 'Enter a path manually below, or go back to '}{t.dbSetupCreate}
                     </p>
                   </div>
                 ) : (
@@ -506,7 +508,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 {/* Manual path input (fallback) */}
                 <details className="text-xs">
                   <summary className="cursor-pointer text-muted-foreground hover:text-foreground select-none">
-                    Manual path entry (advanced)
+                    {t.dbSetupManualPath}
                   </summary>
                   <div className="mt-2">
                     <Input
@@ -520,7 +522,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
 
                 <div className="rounded-md bg-sky-500/5 border border-sky-500/20 p-3 text-xs text-sky-700 dark:text-sky-300">
                   <ShieldCheck className="h-3.5 w-3.5 inline mr-1" />
-                  If the file is missing PDB Tracker tables, it will auto-run <code className="font-mono text-3xs">prisma db push</code> to create them without clearing existing data.
+                  {t.dbSetupAutoCreate} <code className="font-mono text-3xs">prisma db push</code> {t.dbSetupAutoCreate2}
                 </div>
                 <div className="flex justify-between gap-2 pt-2">
                   <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => setMode('choose')}>
@@ -532,7 +534,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                     onClick={() => handleSelect(selectedDbUrl || undefined)}
                     disabled={!selectedDbUrl && !existingPath.trim()}
                   >
-                    <FolderOpen className="h-3 w-3 mr-1" /> Switch to this Database
+                    <FolderOpen className="h-3 w-3 mr-1" /> {t.dbSetupSwitch}
                   </Button>
                 </div>
               </motion.div>
@@ -625,7 +627,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
                 <div className="flex items-start gap-3 rounded-lg border border-rose-500/30 bg-rose-500/5 p-4">
                   <XCircle className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">Operation Failed</div>
+                    <div className="text-sm font-semibold text-rose-700 dark:text-rose-300">{t.dbSetupOperationFailed}</div>
                     <div className="text-xs text-muted-foreground mt-1 break-all">{errorMsg}</div>
                   </div>
                 </div>

@@ -317,6 +317,55 @@ export const en = {
   // ─── Misc ────────────────────────────────────────────────────────────────
   noDataAvailable: 'No data',
   sortBy: 'Sort',
+
+  // ─── DB Setup Wizard ─────────────────────────────────────────────────────
+  dbSetupTitle: 'Database Setup',
+  dbSetupDesc: 'First-time setup: create a new database file or select an existing one. The Run Center and all 3 modules share this database.',
+  dbSetupTestTitle: 'Current database is for testing only',
+  dbSetupTestDesc: 'is a test database, not for real data. We recommend creating a new database for daily work.',
+  dbSetupCreate: 'Create New Database',
+  dbSetupCreateDesc: 'Create a new empty SQLite database file and auto-initialize the schema. Recommended for first use.',
+  dbSetupSelect: 'Select Existing Database',
+  dbSetupSelectDesc: 'Click to select an existing database file from the list. Missing tables will be auto-created.',
+  dbSetupBack: 'Back',
+  dbSetupCreateInit: 'Create & Initialize',
+  dbSetupSwitch: 'Switch to this Database',
+  dbSetupSearchDb: 'Search database files…',
+  dbSetupRefreshList: 'Refresh List',
+  dbSetupScanning: 'Scanning for existing databases…',
+  dbSetupManualPath: 'Manual path entry (advanced)',
+  dbSetupAutoCreate: 'If the file is missing PDB Tracker tables, it will auto-run',
+  dbSetupAutoCreate2: 'to create them without clearing existing data.',
+  dbSetupOperationFailed: 'Operation Failed',
+  dbSetupBackRetry: 'Back to Retry',
+  dbSetupSkip: 'Skip for now (use current database)',
+  dbSetupDbDir: 'Database Directory (relative to project root)',
+  dbSetupDbDirHint: 'Default location: project',
+  dbSetupDbDirHint2: 'directory.',
+  dbSetupDbName: 'Database Filename',
+  dbSetupDbNameHint: 'Will create a SQLite file with',
+  dbSetupDbNameHint2: 'extension.',
+  dbSetupDbPath: 'Database Path',
+  dbSetupDbPathPlaceholder: 'Enter or paste a database file path',
+  dbSetupSelectPrompt: 'Please select or enter a database file',
+  dbSetupResults: ' results',
+  dbSetupNoDbFound: 'No database files found',
+  dbSetupCurrent: 'Current',
+  dbSetupTables: ' tables',
+  dbSetupCreating: 'Creating new database',
+  dbSetupSwitching: 'Switching to database',
+  dbSetupCreated: 'Database created',
+  dbSetupSwitched: 'Database switched',
+
+  // ─── Mode tabs (desktop) ─────────────────────────────────────────────────
+  modeWeeklyFull: 'Weekly',
+  modeEvaluationFull: 'Evaluation',
+  modeLiteratureFull: 'Literature',
+
+  // ─── Run Center module titles ────────────────────────────────────────────
+  moduleEvalTitle: 'Protein Target Evaluation + LLM Feasibility Report',
+  moduleLitTitle: 'Daily Structural Biology Literature Search',
+  moduleWeeklyTitle: 'Adversarial PDB Weekly Report Generator',
 } as const;
 
 export type Locale = typeof en;

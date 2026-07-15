@@ -317,6 +317,55 @@ export const zh = {
   // ─── Misc ────────────────────────────────────────────────────────────────
   noDataAvailable: '暂无数据',
   sortBy: '排序',
+
+  // ─── DB Setup Wizard ─────────────────────────────────────────────────────
+  dbSetupTitle: '数据库初始化设置',
+  dbSetupDesc: '首次使用前，请创建一个新的数据库文件，或选择一个已有数据库。运行中心与 ① 文献 / ② 评估 / ③ 周报三大模块将共用此数据库。',
+  dbSetupTestTitle: '当前数据库仅供测试',
+  dbSetupTestDesc: '是测试数据库，请勿用于真实数据。建议创建一个新数据库用于日常工作。',
+  dbSetupCreate: '创建新数据库',
+  dbSetupCreateDesc: '新建一个空的 SQLite 数据库文件并自动初始化表结构。推荐首次使用。',
+  dbSetupSelect: '选择已有数据库',
+  dbSetupSelectDesc: '从列表中点击选择一个已存在的数据库文件。会自动补全缺失的表。',
+  dbSetupBack: '上一步',
+  dbSetupCreateInit: '创建并初始化',
+  dbSetupSwitch: '切换到此数据库',
+  dbSetupSearchDb: '搜索数据库文件…',
+  dbSetupRefreshList: '刷新列表',
+  dbSetupScanning: '正在扫描已有数据库…',
+  dbSetupManualPath: '手动输入路径（高级）',
+  dbSetupAutoCreate: '若该文件缺少 PDB Tracker 所需的表结构，会自动运行',
+  dbSetupAutoCreate2: '补全，不会清空已有数据。',
+  dbSetupOperationFailed: '操作失败',
+  dbSetupBackRetry: '返回重试',
+  dbSetupSkip: '暂时跳过（继续使用当前数据库）',
+  dbSetupDbDir: '数据库目录（相对项目根目录）',
+  dbSetupDbDirHint: '默认放在项目',
+  dbSetupDbDirHint2: '目录下。',
+  dbSetupDbName: '数据库名称',
+  dbSetupDbNameHint: '将以',
+  dbSetupDbNameHint2: '后缀创建 SQLite 文件。',
+  dbSetupDbPath: '数据库路径',
+  dbSetupDbPathPlaceholder: '输入或粘贴一个数据库文件路径',
+  dbSetupSelectPrompt: '请选择或输入一个数据库文件',
+  dbSetupResults: '个结果',
+  dbSetupNoDbFound: '未找到数据库文件',
+  dbSetupCurrent: '当前',
+  dbSetupTables: '个表',
+  dbSetupCreating: '正在创建新数据库',
+  dbSetupSwitching: '正在切换到数据库',
+  dbSetupCreated: '数据库已创建',
+  dbSetupSwitched: '数据库已切换',
+
+  // ─── Mode tabs (desktop) ─────────────────────────────────────────────────
+  modeWeeklyFull: '周报',
+  modeEvaluationFull: '评估',
+  modeLiteratureFull: '文献',
+
+  // ─── Run Center module titles ────────────────────────────────────────────
+  moduleEvalTitle: '蛋白靶点评估 + LLM 可行性报告',
+  moduleLitTitle: '每日结构生物学文献检索',
+  moduleWeeklyTitle: '对抗式 PDB 周报生成器',
 } as const;
 
 export type Locale = typeof zh;

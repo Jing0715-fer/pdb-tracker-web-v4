@@ -2595,3 +2595,37 @@ Stage Summary:
 - Chinese mode now covers: sidebar headers, filter buttons, sort labels, quick stats, activity feed, eval sidebar (Individual/Batches + empty states), eval sub-view buttons (Compare/Dashboard/Timeline/Batch Matrix), eval detail tab names, batch detail tab names, settings panel sections, toolbar tooltips, welcome state stats, weekly view chart toggles, PDB table empty states, header subtitle
 - Scientific terms (Cryo-EM, X-ray, NMR, PDB ID, BLAST, IF) kept in English
 - Brand name "PDB Tracker" kept in English
+
+---
+Task ID: i18n-db-wizard-mode-tabs-fonts
+Agent: main
+Task: Add Chinese mode to DB setup wizard, mode tabs, Run Center module titles, improve Chinese fonts
+
+Work Log:
+- **DB Setup Wizard i18n**: Added 35+ i18n keys for db-setup-wizard (dbSetupTitle, dbSetupDesc, dbSetupCreate, dbSetupSelect, dbSetupCreateInit, dbSetupSwitch, dbSetupBack, etc.). Replaced all hardcoded English strings with t.* references. Added useI18n hook. Fixed garbled text from previous sed operations.
+  - Chinese: 数据库初始化设置, 创建新数据库, 选择已有数据库, 创建并初始化, 切换到此数据库, etc.
+- **Mode tabs i18n**: Desktop mode tabs (Weekly/Evaluation/Literature) now use t.modeWeeklyFull/modeEvaluationFull/modeLiteratureFull:
+  - Chinese: 周报/评估/文献
+  - English: Weekly/Evaluation/Literature
+- **Run Center module titles i18n**: All 3 ModuleCard titles now use i18n:
+  - moduleEvalTitle: 蛋白靶点评估 + LLM 可行性报告 / Protein Target Evaluation + LLM Feasibility Report
+  - moduleLitTitle: 每日结构生物学文献检索 / Daily Structural Biology Literature Search
+  - moduleWeeklyTitle: 对抗式 PDB 周报生成器 / Adversarial PDB Weekly Report Generator
+- **Chinese font improvement**: Updated font-family stacks in globals.css:
+  - Sans: Added "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", "WenQuanYi Micro Hei" for better CJK rendering
+  - Mono: Added "Source Han Mono SC", "Noto Sans Mono CJK SC", "Sarasa Mono SC" for monospace CJK
+  - Applied to all font-family declarations (body, code blocks, etc.)
+- Lint: 0 errors, 0 warnings
+- Build: succeeded
+- Browser verification (Chinese mode):
+  - Mode tabs: 周报/评估/文献 ✓
+  - Run Center eval title: 蛋白靶点评估 + LLM 可行性报告 ✓
+  - DB wizard title: 数据库初始化设置 ✓
+  - DB wizard description: 首次使用前，请创建... ✓
+  - DB wizard fields: 数据库目录, 数据库名称, 数据库路径 ✓
+
+Stage Summary:
+- DB Setup Wizard fully translated (title, description, buttons, field labels, error messages, toasts)
+- Mode tabs translated for both desktop (周报/评估/文献) and mobile (same)
+- Run Center 3 module titles translated (蛋白靶点评估/每日结构生物学文献检索/对抗式 PDB 周报生成器)
+- Chinese fonts improved with comprehensive CJK font stack (PingFang SC, Microsoft YaHei, Source Han Sans, etc.)

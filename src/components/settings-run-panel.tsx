@@ -2028,7 +2028,7 @@ export function SettingsRunPanel({
                 icon={<FlaskConical className="h-4 w-4" />}
                 accent="emerald"
                 index="①"
-                title="Protein Target Evaluation + LLM Feasibility Report"
+                title={t.moduleEvalTitle}
                 endpoint="POST /api/evaluations/run"
                 description="UniProt → metadata + sequence → RCSB direct PDB → SIFTS coverage → NCBI BLASTp homology → scoring → atomic tasks include LLM report generation (writes to Evaluation.report + EvaluationReport table + optional LLM-Wiki). Supports multiple UniProt IDs for batch evaluation with cross-target structure and correlation analysis."
                 headerBadge={evalTargets.length > 1 ? (
@@ -2247,7 +2247,7 @@ export function SettingsRunPanel({
                 icon={<BookOpen className="h-4 w-4" />}
                 accent="sky"
                 index="②"
-                title="Daily Structural Biology Literature Search"
+                title={t.moduleLitTitle}
                 endpoint="POST /api/literature/daily/run"
                 description="Dual-pathway PubMed search (Path A: MeSH+method keywords / Path B: high-IF journals+method keywords) → ±N day window → method filter (Cryo-EM / X-ray / NMR / AlphaFold) → dedup+sort → per-paper LLM summary → optional executive summary → writes to PubMedArticle + daily-reports index."
               >
@@ -2375,7 +2375,7 @@ export function SettingsRunPanel({
                 icon={<CalendarClock className="h-4 w-4" />}
                 accent="amber"
                 index="③"
-                title="Adversarial PDB Weekly Report Generator"
+                title={t.moduleWeeklyTitle}
                 endpoint="POST /api/pdb-weekly/run"
                 description="web-v3 in-process 2-step adversarial generator: fetch → backfill → PubMed → Generator → Critic-Scientific → (Synthesis) → write DB. Uses the currently selected LLM provider. SSE streaming progress, non-blocking. Estimated 5-15 min."
               >
