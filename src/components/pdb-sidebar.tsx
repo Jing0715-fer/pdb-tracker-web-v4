@@ -1088,7 +1088,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     </div>
                     {/* Method Distribution Mini Bar */}
                     <div>
-                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">Method Distribution</div>
+                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</div>
                       <div className="flex h-2 rounded-full overflow-hidden bg-claude-border-light dark:bg-[#3d3832]">
                         {(() => {
                           const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -1169,9 +1169,9 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                         </div>
                       )}
                     </div>
-                    {/* Resolution Distribution */}
+                    {/* {locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'} */}
                     <div>
-                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">Resolution Distribution</div>
+                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">{locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'}</div>
                       {(() => {
                         const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
                         const latest = sorted[sorted.length - 1];
@@ -1495,7 +1495,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
 
                         {/* Mini method distribution bars */}
                         <div>
-                          <div className="text-[10px] text-claude-text-muted mb-1">Method Distribution</div>
+                          <div className="text-[10px] text-claude-text-muted mb-1">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</div>
                           <div className="flex items-center gap-1">
                             {snap.cryoemCount > 0 && (
                               <div className="h-1.5 rounded-full bg-claude-cryoem" style={{ width: `${Math.max(8, cryoemPct)}%` }} title={`Cryo-EM: ${snap.cryoemCount}`} />

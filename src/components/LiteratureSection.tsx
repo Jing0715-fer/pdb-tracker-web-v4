@@ -8,6 +8,7 @@ import React, { useMemo, useState, useCallback } from 'react';
 import { ExternalLink, BookOpen, Database, Search, X, ChevronRight, Quote, Calendar, FileText, User, RefreshCw, CloudDownload, FolderOpen, ArrowLeft, BarChart3, TrendingUp, Microscope, Hash, Folder, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useI18n } from '@/lib/i18n';
 import type { PdbEntry } from './types';
 
 interface PdbInfo {
@@ -124,6 +125,7 @@ function getMethodInfo(method: string): { label: string; color: string; bgColor:
 }
 
 export function LiteratureSection({ entries, pdbStructures, blastResults, onSelectPdb, fullWidth = false, loading = false, onRefetch, snapshots, selectedWeekId, onSelectWeek }: LiteratureSectionProps) {
+  const { t, locale } = useI18n();
   const [sortMode, setSortMode] = useState<SortMode>('if');
   const [sortDesc, setSortDesc] = useState(true);
   const [selectedLit, setSelectedLit] = useState<LitGroup | null>(null);
@@ -843,7 +845,7 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search papers by title, author, journal, or PDB ID..."
+          placeholder={t.searchPapers}
           className="w-full pl-8 pr-8 py-2 text-[11px] rounded-lg bg-white dark:bg-[#1c1a18] border border-claude-border/40 dark:border-[#3d3832]/40 text-claude-text placeholder:text-claude-text-muted/40 focus:outline-none focus:ring-2 focus:ring-claude-accent/20 focus:border-claude-accent/40 transition-all"
           autoFocus
         />

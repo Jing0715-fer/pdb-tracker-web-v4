@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from '@/components/ui/tooltip';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Color Maps ──────────────────────────────────────────────────────────
 
@@ -85,6 +86,7 @@ export function SequenceView({
   onResidueClick,
   className = '',
 }: SequenceViewProps) {
+  const { t, locale } = useI18n();
   const isNucleotide = isNucleotideType(moleculeType);
   const colorMap = isNucleotide ? NUCLEOTIDE_COLORS : AMINO_ACID_COLORS;
   const blockSize = 10;
@@ -253,7 +255,7 @@ export function SequenceView({
           title="Copy sequence"
         >
           <Copy className="w-2.5 h-2.5" />
-          <span>Copy</span>
+          <span>{t.copy}</span>
         </button>
         {/* Color mode toggle */}
         <div className="flex items-center gap-0.5 ml-auto">

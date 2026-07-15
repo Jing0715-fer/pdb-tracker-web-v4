@@ -431,6 +431,48 @@ export const en = {
   noCollectionsTitle: 'No collections',
   noCollectionsDesc: 'Right-click a table row to add structures to a collection.',
   collections: 'Collections',
+
+  // ─── Common UI actions ───────────────────────────────────────────────────
+  copy: 'Copy',
+  copied: 'Copied',
+  closeBtn: 'Close',
+  searchEvals: 'Search evaluations…',
+  filterTable: 'Filter table…',
+  searchPapers: 'Search papers by title, author, journal, or PDB ID…',
+  searchAll: 'Search PDB structures, evaluations, papers…',
+  exportDataBtn: 'Export data',
+  markAllRead: 'Mark all read',
+  clearAll: 'Clear all',
+  clearAllActivities: 'Clear all activities',
+  refreshDataBtn: 'Refresh data',
+  selectAllRows: 'Select all rows',
+  changeColor: 'Change color',
+  changeLigandColor: 'Change ligand color',
+  breadcrumb: 'Breadcrumb',
+  copySection: 'Copy section',
+  copySummary: 'Copy summary',
+  regenerateSummary: 'Regenerate summary',
+  collapse: 'Collapse',
+
+  // ─── Comparison panel labels ─────────────────────────────────────────────
+  resolutionLabel: 'Resolution',
+  molprobityScore: 'MolProbity Score',
+  clashScore: 'Clash Score',
+  ramaFavored: 'Rama Favored %',
+  entities: 'Entities',
+  ligands: 'Ligands',
+
+  // ─── Misc labels ─────────────────────────────────────────────────────────
+  acrossWeeks: 'across',
+  weeks: 'weeks',
+  current: 'Current',
+  tables: 'tables',
+  notInitialized: 'Not initialized',
+  saved: 'Saved',
+  saveFailed: 'Save Failed',
+  loadingHistory: 'Loading run history…',
+  recentRuns: 'runs',
+  noMatchingLogs: 'No matching logs',
 } as const;
 
 export type Locale = typeof en;

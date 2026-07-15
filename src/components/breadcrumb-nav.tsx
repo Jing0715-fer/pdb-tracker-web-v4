@@ -4,6 +4,7 @@ import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronRight, Home } from 'lucide-react';
 import type { Mode } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 export interface BreadcrumbSegment {
   label: string;
@@ -41,6 +42,7 @@ export function BreadcrumbNav({
   onModeClick,
   onSubClick,
 }: BreadcrumbNavProps) {
+  const { t, locale } = useI18n();
   const segments: BreadcrumbSegment[] = [
     { label: 'PDB Tracker' },
   ];
@@ -113,7 +115,7 @@ export function BreadcrumbNav({
 
   return (
     <nav
-      aria-label="Breadcrumb"
+      aria-label={t.breadcrumb}
       className="flex items-center gap-1 px-4 py-1.5 bg-claude-bg dark:bg-[#1a1917] border-b border-claude-border-light dark:border-[#2b2926] text-[11px] overflow-hidden min-w-0"
     >
       <Home className="h-3 w-3 text-claude-text-muted flex-shrink-0" />

@@ -265,12 +265,12 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Method Distribution Pie */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Method Distribution</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</div>
                 <SvgPieChart data={weeklyStats.methodDist} />
               </div>
               {/* Resolution Distribution */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Resolution Distribution</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'}</div>
                 <ResolutionDistribution entries={entries} />
               </div>
               {/* Top Journals */}
@@ -327,7 +327,7 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Method Distribution Pie */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Method Distribution</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</div>
                 {litStats.methodDist.length > 0 ? (
                   <SvgPieChart data={litStats.methodDist} />
                 ) : (

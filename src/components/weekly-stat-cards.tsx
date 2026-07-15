@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import { Database, Aperture, Cpu, Trophy } from 'lucide-react';
@@ -15,6 +16,7 @@ interface WeeklyStatCardsProps {
 }
 
 export function WeeklyStatCards({ snapshot, entries, loading, snapshots = [] }: WeeklyStatCardsProps) {
+  const { locale } = useI18n();
   const totalStructures = snapshot?.totalStructures ?? entries.length;
 
   const resolutions = entries.filter(e => e.resolution != null).map(e => e.resolution!);
@@ -57,7 +59,7 @@ export function WeeklyStatCards({ snapshot, entries, loading, snapshots = [] }: 
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-2 sm:p-3 min-w-0 stagger-list [grid-auto-rows:1fr]">
       {/* Total Structures — Method Donut showing composition */}
       <StatCard
-        title="Total Structures"
+        title={locale === "zh" ? "结构总数" : "Total Structures"}
         value={totalStructures}
         icon={<Database className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#2d8f8f] to-[#1a6b6b]"
@@ -73,7 +75,7 @@ export function WeeklyStatCards({ snapshot, entries, loading, snapshots = [] }: 
 
       {/* Avg Resolution — Resolution Gauge */}
       <StatCard
-        title="Avg Resolution"
+        title={locale === "zh" ? "平均分辨率" : "Avg Resolution"}
         value={avgResolution}
         suffix="Å"
         decimals={2}
@@ -101,7 +103,7 @@ export function WeeklyStatCards({ snapshot, entries, loading, snapshots = [] }: 
 
       {/* Cryo-EM Share — Mini Bar */}
       <StatCard
-        title="Cryo-EM Share"
+        title={locale === "zh" ? "Cryo-EM 占比" : "Cryo-EM Share"}
         value={cryoemPct}
         suffix="%"
         decimals={1}

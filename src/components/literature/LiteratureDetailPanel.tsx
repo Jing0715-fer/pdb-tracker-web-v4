@@ -12,6 +12,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import { PdbStructureViewer } from '@/components/PdbStructureViewer';
 import { CitationFormatSelector } from './CitationFormatSelector';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n';
 
 interface LiteratureDetailPanelProps {
   paper: LitPaper | null;
@@ -189,6 +190,7 @@ export function LiteratureDetailPanel({
   onProgressChange,
   onMarkComplete,
 }: LiteratureDetailPanelProps) {
+  const { t, locale } = useI18n();
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [viewerPdbId, setViewerPdbId] = useState<string | null>(null);
@@ -285,7 +287,7 @@ export function LiteratureDetailPanel({
                 <X className="h-4 w-4" />
               </button>
             </TooltipTrigger>
-            <TooltipContent side="left"><p>Close</p></TooltipContent>
+            <TooltipContent side="left"><p>{t.closeBtn}</p></TooltipContent>
           </Tooltip>
         </div>
 

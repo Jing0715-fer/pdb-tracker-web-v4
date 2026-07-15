@@ -431,6 +431,48 @@ export const zh = {
   noCollectionsTitle: '暂无集合',
   noCollectionsDesc: '右键点击表格行，将结构添加到集合中。',
   collections: '集合',
+
+  // ─── Common UI actions ───────────────────────────────────────────────────
+  copy: '复制',
+  copied: '已复制',
+  closeBtn: '关闭',
+  searchEvals: '搜索评估…',
+  filterTable: '筛选表格…',
+  searchPapers: '按标题、作者、期刊或 PDB ID 搜索论文…',
+  searchAll: '搜索 PDB 结构、评估、论文…',
+  exportDataBtn: '导出数据',
+  markAllRead: '全部标记为已读',
+  clearAll: '全部清除',
+  clearAllActivities: '清除所有活动',
+  refreshDataBtn: '刷新数据',
+  selectAllRows: '全选行',
+  changeColor: '更改颜色',
+  changeLigandColor: '更改配体颜色',
+  breadcrumb: '面包屑导航',
+  copySection: '复制此节',
+  copySummary: '复制摘要',
+  regenerateSummary: '重新生成摘要',
+  collapse: '收起',
+
+  // ─── Comparison panel labels ─────────────────────────────────────────────
+  resolutionLabel: '分辨率',
+  molprobityScore: 'MolProbity 评分',
+  clashScore: '冲突评分',
+  ramaFavored: 'Ramachandran 优选 %',
+  entities: '实体',
+  ligands: '配体',
+
+  // ─── Misc labels ─────────────────────────────────────────────────────────
+  acrossWeeks: '共',
+  weeks: '周',
+  current: '当前',
+  tables: '个表',
+  notInitialized: '未初始化',
+  saved: '已保存',
+  saveFailed: '保存失败',
+  loadingHistory: '加载运行历史…',
+  recentRuns: '次运行',
+  noMatchingLogs: '无匹配日志',
 } as const;
 
 export type Locale = typeof zh;

@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Wifi, WifiOff, HardDrive, Trash2 } from 'lucide-react';
 import { formatCacheSize, getCacheSize, clearAllCache, useOnlineStatus } from '@/lib/cache-utils';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export function CacheStatusIndicator({
   compact = false,
   className = '',
 }: CacheStatusIndicatorProps) {
+  const { t, locale } = useI18n();
   const isOnline = useOnlineStatus();
   const [cacheSize, setCacheSize] = useState(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -166,8 +168,8 @@ export function CacheStatusIndicator({
           }}
           disabled={refreshing || !isOnline}
           className="ml-0.5 h-4 w-4 rounded flex items-center justify-center text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Refresh data"
-          aria-label="Refresh data"
+          title={t.refreshDataBtn}
+          aria-label={t.refreshDataBtn}
         >
           <RefreshCw
             className={`h-2.5 w-2.5 ${refreshing ? 'animate-spin' : ''}`}

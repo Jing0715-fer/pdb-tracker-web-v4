@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import {
@@ -464,23 +465,24 @@ interface WeeklyDashboardChartsProps {
 }
 
 export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardChartsProps) {
+  const { t, locale } = useI18n();
   const hasEntries = entries.length > 0;
   const hasSnapshots = snapshots.length > 0;
 
   if (!hasEntries && !hasSnapshots) {
     return (
       <div className="p-4 text-center text-[11px] text-claude-text-muted">
-        No data available for dashboard charts
+        {locale === 'zh' ? '仪表盘图表暂无数据' : 'No data available for dashboard charts'}
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-      {/* Method Distribution */}
+      {/* {locale === 'zh' ? '方法分布' : 'Method Distribution'} */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Method Distribution
+          {locale === 'zh' ? '方法分布' : 'Method Distribution'}
         </div>
         <MethodDistributionChart entries={entries} />
       </div>
@@ -488,15 +490,15 @@ export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardCha
       {/* Resolution Histogram */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Resolution Distribution
+          {locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'}
         </div>
         <ResolutionHistogramChart entries={entries} />
       </div>
 
-      {/* Weekly Trend */}
+      {/* {locale === 'zh' ? '周趋势' : 'Weekly Trend'} */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Weekly Trend
+          {locale === 'zh' ? '周趋势' : 'Weekly Trend'}
         </div>
         <WeeklyTrendChart snapshots={snapshots} />
         {/* Legend */}
@@ -519,7 +521,7 @@ export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardCha
       {/* Journal Impact */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Top Journals by Impact Factor
+          {locale === 'zh' ? '高影响因子期刊' : 'Top Journals by Impact Factor'}
         </div>
         <JournalImpactChart entries={entries} />
         {/* IF Tier Legend */}

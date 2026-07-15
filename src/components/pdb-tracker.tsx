@@ -2554,7 +2554,7 @@ export default function PdbTracker() {
                 </span>
               </div>
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Resolution</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className={`text-sm font-mono font-semibold ${
                   pdbEntry.resolution != null
                     ? pdbEntry.resolution <= 2.0 ? 'text-green-600 dark:text-green-400'
@@ -3099,7 +3099,7 @@ export default function PdbTracker() {
                 </span>
               </div>
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Resolution</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className="flex items-center gap-1.5">
                   {resDotColor && <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
                     row.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
@@ -3967,7 +3967,7 @@ export default function PdbTracker() {
                 </span>
               </div>
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Resolution</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className="flex items-center gap-1.5">
                   {selectedEntry.resolution != null && selectedEntry.resolution < 2.5 ? <span className="inline-block h-2 w-2 rounded-full flex-shrink-0 bg-emerald-500" title="High resolution (<2.5Å)" /> : null}
                   {selectedEntry.resolution != null && selectedEntry.resolution >= 2.5 && selectedEntry.resolution < 3.5 ? <span className="inline-block h-2 w-2 rounded-full flex-shrink-0 bg-amber-500" title="Medium resolution (<3.5Å)" /> : null}

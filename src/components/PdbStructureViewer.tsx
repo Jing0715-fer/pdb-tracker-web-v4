@@ -47,6 +47,7 @@ import {
   CollapsibleContent,
 } from '@/components/ui/collapsible';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -568,6 +569,7 @@ function ChainRowItem({
   onSoloEntity: (entityKey: string | null) => void;
   onFocusOnTarget: (target: string, type: 'entity' | 'ligand') => void;
 }) {
+  const { t, locale } = useI18n();
   const chainKey = `${pdbId}.${chain.chain}`;
   const color = entityColors[chainKey] || '#718096';
   const isVisible = soloEntity ? soloEntity === chainKey : entityVisibility[chainKey] !== false;
@@ -584,8 +586,8 @@ function ChainRowItem({
         onClick={(e) => onColorDotClick(e, 'entity', chainKey)}
         className="w-3 h-3 rounded-full flex-shrink-0 border border-white/30 dark:border-gray-500/50 shadow-sm hover:scale-125 transition-transform focus:outline-none"
         style={{ backgroundColor: color }}
-        aria-label="Change color"
-        title="Change color"
+        aria-label={t.changeColor}
+        title={t.changeColor}
       />
 
       {/* Chain ID badge */}
@@ -666,6 +668,7 @@ function LigandRowItem({
   onSoloLigand: (ligandCode: string | null) => void;
   onFocusOnTarget: (target: string, type: 'entity' | 'ligand') => void;
 }) {
+  const { t, locale } = useI18n();
   const color = ligandColors[code] || '#d69e2e';
   const isVisible = soloLigand ? soloLigand === code : ligandVisibility[code] !== false;
   const isSolo = soloLigand === code;
@@ -683,7 +686,7 @@ function LigandRowItem({
             onClick={(e) => onColorDotClick(e, 'ligand', code)}
             className="w-3 h-3 rounded-full flex-shrink-0 border border-white/30 dark:border-gray-500/50 shadow-sm hover:scale-125 transition-transform focus:outline-none"
             style={{ backgroundColor: color }}
-            aria-label="Change ligand color"
+            aria-label={t.changeLigandColor}
             title="Change color"
           />
 

@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/command';
 import type { PdbEntry, Evaluation, LitPaper } from '@/lib/pdb-types';
 import { getMethodLabel } from '@/components/pdb-helpers';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Search Result Types ──────────────────────────────────────────────────────
 
@@ -261,6 +262,7 @@ export function CommandPalette({
   onApplyQuickFilter,
   onSetSearchQuery,
 }: CommandPaletteProps) {
+  const { t, locale } = useI18n();
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResults>({ entries: [], evaluations: [], papers: [] });
   // Track the query that produced the current results, to derive loading state
@@ -530,7 +532,7 @@ export function CommandPalette({
             <div className="flex items-center border-b border-claude-border dark:border-[#3d3832] px-3">
               <Search className="h-4 w-4 shrink-0 text-claude-text-muted" />
               <CommandInput
-                placeholder="Search PDB structures, evaluations, papers..."
+                placeholder={t.searchAll}
                 className="flex h-11 w-full bg-transparent py-3 text-sm text-claude-text placeholder:text-claude-text-muted outline-none"
                 value={searchValue}
                 onValueChange={setSearchValue}

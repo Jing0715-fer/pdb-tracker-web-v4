@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import {
@@ -16,6 +17,7 @@ interface WeeklyStatsTimelineProps {
 }
 
 export function WeeklyStatsTimeline({ snapshots }: WeeklyStatsTimelineProps) {
+  const { locale } = useI18n();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
   const axisColor = getChartAxisColor(isDark);
@@ -120,7 +122,7 @@ export function WeeklyStatsTimeline({ snapshots }: WeeklyStatsTimelineProps) {
                   {data.avgResolution != null && (
                     <div className="flex items-center gap-2 py-0.5">
                       <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: resLineColor }} />
-                      <span className="text-claude-text-secondary">Avg Resolution</span>
+                      <span className="text-claude-text-secondary">{locale === "zh" ? "平均分辨率" : "Avg Resolution"}</span>
                       <span className="font-mono font-medium ml-auto text-claude-text">{data.avgResolution.toFixed(2)}Å</span>
                     </div>
                   )}

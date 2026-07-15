@@ -539,7 +539,7 @@ export function WeeklyPdbTable({
           { icon: '\uD83D\uDD04', text: 'Click Retry to reload' },
           { icon: '\uD83D\uDCC5', text: 'Try a different week' },
         ] : [
-          { icon: '\uD83D\uDD0D', text: 'Clear all filters' },
+          { icon: '\uD83D\uDD0D', text: (locale === 'zh' ? '清除所有筛选' : 'Clear all filters') },
           { icon: '\uD83D\uDCC5', text: 'Try a different week' },
           { icon: '\uD83D\uDD2C', text: 'Search by PDB ID' },
         ]}
@@ -568,7 +568,7 @@ export function WeeklyPdbTable({
                 checked={allSelected ? true : someSelected ? 'indeterminate' : false}
                 onCheckedChange={handleSelectAll}
                 className="indeterminate-checkbox data-[state=checked]:bg-[#c96442] data-[state=checked]:border-[#c96442]"
-                aria-label="Select all rows"
+                aria-label={t.selectAllRows}
               />
             </th>
 

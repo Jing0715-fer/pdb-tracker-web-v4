@@ -21,6 +21,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import type { PdbEntry } from './types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -39,6 +40,7 @@ interface AnalysisSection {
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export function AiAnalysisPanel({ entry }: AiAnalysisPanelProps) {
+  const { t, locale } = useI18n();
   const [analysis, setAnalysis] = useState<AnalysisSection[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -197,7 +199,7 @@ export function AiAnalysisPanel({ entry }: AiAnalysisPanelProps) {
                   <button
                     onClick={(e) => { e.stopPropagation(); copySection(section.id, section.content); }}
                     className="p-1 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors opacity-0 group-hover:opacity-100"
-                    title="Copy section"
+                    title={t.copySection}
                   >
                     {isCopied ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3 text-claude-text-muted" />}
                   </button>
