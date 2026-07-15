@@ -461,41 +461,83 @@ const CLI_ADAPTERS: CliAdapter[] = [
 function wslRegistryInfo(): { defaultDistro: string; distros: string[] } | null {
   if (process.platform !== 'win32') return null;
   try {
-    // execSync imported at top of file; safe since we already gated on `process.platform === 'win32'`.
-    // `reg query` enumerates distros; use ASCII codepage to avoid UTF-8 decode errors.
-    const out = execSync('reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Lxss" /s', {
-      timeout: 5_000,
+    // Primary strategy: `wsl.exe -l -v` lists distros with NUL-separated columns.
+    // The default distro is marked with a leading `*`. This is more reliable
+    // than `reg query` because the registry layout (nested vs flat subkeys)
+    // varies between Windows 10 and Windows 11, between `reg.exe` versions,
+    // and between process user contexts (sandboxed tool shells vs the dev
+    // server's normal Win32 child process).
+    const wslList = execSync('wsl.exe -l -v', {
+      timeout: 10_000,
       encoding: 'buffer',
       windowsHide: true,
     });
-    const text = Buffer.from(out).toString('latin1');
-    const uuids: string[] = [];
-    const uuid2name: Record<string, string> = {};
+    const cleaned = Buffer.from(wslList).toString('utf8').replace(/\0/g, ' ').replace(/\t/g, ' ');
+    // Each line: "*  Debian  Running  2" or "   Ubuntu  Stopped  2"
+    // Split on any whitespace run, drop header + empty lines.
+    const lines = cleaned.split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/^NAME\b/i.test(l));
+    const distros: string[] = [];
     let defaultDistro = '';
-    // Split into per-subkey blocks
-    const blocks = text.split(/\r?\n\s*\r?\n/);
-    for (const blk of blocks) {
-      const uuidMatch = blk.match(/\\\\([\w-]{36})\s*$/m);
-      if (!uuidMatch) continue;
-      const uuid = uuidMatch[1];
-      uuids.push(uuid);
-      const nameMatch = blk.match(/DistributionName\s+REG_SZ\s+(.+)/);
-      if (nameMatch) uuid2name[uuid] = nameMatch[1].trim();
+    for (const line of lines) {
+      // Mark default with leading '*'
+      const isDefault = /^\*/.test(line);
+      const tokens = line.split(/\s{2,}|\s+/).map((t) => t.trim()).filter(Boolean);
+      // tokens[0] may be '*' if default; tokens[1] (or [0]) is the name.
+      // Skip state (Running/Stopped) and version.
+      const name = (isDefault ? tokens[1] : tokens[0]) || '';
+      if (!name || /^(running|stopped|installing)$/i.test(name)) continue;
+      distros.push(name);
+      if (isDefault && !defaultDistro) defaultDistro = name;
     }
-    const defaultMatch = text.match(/DefaultDistribution\s+REG_SZ\s+\{?([\w-]+)\}?/);
-    if (defaultMatch) {
-      const uuid = defaultMatch[1];
-      defaultDistro = uuid2name[uuid] || uuid;
+    if (distros.length === 0) {
+      // Fallback: parse `reg query` (older Windows 10 may use the nested
+      // subkey layout where each distro lives in its own UUID block).
+      const out = execSync('reg query "HKCU\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Lxss" /s', {
+        timeout: 5_000,
+        encoding: 'buffer',
+        windowsHide: true,
+      });
+      const text = Buffer.from(out).toString('latin1');
+      const uuids: string[] = [];
+      const uuid2name: Record<string, string> = {};
+      const blocks = text.split(/\r?\n\s*\r?\n/);
+      for (const blk of blocks) {
+        const uuidMatch = blk.match(/\\\\([\w-]{36})\s*$/m);
+        if (!uuidMatch) continue;
+        const uuid = uuidMatch[1];
+        uuids.push(uuid);
+        const nameMatch = blk.match(/DistributionName\s+REG_SZ\s+(.+)/);
+        if (nameMatch) uuid2name[uuid] = nameMatch[1].trim();
+      }
+      const defaultMatch = text.match(/DefaultDistribution\s+REG_SZ\s+\{?([\w-]+)\}?/);
+      if (defaultMatch) {
+        const uuid = defaultMatch[1];
+        defaultDistro = uuid2name[uuid] || uuid;
+      }
+      for (const u of uuids) {
+        const n = uuid2name[u] || u;
+        if (n) distros.push(n);
+      }
     }
-    const distros = uuids.map((u) => uuid2name[u] || u).filter(Boolean);
     if (distros.length === 0) return null;
     return { defaultDistro: defaultDistro || distros[0], distros };
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-/** Resolve the WSL distro name to invoke. Priority: WSL_DISTRO env > WSLRegistry default > "Debian". */
+/** Resolve the WSL distro name to invoke.
+ * Priority: WSL_DISTRO env > registry default distro > "Debian" fallback.
+ * Caches the registry lookup so repeated calls don't spawn `wsl.exe -l -v`. */
+let _cachedDistro: string | null = null;
 function wslTargetDistro(): string {
-  return process.env.WSL_DISTRO || 'Debian';
+  if (process.env.WSL_DISTRO) return process.env.WSL_DISTRO;
+  if (_cachedDistro !== null) return _cachedDistro;
+  const info = wslRegistryInfo();
+  _cachedDistro = info?.defaultDistro || 'Debian';
+  return _cachedDistro;
 }
 
 /** Lightweight readiness check — runs `true` in the default distro. Long timeout because
@@ -556,7 +598,14 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
 /** Try to find `bin` inside WSL PATH. Returns path or null. */
 async function findOnWsl(bin: string): Promise<string | null> {
   try {
-    const r = await runInWsl(`command -v ${bin} 2>/dev/null || which ${bin} 2>/dev/null`, 30_000);
+    // NB: must use `bash -lc '<cmd>'` form, NOT `wsl.exe -d <distro> -- <cmd>`.
+    // The latter treats the entire `<cmd>` string as a single executable
+    // path, so `command -v claude 2>/dev/null || which claude 2>/dev/null`
+    // fails with exit 127 / "No such file or directory" (the whole
+    // shell-snippet is taken as a filename). Using bash -lc with the
+    // command wrapped in single quotes is the form that `probeCliInWsl`
+    // already uses successfully (line below).
+    const r = await runInWsl(`bash -lc "command -v ${bin} 2>/dev/null || which ${bin} 2>/dev/null"`, 30_000);
     if (r.code !== 0) return null;
     const first = r.stdout.split('\n').map((line) => line.trim()).find(Boolean);
     return first || null;

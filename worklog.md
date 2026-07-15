@@ -2200,3 +2200,40 @@ Stage Summary:
 - 2 fake batches with 4 evaluations seeded for testing
 - Tour polished: concise descriptions, keyboard nav, production-ready quality
 - Key files: evaluation-view.tsx (BatchCommonPdbView), pdb-tracker.tsx (batch detail panel + delete), tour-overlay.tsx (keyboard nav + descriptions), scripts/seed-batch-data.mjs
+
+---
+Task ID: merge-latest-and-fix-load
+Agent: main
+Task: Merge latest code from GitHub repo + fix page load + improve WSL detection
+
+Work Log:
+- Cloned latest code from https://github.com/Jing0715-fer/pdb-tracker-web-v4.git (commit 0b42d76)
+- Found 5 new commits since our base (f8a8a15):
+  - Contains updated llm.ts with improved WSL detection (wsl.exe -l -v primary strategy + reg query fallback)
+  - Contains E2E test timeout bump
+  - Our tour/batch/delete improvements are NOT in the repo (we need to keep ours)
+- Diffed all files: our src files have our improvements (BatchCommonPdbView, keyboard nav, delete, etc.)
+  - Only llm.ts needed syncing from repo
+- Synced latest llm.ts from repo (1254 lines, has wsl.exe -l -v detection)
+- Fixed WSL detection: `wslTargetDistro()` now uses detected default distro from `wslRegistryInfo()` instead of always returning "Debian":
+  - Priority: WSL_DISTRO env > registry default distro > "Debian" fallback
+  - Caches the registry lookup to avoid repeated `wsl.exe -l -v` calls
+- Fixed page load issue: DB file (pdb-tracker.db) was 0 bytes / missing from standalone
+  - Updated start-standalone.sh to:
+    - Always sync .hermes/db-config.json from canonical location
+    - Check if pdb-tracker.db exists and is non-empty, copy to standalone
+    - Fallback to custom.db (always has schema) if pdb-tracker.db is empty
+    - Ensure .env points to correct DATABASE_URL
+    - Ensure prisma/schema.prisma is copied for prisma db push
+- Rebuilt standalone, deployed, verified:
+  - Page: 200 (2ms via Caddy)
+  - All API routes: 200 (db-config, entries, evaluations, snapshots, activity)
+  - Browser: page loads fully with all UI elements
+  - Evaluation mode: 2 batches visible (HER2/HER3, Ubiquitin System)
+  - Batch detail: common PDB table + sub-target chips + right panel all working
+
+Stage Summary:
+- Latest repo code merged: llm.ts WSL detection improvements (wsl.exe -l -v + reg query fallback)
+- WSL distro detection fixed: uses detected default instead of hardcoded "Debian"
+- Page load fixed: start-standalone.sh now ensures DB is properly set up on each start
+- All features verified working: page, API, evaluation mode, batch view
