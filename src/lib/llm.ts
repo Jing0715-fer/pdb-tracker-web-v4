@@ -695,8 +695,12 @@ interface AdapterProbes {
 }
 
 let _probeCache: Promise<Record<string, AdapterProbes>> | null = null;
-function probeAll(): Promise<Record<string, AdapterProbes>> {
-  if (_probeCache) return _probeCache;
+let _probeCacheAt = 0;
+const PROBE_TTL_MS = 5 * 60_000; // 5 minutes — re-probe if older
+function probeAll(force = false): Promise<Record<string, AdapterProbes>> {
+  const ageOk = Date.now() - _probeCacheAt < PROBE_TTL_MS;
+  if (_probeCache && ageOk && !force) return _probeCache;
+  if (_probeCache && force) _probeCache = null;
   _probeCache = (async () => {
     // Kick off WSL check in the background. Native probes return immediately so the UI is
     // responsive; WSL entries appear later when the readiness probe + per-CLI probes finish.
@@ -717,6 +721,7 @@ function probeAll(): Promise<Record<string, AdapterProbes>> {
         }
       }
     }
+    _probeCacheAt = Date.now();
     return out;
   })();
   return _probeCache;
@@ -747,7 +752,7 @@ async function probeCliInWsl(adapter: CliAdapter): Promise<ProbeOk | ProbeErr> {
 }
 
 // Allow callers (tests or admin endpoints) to force-refresh.
-export function clearLlmProbeCache(): void { _probeCache = null; }
+export function clearLlmProbeCache(): void { _probeCache = null; _probeCacheAt = 0; }
 
 // ─── Provider enumeration (for the front-end settings panel) ──────────────────
 

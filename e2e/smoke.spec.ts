@@ -23,8 +23,11 @@ test.describe('PDB Tracker v15 E2E smoke', () => {
   });
 
   test('API: llm/providers lists available CLI providers', async ({ request }) => {
-    // WSL probe can take up to 45s on first launch; use a generous timeout.
-    const res = await request.get('/api/llm/providers', { timeout: 60_000 });
+    // WSL probe can take up to 45s on first launch. The test-level
+    // timeout default is 30s, so bump both. Probe cache also has a 5min
+    // TTL so subsequent runs are fast.
+    test.setTimeout(75_000);
+    const res = await request.get('/api/llm/providers', { timeout: 70_000 });
     expect(res.status()).toBe(200);
     const json = await res.json();
     expect(json).toHaveProperty('available');
