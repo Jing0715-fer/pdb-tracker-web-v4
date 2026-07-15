@@ -278,6 +278,45 @@ export const en = {
   tabAnalysis: 'Analysis',
   tabBreakdown: 'Breakdown',
   tabCompare: 'Compare',
+
+  // ─── Weekly mode ─────────────────────────────────────────────────────────
+  proteinDataBank: 'Protein Data Bank Weekly Monitor',
+  totalStructures: 'Total Structures',
+  avgResolution: 'Avg Resolution',
+  cryoemCount: 'Cryo-EM',
+  xrayCount: 'X-ray',
+  nmrCount: 'NMR',
+  entries: 'entries',
+  noStructuresTryAdjusting: 'No structures found. Try adjusting your filters or selecting a different week.',
+  welcome: 'Welcome',
+  getStarted: 'Get Started',
+
+  // ─── Evaluation mode ─────────────────────────────────────────────────────
+  individualEvalsFull: 'Individual Evaluations',
+  evalBatchesFull: 'Evaluation Batches',
+  compare: 'Compare',
+  dashboard: 'Dashboard',
+  timeline: 'Timeline',
+  batchMatrix: 'Batch Matrix',
+  backToList: '← Back to list',
+  noEvaluationsYet: 'No evaluations yet',
+
+  // ─── Literature mode ─────────────────────────────────────────────────────
+  noPapersFound: 'No papers found',
+  readingList: 'Reading List',
+  source: 'Source',
+  sourceAll: 'All',
+  sourceDaily: 'Daily',
+  journal: 'Journal',
+  showCharts: 'Show Charts',
+  papers: 'papers',
+  total: 'total',
+  notes: 'Notes',
+  tags: 'Tags',
+
+  // ─── Misc ────────────────────────────────────────────────────────────────
+  noDataAvailable: 'No data',
+  sortBy: 'Sort',
 } as const;
 
 export type Locale = typeof en;

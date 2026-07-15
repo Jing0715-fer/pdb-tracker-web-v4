@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useCallback, useRef, useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
@@ -368,6 +369,7 @@ export function WeeklyPdbTable({
   // Use visible columns if provided, otherwise fall back to all columns
   const columns = visibleColumns ?? WEEKLY_TABLE_COLUMNS;
   const visibleFields = new Set(columns.map(c => c.field));
+  const { t, locale } = useI18n();
 
   // Ref for shift-click range selection
   const lastClickedIdx = useRef<number | null>(null);
@@ -523,10 +525,10 @@ export function WeeklyPdbTable({
     return (
       <EnhancedEmptyState
         icon={<Database className="h-10 w-10" />}
-        title={fetchError ? 'Failed to load structures' : 'No structures found'}
+        title={fetchError ? (locale === 'zh' ? '加载结构失败' : 'Failed to load structures') : (locale === 'zh' ? '未找到结构' : 'No structures found')}
         description={fetchError
           ? 'The server may be temporarily unavailable. Please try again.'
-          : 'Try adjusting your filters or selecting a different week to find PDB structures.'}
+          : (locale === 'zh' ? '请尝试调整筛选条件或选择其他周次来查找 PDB 结构。' : 'Try adjusting your filters or selecting a different week to find PDB structures.')}
         accentColor={fetchError ? '#dc2626' : '#2d8f8f'}
         action={fetchError && onRetry ? {
           label: 'Retry',

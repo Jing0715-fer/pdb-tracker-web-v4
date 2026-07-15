@@ -278,6 +278,45 @@ export const zh = {
   tabAnalysis: '分析',
   tabBreakdown: '分解',
   tabCompare: '对比',
+
+  // ─── Weekly mode ─────────────────────────────────────────────────────────
+  proteinDataBank: '蛋白质数据银行每周监控',
+  totalStructures: '结构总数',
+  avgResolution: '平均分辨率',
+  cryoemCount: 'Cryo-EM',
+  xrayCount: 'X-ray',
+  nmrCount: 'NMR',
+  entries: '条目',
+  noStructuresTryAdjusting: '未找到结构。请尝试调整筛选条件或选择其他周次。',
+  welcome: '欢迎',
+  getStarted: '开始使用',
+
+  // ─── Evaluation mode ─────────────────────────────────────────────────────
+  individualEvalsFull: '单独评估',
+  evalBatchesFull: '批量评估',
+  compare: '对比',
+  dashboard: '仪表盘',
+  timeline: '时间线',
+  batchMatrix: '批量矩阵',
+  backToList: '← 返回列表',
+  noEvaluationsYet: '暂无评估',
+
+  // ─── Literature mode ─────────────────────────────────────────────────────
+  noPapersFound: '暂无论文',
+  readingList: '阅读列表',
+  source: '来源',
+  sourceAll: '全部',
+  sourceDaily: '日报',
+  journal: '期刊',
+  showCharts: '显示图表',
+  papers: '篇论文',
+  total: '共',
+  notes: '笔记',
+  tags: '标签',
+
+  // ─── Misc ────────────────────────────────────────────────────────────────
+  noDataAvailable: '暂无数据',
+  sortBy: '排序',
 } as const;
 
 export type Locale = typeof zh;

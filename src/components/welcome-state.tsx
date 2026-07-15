@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/lib/i18n';
 import {
   Database,
   FlaskConical,
@@ -196,13 +197,14 @@ export function WelcomeState({
   onOpenSearch,
   onShowKeyboardHints,
 }: WelcomeStateProps) {
+  const { t, locale } = useI18n();
   const modeConfig = MODE_CONFIG[mode];
 
   // Build stats based on mode
   const getWeeklyStats = () => [
-    { label: 'Total Structures', value: totalEntries, icon: Layers, color: '#2d8f8f' },
+    { label: locale === 'zh' ? '结构总数' : 'Total Structures', value: totalEntries, icon: Layers, color: '#2d8f8f' },
     {
-      label: 'Avg Resolution',
+      label: locale === 'zh' ? '平均分辨率' : 'Avg Resolution',
       value: avgResolution ? avgResolution.toFixed(1) : '—',
       suffix: avgResolution ? 'Å' : undefined,
       icon: Microscope,

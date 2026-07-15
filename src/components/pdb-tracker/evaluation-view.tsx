@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useI18n } from '@/lib/i18n';
 import {
   ArrowRightLeft, LayoutDashboard, Clock, Database, FlaskConical, CheckCircle2, Target,
   Layers, FileText, Share2, ExternalLink, Box, Info, ArrowUpRight, Dna, Microscope, BarChart3,
@@ -1474,6 +1475,7 @@ export function EvaluationView({
   onSelectSubTarget,
   onOpenBatchReport,
 }: EvaluationViewProps) {
+  const { t } = useI18n();
   // Sub-view: toolbar + full-width component
   const currentSubView: string = evalSubView;
   if (evalSubView === 'compare' || evalSubView === 'dashboard' || evalSubView === 'timeline' || evalSubView === 'batch') {
@@ -1497,7 +1499,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'compare' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <ArrowRightLeft className="h-3 w-3 mr-1" />
-              Compare
+              {t.compare}
             </Button>
             <Button
               variant="ghost"
@@ -1506,7 +1508,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'dashboard' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <LayoutDashboard className="h-3 w-3 mr-1" />
-              Dashboard
+              {t.dashboard}
             </Button>
             <Button
               variant="ghost"
@@ -1515,7 +1517,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'timeline' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <Clock className="h-3 w-3 mr-1" />
-              Timeline
+              {t.timeline}
             </Button>
             <Button
               variant="ghost"
@@ -1524,7 +1526,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'batch' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <Database className="h-3 w-3 mr-1" />
-              Batch Matrix
+              {t.batchMatrix}
             </Button>
           </div>
         </div>
@@ -1616,7 +1618,7 @@ export function EvaluationView({
             className="h-7 px-2.5 text-[11px] text-claude-text-muted ml-auto"
             title="Exit batch detail"
           >
-            ← Back to list
+            ← {t.backToList}
           </Button>
         )}
       </div>

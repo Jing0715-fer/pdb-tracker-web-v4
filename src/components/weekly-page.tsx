@@ -71,6 +71,7 @@ export function WeeklyPageControls({
 
   const FILTER_CHIPS = useFilterChips();
   const SORT_OPTIONS = useSortOptions();
+  const { locale } = useI18n();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -204,7 +205,7 @@ export function WeeklyPageControls({
 
         {/* Count */}
         <div className="text-[11px] text-claude-text-muted hidden sm:block">
-          <span className="font-mono font-semibold text-claude-text-secondary">{totalCount}</span> entries
+          <span className="font-mono font-semibold text-claude-text-secondary">{totalCount}</span> {locale === 'zh' ? '条' : 'entries'}
           {selectedWeek && <span className="ml-1">· {selectedWeek}</span>}
         </div>
       </div>

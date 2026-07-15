@@ -4176,7 +4176,7 @@ export default function PdbTracker() {
                   </span>
                 )}
               </h1>
-              <p className="text-[10px] text-claude-text-muted leading-none mt-0.5">Protein Data Bank Weekly Monitor</p>
+              <p className="text-[10px] text-claude-text-muted leading-none mt-0.5">{t.proteinDataBank}</p>
             </div>
           </div>
 

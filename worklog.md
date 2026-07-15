@@ -2539,3 +2539,59 @@ Stage Summary:
 - Chinese mode now covers: sidebar headers, filter buttons, sort labels, quick stats, activity feed, eval/batch detail tab names, settings panel sections, toolbar tooltips, empty states
 - Scientific terms (Cryo-EM, X-ray, NMR, PDB ID, BLAST, IF) kept in English as they are standard terminology
 - Brand name "PDB Tracker" kept in English
+
+---
+Task ID: i18n-chinese-mode-expansion-v2
+Agent: main
+Task: Continue expanding Chinese mode translations - comprehensive scan and fix
+
+Work Log:
+- Performed comprehensive browser scan of all 3 modes (Weekly, Evaluation, Literature) in Chinese mode to find remaining English text
+- Found English in: EvalModeSwitcher, evaluation-view, pdb-sidebar, welcome-state, weekly-view, WeeklyPdbTable, quick-stats-panel
+- Added 30+ new i18n keys to en.ts and zh.ts:
+  - Weekly: proteinDataBank, totalStructures, avgResolution, entries, noStructuresTryAdjusting
+  - Evaluation: individualEvalsFull, evalBatchesFull, compare, dashboard, timeline, batchMatrix, backToList
+  - Literature: noPapersFound, readingList, source, sourceAll, sourceDaily, journal, showCharts, papers
+  - Misc: noDataAvailable, sortBy, welcome, getStarted
+- Applied i18n to EvalModeSwitcher.tsx:
+  - "Individual Evaluations" → t.individualEvalsFull (单独评估)
+  - "Evaluation Batches" → t.evalBatchesFull (批量评估)
+  - "proteins · batches" → locale-aware (个蛋白 · 个批次)
+  - "Search proteins, genes..." → t.searchProteins
+  - Empty states: "No matching evaluations/batches" → locale-aware
+  - Collapse/Expand tooltips → locale-aware
+- Applied i18n to evaluation-view.tsx:
+  - "Compare" → t.compare (对比)
+  - "Dashboard" → t.dashboard (仪表盘)
+  - "Timeline" → t.timeline (时间线)
+  - "Batch Matrix" → t.batchMatrix (批量矩阵)
+  - "← Back to list" → t.backToList (← 返回列表)
+- Applied i18n to pdb-sidebar.tsx:
+  - "Total Structures" → t.totalStructures (结构总数)
+  - "Avg Resolution" → t.avgResolution (平均分辨率)
+  - "Recent Activity" → t.recentActivity (最近活动)
+  - "Bookmarks" → t.filterBookmarks (★ 收藏)
+  - "No activity yet" → locale-aware (暂无活动)
+- Applied i18n to welcome-state.tsx:
+  - "Total Structures" → locale-aware (结构总数)
+  - "Avg Resolution" → locale-aware (平均分辨率)
+- Applied i18n to weekly-view.tsx:
+  - "Trend Analysis" → locale-aware (趋势分析)
+  - "Stats Timeline" → locale-aware (统计时间线)
+  - "Quality Distribution" → locale-aware (质量分布)
+  - Hide/Show labels → locale-aware
+- Applied i18n to WeeklyPdbTable.tsx:
+  - "No structures found" → locale-aware (未找到结构)
+  - "Try adjusting your filters..." → locale-aware (请尝试调整筛选条件...)
+  - "Failed to load structures" → locale-aware (加载结构失败)
+- Applied i18n to pdb-tracker.tsx:
+  - "Protein Data Bank Weekly Monitor" → t.proteinDataBank (蛋白质数据银行每周监控)
+- Applied i18n to weekly-page.tsx:
+  - "entries" count → locale-aware (条)
+- Lint: 0 errors, 0 warnings
+- Build: succeeded
+
+Stage Summary:
+- Chinese mode now covers: sidebar headers, filter buttons, sort labels, quick stats, activity feed, eval sidebar (Individual/Batches + empty states), eval sub-view buttons (Compare/Dashboard/Timeline/Batch Matrix), eval detail tab names, batch detail tab names, settings panel sections, toolbar tooltips, welcome state stats, weekly view chart toggles, PDB table empty states, header subtitle
+- Scientific terms (Cryo-EM, X-ray, NMR, PDB ID, BLAST, IF) kept in English
+- Brand name "PDB Tracker" kept in English

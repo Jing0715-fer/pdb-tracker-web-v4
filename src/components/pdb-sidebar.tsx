@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/lib/i18n';
 import {
   Search,
   ChevronDown,
@@ -389,6 +390,7 @@ function NotificationHistorySection() {
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
+  const { t, locale } = useI18n();
   const {
     mode,
     setMode,
@@ -638,7 +640,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                 <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline underline-grow">
                   <span className="flex items-center gap-1.5">
                     <Bookmark className="h-3 w-3 text-claude-accent" />
-                    Bookmarks
+                    {t.filterBookmarks}
                     <span className="counter-badge text-[9px]">{bookmarks.size}</span>
                   </span>
                   <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${bookmarksExpanded ? 'rotate-0' : '-rotate-90'}`} />
@@ -902,7 +904,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline">
                 <span className="flex items-center gap-1.5">
                   <Activity className="h-3 w-3 text-claude-accent" />
-                  Recent Activity
+                  {t.recentActivity}
                   {activityFeed.length > 0 && (
                     <span className="counter-badge text-[9px]">{activityFeed.length}</span>
                   )}
@@ -913,7 +915,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                 <div className="px-1 pb-2 mt-1 mb-1 space-y-0.5 max-h-[200px] overflow-y-auto thin-scrollbar">
                   {activityFeed.length === 0 ? (
                     <p className="text-[10px] text-claude-text-muted/60 dark:text-[#9b9590]/60 px-2 py-2 italic text-center">
-                      No activity yet
+                      {locale === 'zh' ? '暂无活动' : 'No activity yet'}
                     </p>
                   ) : (
                     activityFeed.slice(0, 10).map((item) => (
@@ -957,7 +959,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     {/* Total & This Week with trend arrow */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
-                        <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mb-0.5">Total Structures</div>
+                        <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mb-0.5">{t.totalStructures}</div>
                         <div className="text-lg font-bold font-mono text-claude-text dark:text-[#e8e4dd] leading-tight">
                           {snapshots.reduce((sum, s) => sum + (s.totalStructures || 0), 0).toLocaleString()}
                         </div>
@@ -1518,7 +1520,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                         {/* Average resolution with quality indicator */}
                         {avgRes != null && (
                           <div className="flex justify-between text-[10px]">
-                            <span className="text-claude-text-muted">Avg Resolution</span>
+                            <span className="text-claude-text-muted">{t.avgResolution}</span>
                             <span className="font-mono font-medium">
                               <span style={{ color: resQualityColor || undefined }}>{avgRes.toFixed(2)}Å</span>
                               {resQualityLabel && (
