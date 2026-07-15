@@ -22,15 +22,15 @@ export interface TourStepConfig {
 
 /**
  * Tour step order (9 steps, Chinese):
- *   0. 欢迎使用 PDB Structure Tracker (centered, no spotlight)
+ *   0. 欢迎使用 PDB Structure Tracker (centered modal)
  *   1. 模式切换                          (spotlight: modeSwitcherRef)
- *   2. 数据库配置                        (open DB wizard: onEnter=openDbWizard, onExit=closeDbWizard)
- *   3. 运行中心                          (open Run Center: onEnter=openRunCenter; dialog stays open through steps 4-6)
- *   4. 评估模块                          (open Run Center + switch tab: onEnter=switchEval; spotlight: runCenterContentRef)
- *   5. 文献模块                          (open Run Center + switch tab: onEnter=switchLit; spotlight: runCenterContentRef)
- *   6. 周报模块                          (open Run Center + switch tab: onEnter=switchWeekly, onExit=closeRunCenter; spotlight: runCenterContentRef)
+ *   2. 数据库配置                        (spotlight: dbWizardContentRef; open DB wizard on enter, close on exit)
+ *   3. 运行中心                          (spotlight: runCenterContentRef; open Run Center on enter)
+ *   4. 评估模块                          (spotlight: runCenterContentRef; switch to evaluation tab)
+ *   5. 文献模块                          (spotlight: runCenterContentRef; switch to literature tab)
+ *   6. 周报模块                          (spotlight: runCenterContentRef; switch to weekly tab; close on exit)
  *   7. 搜索与快捷键                      (spotlight: searchRef)
- *   8. 开始使用                          (centered, no spotlight)
+ *   8. 开始使用                          (centered modal)
  */
 export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
   {
@@ -55,9 +55,6 @@ export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
     description: '点击顶部「运行中心」按钮打开运行中心。支持三大模块：评估、文献检索、周报生成。',
     icon: <Rocket className="h-4 w-4" />,
     onEnter: 'openRunCenter',
-    // NOTE: no onExit='closeRunCenter' here — the dialog stays open for
-    // steps 4-6 so the user can see each module's panel as the tour walks
-    // through them. The dialog is closed when leaving step 6 (周报模块).
   },
   {
     title: '评估模块',
@@ -90,95 +87,82 @@ export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
   },
 ];
 
-// ─── Tour Overlay (compact floating card anchored to spotlight) ───────────────
+// ─── Layout constants ────────────────────────────────────────────────────────
 
-const TOOLTIP_WIDTH = 320;       // px — compact card
-const TOOLTIP_GAP = 14;          // px — gap between spotlight and tooltip
-const VIEWPORT_MARGIN = 12;      // px — min distance from viewport edge
+const TOOLTIP_WIDTH = 340;       // px — card width
+const TOOLTIP_GAP = 16;          // px — gap between spotlight and tooltip
+const VIEWPORT_MARGIN = 16;      // px — min distance from viewport edge
+const SPOTLIGHT_PADDING = 6;     // px — padding around target inside the border frame
+const MASK_OPACITY = 0.55;       // dark mask opacity
+
+// ─── Tooltip position computation ────────────────────────────────────────────
 
 interface TooltipPos {
   top: number;
   left: number;
-  caretSide: 'right' | 'left' | 'top' | 'bottom';
-  caretTop: number;
-  caretLeft: number;
+  /** Which side of the spotlight the tooltip sits on. */
+  side: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
 }
 
 /**
- * Compute a tooltip position that sits at the bottom-right of the spotlighted
- * element. Falls back to bottom-right of the viewport when there is no
- * spotlight (centered mode).
+ * Compute tooltip position. The tooltip prefers the **bottom-right** of the
+ * spotlight. If it would overflow the viewport, it flips to other corners in
+ * this priority order: bottom-left → top-right → top-left.
  *
- * The caret (small arrow) always points back toward the spotlight.
+ * For centered mode (no spotlight), the tooltip is placed at the center of
+ * the viewport.
  */
-function computeTooltipPos(spotlight: DOMRect | null): TooltipPos {
+function computeTooltipPos(
+  spotlight: DOMRect | null,
+  tooltipH: number,
+): TooltipPos {
   const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
   const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
 
+  // ── Centered mode ──
   if (!spotlight) {
-    // Centered mode — page bottom-right corner, no caret.
     return {
-      top: vh - 16,
-      left: vw - 16,
-      caretSide: 'bottom',
-      caretTop: 0,
-      caretLeft: 0,
+      top: Math.max(VIEWPORT_MARGIN, (vh - tooltipH) / 2),
+      left: Math.max(VIEWPORT_MARGIN, (vw - TOOLTIP_WIDTH) / 2),
+      side: 'bottom-right',
     };
   }
 
-  // Default: bottom-right of the spotlight (just past the right edge, slightly
-  // below the bottom). This is the "floating card pointing to highlighted
-  // element" look.
+  const h = tooltipH || 220;
+
+  // ── Try bottom-right (preferred) ──
   let left = spotlight.right + TOOLTIP_GAP;
   let top = spotlight.bottom + TOOLTIP_GAP;
-  let caretSide: TooltipPos['caretSide'] = 'left'; // caret on left side pointing left toward spotlight
-  // caret vertical position — aligned with top of tooltip
-  let caretTop = 14;
-  let caretLeft = 0;
+  let side: TooltipPos['side'] = 'bottom-right';
 
-  // If placing at bottom-right would overflow the viewport, flip to bottom-left.
-  if (left + TOOLTIP_WIDTH > vw - VIEWPORT_MARGIN) {
+  const overflowsRight = left + TOOLTIP_WIDTH > vw - VIEWPORT_MARGIN;
+  const overflowsBottom = top + h > vh - VIEWPORT_MARGIN;
+
+  if (overflowsRight && overflowsBottom) {
+    // Both overflow → top-left
     left = spotlight.left - TOOLTIP_GAP - TOOLTIP_WIDTH;
-    caretSide = 'right';
-    caretLeft = TOOLTIP_WIDTH;
-    // If bottom-left also overflows (very narrow viewport), put it above the
-    // spotlight centered horizontally.
-    if (left < VIEWPORT_MARGIN) {
-      left = Math.max(VIEWPORT_MARGIN, Math.min(vw - VIEWPORT_MARGIN - TOOLTIP_WIDTH, spotlight.left + spotlight.width / 2 - TOOLTIP_WIDTH / 2));
-      top = spotlight.top - TOOLTIP_GAP; // we'll measure actual height below; this is just a placeholder
-      caretSide = 'bottom';
-      caretTop = 0;
-      caretLeft = Math.max(20, Math.min(TOOLTIP_WIDTH - 20, spotlight.left + spotlight.width / 2 - left));
-    }
-  }
-
-  // If tooltip would overflow the bottom of the viewport, flip to top.
-  // Use an estimated tooltip height of 220px (compact card).
-  const ESTIMATED_HEIGHT = 220;
-  if (top + ESTIMATED_HEIGHT > vh - VIEWPORT_MARGIN) {
-    // Flip vertically above the spotlight.
-    top = spotlight.top - TOOLTIP_GAP - ESTIMATED_HEIGHT;
-    if (top < VIEWPORT_MARGIN) {
-      // Final fallback: bottom-right corner.
-      top = vh - 16;
-      left = vw - 16;
-      caretSide = 'bottom';
-      caretTop = 0;
-      caretLeft = 0;
-    } else {
-      caretSide = caretSide === 'left' ? 'left' : caretSide === 'right' ? 'right' : 'bottom';
-      if (caretSide === 'left' || caretSide === 'right') {
-        caretTop = ESTIMATED_HEIGHT - 14; // caret near bottom of card when card is above spotlight
-      }
-    }
+    top = spotlight.top - TOOLTIP_GAP - h;
+    side = 'top-left';
+  } else if (overflowsRight) {
+    // Right overflow → bottom-left
+    left = spotlight.left - TOOLTIP_GAP - TOOLTIP_WIDTH;
+    top = spotlight.bottom + TOOLTIP_GAP;
+    side = 'bottom-left';
+  } else if (overflowsBottom) {
+    // Bottom overflow → top-right
+    left = spotlight.right + TOOLTIP_GAP;
+    top = spotlight.top - TOOLTIP_GAP - h;
+    side = 'top-right';
   }
 
   // Clamp into viewport.
-  top = Math.max(VIEWPORT_MARGIN, Math.min(vh - VIEWPORT_MARGIN - ESTIMATED_HEIGHT, top));
+  top = Math.max(VIEWPORT_MARGIN, Math.min(vh - VIEWPORT_MARGIN - h, top));
   left = Math.max(VIEWPORT_MARGIN, Math.min(vw - VIEWPORT_MARGIN - TOOLTIP_WIDTH, left));
 
-  return { top, left, caretSide, caretTop, caretLeft };
+  return { top, left, side };
 }
+
+// ─── Tour Overlay Component ──────────────────────────────────────────────────
 
 export function TourOverlay({
   tourActive,
@@ -201,9 +185,12 @@ export function TourOverlay({
   const currentStep = steps[tourStep];
   const isLastStep = tourStep === steps.length - 1;
   const stepConfig = TOUR_STEPS[tourStep];
+  const isFirstStep = tourStep === 0;
+  const isCentered = isFirstStep || isLastStep;
 
   const updatePosition = useCallback(() => {
-    if (!currentStep?.targetRef?.current) {
+    // Centered steps (first & last) never have a spotlight.
+    if (isCentered || !currentStep?.targetRef?.current) {
       setSpotlightRect(null);
       return;
     }
@@ -213,10 +200,9 @@ export function TourOverlay({
       return;
     }
     setSpotlightRect(el.getBoundingClientRect());
-  }, [currentStep]);
+  }, [currentStep, isCentered]);
 
-  // Measure actual tooltip height once it renders so the position calc can
-  // use a real value instead of an estimate.
+  // Measure actual tooltip height once it renders.
   useLayoutEffect(() => {
     if (!tourActive) return;
     const raf = requestAnimationFrame(() => {
@@ -229,6 +215,7 @@ export function TourOverlay({
     return () => cancelAnimationFrame(raf);
   }, [tourActive, tourStep, updatePosition]);
 
+  // Track resize/scroll to keep the spotlight aligned.
   useLayoutEffect(() => {
     if (!tourActive) return;
     const raf = requestAnimationFrame(() => updatePosition());
@@ -245,13 +232,10 @@ export function TourOverlay({
     };
   }, [tourActive, updatePosition]);
 
+  // Retry spotlight measurement when the target might still be mounting
+  // (e.g. inside a dialog that's animating open).
   useEffect(() => {
-    if (!tourActive) return;
-    // When entering a step whose target is inside a dialog that's still
-    // opening (e.g. the Run Center dialog at step 4), the target ref may
-    // not be mounted yet on the first raf. Retry a few times over the
-    // next ~600ms so the spotlight appears as soon as the element is
-    // connected.
+    if (!tourActive || isCentered) return;
     let cancelled = false;
     let attempts = 0;
     const tryUpdate = () => {
@@ -262,10 +246,9 @@ export function TourOverlay({
         updatePosition();
         return;
       }
-      if (attempts < 12) {
+      if (attempts < 20) {
         setTimeout(tryUpdate, 50);
       } else {
-        // Give up — fall back to centered mode.
         updatePosition();
       }
     };
@@ -274,97 +257,12 @@ export function TourOverlay({
       cancelled = true;
       cancelAnimationFrame(raf);
     };
-  }, [tourActive, tourStep, updatePosition, currentStep]);
+  }, [tourActive, tourStep, updatePosition, currentStep, isCentered]);
 
   if (!tourActive || !currentStep || !stepConfig) return null;
 
-  const pos = computeTooltipPos(spotlightRect);
-  // Override estimated height in the position computation using the real
-  // measured height. We re-compute here so the tooltip reflows when its
-  // content changes (different step descriptions have different lengths).
-  const realPos = (() => {
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-    const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
-    const h = tooltipHeight || 220;
-    if (!spotlightRect) {
-      // Centered mode — place card at bottom-right corner, accounting for
-      // the card's actual dimensions (framer-motion overrides `transform`,
-      // so we can't use translate(-100%,-100%) to shift it).
-      return {
-        top: Math.max(VIEWPORT_MARGIN, vh - 16 - h),
-        left: Math.max(VIEWPORT_MARGIN, vw - 16 - TOOLTIP_WIDTH),
-        caretSide: 'bottom' as const,
-        caretTop: 0,
-        caretLeft: 0,
-      };
-    }
-    // Re-run the position calc with the measured tooltip height to keep the
-    // caret correctly aligned when the card is taller / shorter than the
-    // 220px estimate.
-    let left = spotlightRect.right + TOOLTIP_GAP;
-    let top = spotlightRect.bottom + TOOLTIP_GAP;
-    let caretSide: TooltipPos['caretSide'] = 'left';
-    let caretTop = 14;
-    let caretLeft = 0;
-
-    if (left + TOOLTIP_WIDTH > vw - VIEWPORT_MARGIN) {
-      left = spotlightRect.left - TOOLTIP_GAP - TOOLTIP_WIDTH;
-      caretSide = 'right';
-      caretLeft = TOOLTIP_WIDTH;
-      if (left < VIEWPORT_MARGIN) {
-        left = Math.max(VIEWPORT_MARGIN, Math.min(vw - VIEWPORT_MARGIN - TOOLTIP_WIDTH, spotlightRect.left + spotlightRect.width / 2 - TOOLTIP_WIDTH / 2));
-        top = spotlightRect.top - TOOLTIP_GAP - h;
-        caretSide = 'bottom';
-        caretTop = 0;
-        caretLeft = Math.max(20, Math.min(TOOLTIP_WIDTH - 20, spotlightRect.left + spotlightRect.width / 2 - left));
-      }
-    }
-    if (top + h > vh - VIEWPORT_MARGIN) {
-      const newTop = spotlightRect.top - TOOLTIP_GAP - h;
-      if (newTop >= VIEWPORT_MARGIN) {
-        top = newTop;
-        if (caretSide === 'left' || caretSide === 'right') {
-          caretTop = h - 14;
-        }
-      } else {
-        // Final fallback: bottom-right corner (accounting for card size).
-        top = Math.max(VIEWPORT_MARGIN, vh - 16 - h);
-        left = Math.max(VIEWPORT_MARGIN, vw - 16 - TOOLTIP_WIDTH);
-        caretSide = 'bottom';
-        caretTop = 0;
-        caretLeft = 0;
-      }
-    }
-    top = Math.max(VIEWPORT_MARGIN, Math.min(vh - VIEWPORT_MARGIN - h, top));
-    left = Math.max(VIEWPORT_MARGIN, Math.min(vw - VIEWPORT_MARGIN - TOOLTIP_WIDTH, left));
-    return { top, left, caretSide, caretTop, caretLeft };
-  })();
-
-  // Caret rotation/position style — small triangle pointing back to the spotlight.
-  const caretStyle: React.CSSProperties = (() => {
-    if (!spotlightRect) return { display: 'none' };
-    const base: React.CSSProperties = {
-      position: 'absolute',
-      width: 10,
-      height: 10,
-      background: 'inherit',
-      borderTop: '1px solid',
-      borderLeft: '1px solid',
-      borderColor: 'rgb(0 0 0 / 0.08)',
-    };
-    if (realPos.caretSide === 'left') {
-      // Caret on left edge, pointing left (toward spotlight on the left).
-      return { ...base, top: realPos.caretTop, left: -6, transform: 'rotate(-45deg)' };
-    }
-    if (realPos.caretSide === 'right') {
-      return { ...base, top: realPos.caretTop, left: realPos.caretLeft - 4, transform: 'rotate(135deg)' };
-    }
-    if (realPos.caretSide === 'bottom') {
-      // Caret on bottom edge, pointing down.
-      return { ...base, top: (tooltipHeight || 220) - 6, left: realPos.caretLeft - 5, transform: 'rotate(45deg)' };
-    }
-    return { ...base, top: -6, left: realPos.caretLeft - 5, transform: 'rotate(-135deg)' };
-  })();
+  const pos = computeTooltipPos(spotlightRect, tooltipHeight);
+  const hasSpotlight = !isCentered && !!spotlightRect;
 
   return createPortal(
     <AnimatePresence mode="wait">
@@ -374,49 +272,71 @@ export function TourOverlay({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-[200] pointer-events-none"
+        className="fixed inset-0 z-[200]"
       >
-        {/* Spotlight (only when target exists) */}
-        {spotlightRect && (
+        {/* ── Mask layer ─────────────────────────────────────────────── */}
+        {isCentered ? (
+          /* Centered mode: full-screen semi-transparent backdrop */
+          <div className="absolute inset-0 bg-black/55" />
+        ) : hasSpotlight && spotlightRect ? (
+          /* Spotlight mode: a div sized to the target with a huge box-shadow
+             creates a dark mask everywhere EXCEPT the spotlight area. */
           <>
             <div
-              className="absolute inset-0"
-              style={{ boxShadow: `0 0 0 9999px rgba(0,0,0,0.45)` }}
-            />
-            <div
-              className="absolute rounded-lg border-2 border-claude-accent animate-[pulse_2s_ease-in-out_infinite] pointer-events-none"
+              className="absolute pointer-events-none rounded-lg"
               style={{
-                top: spotlightRect.top - 4,
-                left: spotlightRect.left - 4,
-                width: spotlightRect.width + 8,
-                height: spotlightRect.height + 8,
+                top: spotlightRect.top,
+                left: spotlightRect.left,
+                width: spotlightRect.width,
+                height: spotlightRect.height,
+                boxShadow: `0 0 0 9999px rgba(0,0,0,${MASK_OPACITY})`,
               }}
             />
+            {/* Animated border frame around the spotlight */}
+            <motion.div
+              className="absolute rounded-lg border-2 border-claude-accent pointer-events-none"
+              style={{
+                top: spotlightRect.top - SPOTLIGHT_PADDING,
+                left: spotlightRect.left - SPOTLIGHT_PADDING,
+                width: spotlightRect.width + SPOTLIGHT_PADDING * 2,
+                height: spotlightRect.height + SPOTLIGHT_PADDING * 2,
+                boxShadow: '0 0 0 1px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3)',
+              }}
+              animate={{
+                boxShadow: [
+                  '0 0 0 1px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3)',
+                  '0 0 0 2px rgba(255,255,255,0.5), 0 0 24px rgba(0,0,0,0.4)',
+                  '0 0 0 1px rgba(255,255,255,0.3), 0 0 20px rgba(0,0,0,0.3)',
+                ],
+              }}
+              transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
+            />
           </>
+        ) : (
+          /* Spotlight step but target not yet found — show backdrop while
+             we wait for the element to mount. */
+          <div className="absolute inset-0 bg-black/55" />
         )}
 
-        {/* Compact floating tooltip card — anchored to spotlight (or bottom-right fallback) */}
+        {/* ── Tooltip card ───────────────────────────────────────────── */}
         <motion.div
           ref={tooltipRef}
-          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+          initial={{ opacity: 0, y: 10, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 8, scale: 0.96 }}
+          exit={{ opacity: 0, y: 10, scale: 0.96 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
           className="absolute pointer-events-auto"
           style={{
-            top: realPos.top,
-            left: realPos.left,
+            top: pos.top,
+            left: pos.left,
             width: TOOLTIP_WIDTH,
           }}
         >
           <div className="relative bg-white dark:bg-[#242220] border border-claude-border dark:border-[#3d3832] rounded-xl shadow-2xl overflow-hidden">
-            {/* Caret (only when spotlighted) */}
-            {spotlightRect && <span style={caretStyle} className="bg-white dark:bg-[#242220]" />}
-
-            {/* Header bar — compact */}
-            <div className="flex items-center gap-2 px-3 pt-2.5 pb-1.5 bg-gradient-to-r from-claude-accent/8 to-transparent">
-              <div className="h-6 w-6 rounded-md bg-gradient-to-br from-claude-accent/20 to-claude-accent/5 border border-claude-accent/20 flex items-center justify-center text-claude-accent flex-shrink-0">
-                {stepConfig.icon || <Sparkles className="h-3 w-3" />}
+            {/* Header bar */}
+            <div className="flex items-center gap-2 px-4 pt-3 pb-2 bg-gradient-to-r from-claude-accent/10 to-transparent">
+              <div className="h-7 w-7 rounded-md bg-gradient-to-br from-claude-accent/20 to-claude-accent/5 border border-claude-accent/20 flex items-center justify-center text-claude-accent flex-shrink-0">
+                {stepConfig.icon || <Sparkles className="h-3.5 w-3.5" />}
               </div>
               <span className="text-[10px] font-mono text-claude-text-muted bg-claude-border-light dark:bg-[#3d3832] px-1.5 py-0.5 rounded">
                 {tourStep + 1} / {steps.length}
@@ -426,24 +346,24 @@ export function TourOverlay({
                 className="ml-auto text-claude-text-muted hover:text-claude-text transition-colors p-0.5"
                 aria-label="跳过引导"
               >
-                <X className="h-3.5 w-3.5" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
             {/* Content */}
-            <div className="px-3 pb-2.5">
-              <h3 className="text-[13px] font-semibold text-claude-text leading-tight mb-1">{stepConfig.title}</h3>
-              <p className="text-[11px] text-claude-text-secondary leading-relaxed mb-2.5 max-h-[180px] overflow-y-auto thin-scroll">
+            <div className="px-4 pb-3">
+              <h3 className="text-sm font-semibold text-claude-text leading-tight mb-1.5">{stepConfig.title}</h3>
+              <p className="text-xs text-claude-text-secondary leading-relaxed mb-3 max-h-[200px] overflow-y-auto thin-scroll">
                 {stepConfig.description}
               </p>
 
               {/* Progress dots */}
-              <div className="flex items-center gap-1 mb-2.5">
+              <div className="flex items-center gap-1 mb-3">
                 {Array.from({ length: steps.length }).map((_, i) => (
                   <span
                     key={i}
                     className={`h-1 rounded-full transition-all duration-300 ${
-                      i === tourStep ? 'w-5 bg-claude-accent' : i < tourStep ? 'w-1.5 bg-claude-accent/40' : 'w-1.5 bg-claude-border-light dark:bg-[#3d3832]'
+                      i === tourStep ? 'w-6 bg-claude-accent' : i < tourStep ? 'w-1.5 bg-claude-accent/40' : 'w-1.5 bg-claude-border-light dark:bg-[#3d3832]'
                     }`}
                   />
                 ))}
@@ -454,20 +374,20 @@ export function TourOverlay({
                 {tourStep > 0 && (
                   <button
                     onClick={() => setTourStep(tourStep - 1)}
-                    className="flex items-center gap-0.5 px-2 py-1 rounded-md text-[11px] font-medium text-claude-text-secondary hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
+                    className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-claude-text-secondary hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
                   >
-                    <ChevronLeft className="h-3 w-3" /> 上一步
+                    <ChevronLeft className="h-3.5 w-3.5" /> 上一步
                   </button>
                 )}
                 <button
                   onClick={() => { if (isLastStep) finishTour(); else setTourStep(tourStep + 1); }}
-                  className={`flex items-center gap-1 px-3 py-1 rounded-md text-[11px] font-medium transition-all ml-auto ${
+                  className={`flex items-center gap-1 px-3.5 py-1.5 rounded-md text-xs font-medium transition-all ml-auto ${
                     isLastStep
                       ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700'
                       : 'bg-gradient-to-r from-claude-accent to-claude-accent-hover text-white hover:opacity-90'
                   }`}
                 >
-                  {isLastStep ? <>开始使用 <CheckCircle2 className="h-3 w-3" /></> : <>下一步 <ChevronRight className="h-3 w-3" /></>}
+                  {isLastStep ? <>开始使用 <CheckCircle2 className="h-3.5 w-3.5" /></> : <>下一步 <ChevronRight className="h-3.5 w-3.5" /></>}
                 </button>
               </div>
             </div>

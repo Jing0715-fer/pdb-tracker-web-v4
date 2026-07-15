@@ -20,7 +20,9 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -278,6 +280,19 @@ interface CliAdapter {
   callArgs: (prompt: string, model: string | undefined) => string[];
   /** Which stream(s) carry the actual text response. */
   outputStream: 'stdout' | 'stderr' | 'both';
+  /**
+   * Optional path where the CLI writes its final response to a file
+   * (e.g. `codex exec --output-last-message <file>`). When set, the
+   * library will pre-create a unique temp file per call, inject its
+   * path into the args via `callArgs`, then read the file back after
+   * the child process exits. The literal token `$OUTPUT_FILE` in
+   * callArgs is replaced with the generated temp file path.
+   *
+   * If the file is empty after the call, the function falls back to
+   * parsing stdout/stderr (useful for CLIs that occasionally write
+   * to stdout instead of the requested file).
+   */
+  outputFile?: '$OUTPUT_FILE' | string;
   /** Strip leading non-text banner lines (e.g. "session_id: …"). */
   stripBanner?: (raw: string) => string;
   /** Per-call extra env (e.g. PYTHONIOENCODING). */
@@ -330,8 +345,44 @@ const CLI_ADAPTERS: CliAdapter[] = [
     icon: '🟢',
     wslBin: 'codex',
     probeArgs: ['--version'],
-    callArgs: (q) => ['exec', '--quiet', q],
+    /** Multi-machine fallback locations for `@openai/codex` (npm i -g / bun add -g).
+     *  Tried in order before falling through to `where codex` / `which codex`.
+     *  Env override: `CODEX_CLI_PATH=...`. */
+    extraProbePaths: (() => {
+      const home = process.env.HOME || process.env.USERPROFILE || '';
+      const paths: string[] = [];
+      if (process.platform === 'win32') {
+        if (home) {
+          paths.push(`${home}\\.bun\\bin\\codex.exe`);
+          paths.push(`${home}\\.bun\\bin\\codex.cmd`);
+          paths.push(`${home}\\AppData\\Roaming\\npm\\codex.cmd`);
+          paths.push(`${home}\\AppData\\Local\\npm\\codex.cmd`);
+          paths.push(`${home}\\.local\\bin\\codex.exe`);
+        }
+        paths.push('C:\\Program Files\\nodejs\\codex.cmd');
+      } else {
+        if (home) {
+          paths.push(`${home}/.bun/bin/codex`);
+          paths.push(`${home}/.local/bin/codex`);
+          paths.push(`${home}/.npm-global/bin/codex`);
+          paths.push(`${home}/.nvm/versions/node/current/bin/codex`);
+        }
+        paths.push('/usr/local/bin/codex');
+        paths.push('/opt/homebrew/bin/codex');
+      }
+      return paths;
+    })(),
+    /**
+     * Codex 0.144+ uses `codex exec [PROMPT]` for non-interactive runs and
+     * writes the agent's final message to a file passed via
+     * `--output-last-message <file>`. The earlier `codex exec --quiet`
+     * invocation is no longer supported (v0.144 rejects the flag).
+     * The `$OUTPUT_FILE` token is replaced with a per-call temp file
+     * path by the library before spawn (see `outputFile` field).
+     */
+    callArgs: (q) => ['exec', '--output-last-message', '$OUTPUT_FILE', q],
     outputStream: 'stdout',
+    outputFile: '$OUTPUT_FILE',
     probeTimeoutMs: 15_000,
     callTimeoutMs: 240_000,
   },
@@ -967,10 +1018,24 @@ function computeCliTimeoutMs(adapter: CliAdapter, prompt: string): number {
 }
 
 function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string | undefined): Promise<string> {
-  const args = adapter.callArgs(prompt, model);
+  const rawArgs = adapter.callArgs(prompt, model);
   const timeoutMs = computeCliTimeoutMs(adapter, prompt);
 
-  return new Promise((resolve, reject) => {
+  // If the adapter declares an `outputFile`, the CLI writes its final
+  // response to a file we control. Pre-create a unique temp file and
+  // substitute the literal `$OUTPUT_FILE` token in args with its path.
+  // The temp file is deleted in `finally` regardless of outcome.
+  let outputFilePath: string | null = null;
+  let args = rawArgs;
+  if (adapter.outputFile) {
+    const ext = adapter.id === 'codex' ? '.md' : '.txt';
+    outputFilePath = path.join(os.tmpdir(), `pdb-llm-${adapter.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+    // Pre-touch the file so the CLI doesn't fail with ENOENT on some shells
+    try { writeFileSync(outputFilePath, ''); } catch { /* best-effort */ }
+    args = rawArgs.map((a) => a === '$OUTPUT_FILE' ? outputFilePath! : a);
+  }
+
+  return new Promise<string>((resolve, reject) => {
     // WorkBuddy-style shims are Node.js scripts — invoke via `node <bin> ...args`.
     // On Windows, CLI tools installed via npm are typically .cmd wrappers —
     // spawn() with shell:false cannot execute .cmd files, so we set shell:true
@@ -997,19 +1062,44 @@ function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string 
     child.stdout.on('data', (b) => { stdout += b.toString(); });
     child.stderr.on('data', (b) => { stderr += b.toString(); });
 
-    child.on('error', (err) => { clearTimeout(killTimer); reject(new Error(`${adapter.id} spawn error: ${err?.message}`)); });
+    child.on('error', (err) => {
+      clearTimeout(killTimer);
+      cleanup();
+      reject(new Error(`${adapter.id} spawn error: ${err?.message}`));
+    });
     child.on('close', (code) => {
       clearTimeout(killTimer);
-      const raw = adapter.outputStream === 'stdout' ? stdout
-                : adapter.outputStream === 'stderr' ? stderr
-                : (stdout.trim() + (stderr.includes('\n') ? '\n' : '') + stderr).trim();
-      const cleaned = adapter.stripBanner ? adapter.stripBanner(raw) : raw.trim();
+      // Prefer the file contents if we asked for an outputFile and it
+      // was actually written. Fall back to stdout/stderr parsing.
+      let cleaned = '';
+      if (outputFilePath) {
+        try {
+          const fileContent = readFileSync(outputFilePath, 'utf8');
+          if (fileContent.trim().length > 0) {
+            cleaned = fileContent;
+          }
+        } catch { /* fall through */ }
+      }
+      if (!cleaned) {
+        const raw = adapter.outputStream === 'stdout' ? stdout
+                  : adapter.outputStream === 'stderr' ? stderr
+                  : (stdout.trim() + (stderr.includes('\n') ? '\n' : '') + stderr).trim();
+        cleaned = adapter.stripBanner ? adapter.stripBanner(raw) : raw.trim();
+      }
+      cleanup();
       if (cleaned.length > 0) {
         resolve(cleaned);
         return;
       }
       reject(new Error(`${adapter.id} returned empty output (exit=${code}, stderr=${stderr.slice(0, 300)})`));
     });
+
+    function cleanup() {
+      if (outputFilePath) {
+        try { unlinkSync(outputFilePath); } catch { /* best-effort */ }
+        outputFilePath = null;
+      }
+    }
   });
 }
 

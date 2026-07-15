@@ -65,6 +65,9 @@ export interface DbSetupWizardProps {
   allowSkip?: boolean
   /** Initial step to show when opened. Default 'choose'. */
   initialMode?: 'choose' | 'create' | 'select'
+  /** Ref attached to the dialog's content element so external code (e.g. the
+      onboarding tour) can spotlight it. */
+  contentRef?: React.RefObject<HTMLElement | null>;
 }
 
 interface DbListEntry {
@@ -147,7 +150,7 @@ async function postDbConfigWithRetry(body: any, maxRetries = 2): Promise<any> {
   throw lastErr
 }
 
-export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMode = 'choose' }: DbSetupWizardProps) {
+export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMode = 'choose', contentRef }: DbSetupWizardProps) {
   const [mode, setMode] = useState<Mode>('choose')
   const [newDbName, setNewDbName] = useState(DEFAULT_NEW_DB_NAME)
   const [newDbDir, setNewDbDir] = useState(DEFAULT_NEW_DB_DIR)
@@ -274,7 +277,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && allowSkip && onClose) onClose(); /* if !allowSkip, prevent closing — user must complete setup */ }}>
-      <DialogContent className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0">
+      <DialogContent ref={contentRef} className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0">
         <DialogHeader className="px-6 pt-7 pb-5 border-b border-border/50">
           <DialogTitle className="flex items-center gap-2 text-base leading-none">
             <Database className="h-4 w-4 text-amber-500" />

@@ -2004,3 +2004,44 @@ Stage Summary:
 - Tour fix: The root cause was framer-motion overriding the CSS `transform` property. Fixed by computing actual top/left positions instead of using translate. Tour now appears correctly when clicking Help.
 - Layout fix: Converted from fragile `max-h-[calc(92vh-280px)]` + separate bottom spacer to robust flex column pattern. The execution log (inside scrollable area) now always has 24px bottom padding, preventing it from sticking to the dialog's bottom border.
 - Key files modified: `src/components/tour-overlay.tsx`, `src/components/settings-run-panel.tsx`
+
+---
+Task ID: tour-redesign-v2
+Agent: main
+Task: Clone latest code from GitHub, redesign tour: first/last step centered, middle steps with spotlight+mask+bottom-right tooltip
+
+Work Log:
+- Cloned https://github.com/Jing0715-fer/pdb-tracker-web-v4.git to /tmp/pdb-tracker-web-v4
+- Found repo has newer llm.ts (Codex CLI v0.144+ fix with --output-last-message)
+- Synced llm.ts from repo to /home/z/my-project/src/lib/llm.ts
+- Kept our route.ts (1282 lines, has batch eval additions) over repo's 1253-line version
+- Completely rewrote src/components/tour-overlay.tsx:
+  - Centered mode (step 0 & step 8): full-screen bg-black/55 backdrop + centered card
+  - Spotlight mode (steps 1-7): box-shadow mask div sized to target + animated border frame + tooltip card
+  - Tooltip position: prefers bottom-right of spotlight, flips to bottom-left/top-right/top-left on overflow
+  - Removed framer-motion transform conflicts (compute actual top/left instead of translate)
+  - Increased retry attempts from 12 to 20 (for dialog mounting)
+- Updated src/hooks/use-tour.ts:
+  - Added dbWizardContentRef to TourRefs interface
+  - Step 2 (数据库配置) now spotlights dbWizardContentRef
+  - Step 3 (运行中心) now spotlights runCenterContentRef (was missing before)
+- Added contentRef prop to src/components/db-setup-wizard.tsx (DbSetupWizardProps + DialogContent ref)
+- Added dbWizardContentRef to pdb-tracker.tsx and passed to DbSetupWizard
+- Lint: 0 errors, 0 warnings (309 files)
+- Browser verification (agent-browser + VLM):
+  - Step 1 (welcome): ✓ centered card with dark backdrop
+  - Step 2 (模式切换): ✓ spotlight mask + border frame on mode switcher, tooltip at bottom-right
+  - Step 3 (数据库配置): ✓ DB wizard opens with spotlight mask + border, tooltip at top-left (fallback)
+  - Step 4 (运行中心): ✓ Run Center dialog opens with spotlight + mask + border
+  - Steps 5-7 (评估/文献/周报): ✓ spotlight on Run Center content, mask + border frame
+  - Step 8 (搜索): ✓ spotlight on search box, mask + border frame
+  - Step 9 (开始使用): ✓ centered card with dark backdrop, completion screen
+
+Stage Summary:
+- Tour fully redesigned per user requirements:
+  1. First & last steps centered on screen with full-screen dark backdrop ✓
+  2. All middle steps (1-7) have spotlight frame indicating the functional area ✓
+  3. Dark mask/overlay around the spotlight (box-shadow technique) ✓
+  4. Tooltip card at bottom-right of spotlight (with smart corner-flipping on overflow) ✓
+- All 9 steps verified visually via VLM analysis of screenshots
+- Key files: tour-overlay.tsx (rewritten), use-tour.ts (updated), db-setup-wizard.tsx (contentRef added), pdb-tracker.tsx (dbWizardContentRef added)

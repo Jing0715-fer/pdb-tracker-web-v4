@@ -1060,6 +1060,7 @@ export default function PdbTracker() {
   // steps render as centered tooltips. The 「帮助」 button in the top bar
   // calls `startTour()` to re-trigger the tour on demand.
   const runCenterContentRef = useRef<HTMLDivElement>(null);
+  const dbWizardContentRef = useRef<HTMLDivElement>(null);
   // Run Center controlled state (for tour integration) — declared BEFORE useTour
   const [runCenterOpen, setRunCenterOpen] = useState(false);
   const [runCenterTab, setRunCenterTab] = useState('evaluation');
@@ -1075,6 +1076,7 @@ export default function PdbTracker() {
     refs: {
       modeSwitcherRef: modeTabContainerRef,
       searchRef: searchWrapRef,
+      dbWizardContentRef,
       runCenterContentRef,
     },
     onOpenDbWizard: () => setDbWizardOpen(true),
@@ -4520,6 +4522,7 @@ export default function PdbTracker() {
       <DbSetupWizard
         open={dbWizardOpen}
         allowSkip={dbWizardAllowSkip}
+        contentRef={dbWizardContentRef}
         onClose={() => setDbWizardOpen(false)}
         onComplete={() => {
           setDbWizardOpen(false);

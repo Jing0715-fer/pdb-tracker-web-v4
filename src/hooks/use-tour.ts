@@ -9,8 +9,11 @@ export const TOUR_COMPLETED_KEY = 'pdb-tracker:tour-completed';
 export interface TourRefs {
   modeSwitcherRef?: RefObject<HTMLElement | null>;
   searchRef?: RefObject<HTMLElement | null>;
-  /** Run Center dialog content area — spotlighted by the eval/lit/weekly
-      module steps so the tour's tooltip anchors to the open dialog. */
+  /** DB Setup Wizard dialog content — spotlighted by the 数据库配置 step. */
+  dbWizardContentRef?: RefObject<HTMLElement | null>;
+  /** Run Center dialog content area — spotlighted by the 运行中心 step and
+      the eval/lit/weekly module steps so the tour's tooltip anchors to
+      the open dialog. */
   runCenterContentRef?: RefObject<HTMLElement | null>;
 }
 
@@ -51,14 +54,16 @@ export interface UseTourReturn {
 function buildSteps(refs?: TourRefs): TourStepConfig[] {
   return TOUR_STEPS.map((step, i) => {
     let targetRef: TourStepConfig['targetRef'];
+    // Step 0 (welcome) and step 8 (start using) are centered — no spotlight.
     // Step index 1 = 模式切换 → spotlight mode switcher
     if (i === 1) targetRef = refs?.modeSwitcherRef;
+    // Step index 2 = 数据库配置 → spotlight DB wizard dialog
+    else if (i === 2) targetRef = refs?.dbWizardContentRef;
+    // Step indices 3 / 4 / 5 / 6 = 运行中心 + 评估 / 文献 / 周报 → spotlight
+    // the Run Center dialog content area.
+    else if (i === 3 || i === 4 || i === 5 || i === 6) targetRef = refs?.runCenterContentRef;
     // Step index 7 = 搜索与快捷键 → spotlight search box
     else if (i === 7) targetRef = refs?.searchRef;
-    // Step indices 4 / 5 / 6 = 评估 / 文献 / 周报 module steps → spotlight
-    // the Run Center dialog content area so the tooltip anchors to the
-    // open dialog instead of dangling in a corner.
-    else if (i === 4 || i === 5 || i === 6) targetRef = refs?.runCenterContentRef;
     return { ...step, targetRef };
   });
 }
