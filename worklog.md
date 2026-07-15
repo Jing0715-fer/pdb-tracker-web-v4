@@ -2451,3 +2451,39 @@ Stage Summary:
 - db-setup-wizard: fully translated to English
 - 3 rounds of verification completed — no Chinese found in English mode
 - Chinese mode works: "运行中心" displayed when zh locale active
+
+---
+Task ID: i18n-expand-chinese-mode
+Agent: main
+Task: Systematic check to add more Chinese translations in zh mode
+
+Work Log:
+- Added 40+ new i18n keys to en.ts and zh.ts covering:
+  - Toolbar tooltips (search, dashboardCharts, compareWeeks, literatureCharts, exportData, importData, settingsTitle, refreshData)
+  - Resolution tooltips (highRes, mediumRes, lowRes)
+  - Report type tooltips (xrayReport, cryoemReport, nmrReport)
+  - Filter buttons (filterAll, filterBookmarks, filterCryoem, filterXray, filterNmr, filterHighIf, filterTopIf)
+  - Eval detail stat labels (batchAvgVsTargets, noSharedStructures, noStructureData, noBlastData, scoreLabel, pdbStructures, blastHomologs, completeness, coverage)
+  - Settings panel sections (appearance, theme, themeLight, themeDark, themeSystem, compactMode, compactModeDesc, dataPreferences, defaultBehavior, dataDisplay, notifications, keyboardShortcuts, about, resetSettings, resetConfirm)
+- Applied i18n to pdb-tracker.tsx:
+  - All toolbar tooltips (Search, Dashboard Charts, Compare Weeks, Literature Charts, Export, Import, Refresh, Settings) → `t.*`
+  - "Dashboard Charts" text + "structures" count → `t.dashboardCharts` + locale-aware count
+  - Batch detail empty states (noSharedStructures, noSubTargets, noStructureData, etc.) → `t.*`
+  - Single eval empty states (noStructures, noBlastResults, noReport) → `t.*`
+  - Score comparison label → `t.batchAvgVsTargets`
+- Applied i18n to settings-panel.tsx:
+  - Section headers: Appearance→外观, Default Behavior→默认行为, Data Display→数据显示, Notifications→通知, Keyboard Shortcuts→键盘快捷键, About→关于
+  - Theme labels: Light→浅色, Dark→深色, System→跟随系统
+  - Compact Mode label + description → translated
+- Lint: 0 errors, 0 warnings (313 files)
+- Build: succeeded
+- Browser verification:
+  - English mode: Run Center 0 Chinese ✓
+  - Chinese mode: 运行中心✓, LLM 提供方✓, 数据库✓, 蛋白靶点评估✓, 每日文献检索✓, PDB 周报生成✓
+  - Chinese mode settings: 外观✓, 主题✓, 语言✓, 默认行为✓, 数据显示✓, 通知✓, 关于✓
+
+Stage Summary:
+- Added 40+ new i18n keys across en.ts and zh.ts
+- Applied i18n to all toolbar tooltips, settings panel section headers, eval detail empty states
+- Chinese mode now shows: 运行中心, LLM 提供方, 数据库, 蛋白靶点评估, 每日文献检索, PDB 周报生成, 执行日志, 外观, 主题, 浅色/深色/跟随系统, 语言, 默认行为, 数据显示, 通知, 键盘快捷键, 关于
+- English mode remains fully English (0 Chinese verified via DOM scan)

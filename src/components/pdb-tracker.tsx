@@ -378,7 +378,7 @@ interface AiAnalysisResult {
 
 export default function PdbTracker() {
   const { theme, setTheme } = useTheme();
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [mounted, setMounted] = useState(false);
 
   // ── First-run DB setup wizard ───────────────────────────────────────────
@@ -3495,7 +3495,7 @@ export default function PdbTracker() {
               <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
                 <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Common PDB IDs</div>
                 {commonPdbIds.length === 0 ? (
-                  <p className="text-xs text-claude-text-muted italic">No shared structures detected.</p>
+                  <p className="text-xs text-claude-text-muted italic">{t.noSharedStructures}</p>
                 ) : (
                   <div className="flex flex-wrap gap-1">
                     {commonPdbIds.map(id => (
@@ -3510,7 +3510,7 @@ export default function PdbTracker() {
               {/* Score comparison radar — uses EvalScoreRadar with aggregate as primary + sub-targets as comparisons */}
               {aggregateEval && subTargetEvals.length > 0 && (
                 <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
-                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Score Comparison (Batch Avg vs Targets)</div>
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">{t.batchAvgVsTargets}</div>
                   <EvalScoreRadar evaluation={aggregateEval} comparisonEvaluations={subTargetEvals.slice(0, 4)} size={200} />
                 </div>
               )}
@@ -3519,7 +3519,7 @@ export default function PdbTracker() {
           {evalDetailTab === 'Targets' && (
             <div className="space-y-1.5">
               {subTargets.length === 0 ? (
-                <p className="text-xs text-claude-text-muted py-4 text-center">No sub-targets recorded</p>
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noSubTargets}</p>
               ) : (
                 subTargets.map(sub => (
                   <button
@@ -3551,9 +3551,9 @@ export default function PdbTracker() {
           {evalDetailTab === 'Structures' && (
             <div className="space-y-2">
               {subTargetEvals.length === 0 ? (
-                <p className="text-xs text-claude-text-muted py-4 text-center">No structure data available</p>
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noStructureData}</p>
               ) : subTargetEvals.flatMap(e => e.pdbStructures || []).length === 0 ? (
-                <p className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found in this batch</p>
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noStructuresInBatch}</p>
               ) : (() => {
                 const allStructures = subTargetEvals.flatMap(e => (e.pdbStructures || []).map(s => ({ ...s, _uniprotId: e.uniprotId, _type: 'structure' as const })));
                 const showThumbnails = allStructures.length <= 10;
@@ -3586,9 +3586,9 @@ export default function PdbTracker() {
           {evalDetailTab === 'BLAST' && (
             <div className="space-y-2">
               {subTargetEvals.length === 0 ? (
-                <p className="text-xs text-claude-text-muted py-4 text-center">No BLAST data available</p>
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noBlastData}</p>
               ) : subTargetEvals.flatMap(e => e.blastResults || []).length === 0 ? (
-                <p className="text-xs text-claude-text-muted py-4 text-center">No BLAST results found in this batch</p>
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noBlastInBatch}</p>
               ) : (
                 subTargetEvals.flatMap(e => (e.blastResults || []).map(b => ({ ...b, _uniprotId: e.uniprotId }))).map((b, i) => (
                   <div key={`${b.pdbId}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors">
@@ -3643,7 +3643,7 @@ export default function PdbTracker() {
         return (
           <div className="space-y-2">
             {structures.length === 0 ? (
-              <div className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found</div>
+              <div className="text-xs text-claude-text-muted py-4 text-center">{t.noStructures}</div>
             ) : (
               structures.map((s) => {
                 const methodStyle = getMethodColor(s.method || '');
@@ -3704,7 +3704,7 @@ export default function PdbTracker() {
       const evalBlastTab = (
         <div className="space-y-2">
           {(selectedEval.blastResults || []).length === 0 ? (
-            <div className="text-xs text-claude-text-muted py-4 text-center">No BLAST results found</div>
+            <div className="text-xs text-claude-text-muted py-4 text-center">{t.noBlastResults}</div>
           ) : (
             (selectedEval.blastResults || []).map((b) => {
               const methodStyle = getMethodColor(b.method || '');
@@ -3784,7 +3784,7 @@ export default function PdbTracker() {
               </div>
             </div>
           ) : (
-            <div className="text-xs text-claude-text-muted py-4 text-center">No report available</div>
+            <div className="text-xs text-claude-text-muted py-4 text-center">{t.noReport}</div>
           )}
         </div>
       );
@@ -4246,7 +4246,7 @@ export default function PdbTracker() {
                 <Search className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Search</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.search}</p></TooltipContent>
           </Tooltip>
 
           {mode === 'weekly' && (
@@ -4258,7 +4258,7 @@ export default function PdbTracker() {
                     <BarChart3 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom"><p>Dashboard Charts</p></TooltipContent>
+                <TooltipContent side="bottom"><p>{t.dashboardCharts}</p></TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -4275,7 +4275,7 @@ export default function PdbTracker() {
                     <ArrowRightLeft className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom"><p>Compare Weeks</p></TooltipContent>
+                <TooltipContent side="bottom"><p>{t.compareWeeks}</p></TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -4289,7 +4289,7 @@ export default function PdbTracker() {
                   <BarChart3 className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p>Literature Charts</p></TooltipContent>
+              <TooltipContent side="bottom"><p>{t.literatureCharts}</p></TooltipContent>
             </Tooltip>
           )}
 
@@ -4303,7 +4303,7 @@ export default function PdbTracker() {
                 <Download className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Export Data (E)</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.exportData}</p></TooltipContent>
           </Tooltip>
 
           {/* Import Button */}
@@ -4316,7 +4316,7 @@ export default function PdbTracker() {
                 <Upload className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Import Data</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.importData}</p></TooltipContent>
           </Tooltip>
 
           {/* Refresh Data Button */}
@@ -4330,7 +4330,7 @@ export default function PdbTracker() {
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} style={isRefreshing ? { animationDuration: '1s' } : undefined} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Refresh Data</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.refreshData}</p></TooltipContent>
           </Tooltip>
 
           {/* Notification Bell */}
@@ -4355,7 +4355,7 @@ export default function PdbTracker() {
                 <Settings className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Settings</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.settingsTitle}</p></TooltipContent>
           </Tooltip>
 
           {/* Help / Restart Onboarding Tour Button */}
@@ -4588,9 +4588,9 @@ export default function PdbTracker() {
               >
                 {showDashboard ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                 <LayoutDashboard className="h-3 w-3" />
-                Dashboard Charts
+                {t.dashboardCharts}
                 <span className="ml-1 text-[10px] text-claude-text-muted">
-                  · {entries.length} structures
+                  · {entries.length} {locale === 'zh' ? '个结构' : 'structures'}
                 </span>
               </button>
               <div

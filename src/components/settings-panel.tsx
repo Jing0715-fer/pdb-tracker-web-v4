@@ -172,20 +172,20 @@ export function SettingsPanel({
 
               {/* ─── 1. Appearance ─────────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Palette className="h-3.5 w-3.5" />} title="Appearance" />
+                <SectionHeader icon={<Palette className="h-3.5 w-3.5" />} title={t.appearance} />
 
                 {/* Theme */}
                 <div className="mb-3">
-                  <Label className="text-xs font-medium text-claude-text mb-2 block">Theme</Label>
+                  <Label className="text-xs font-medium text-claude-text mb-2 block">{t.theme}</Label>
                   <RadioGroup
                     value={settings.theme}
                     onValueChange={handleThemeChange}
                     className="flex gap-2"
                   >
                     {[
-                      { value: 'light', label: 'Light', icon: <Sun className="h-3.5 w-3.5" /> },
-                      { value: 'dark', label: 'Dark', icon: <Moon className="h-3.5 w-3.5" /> },
-                      { value: 'system', label: 'System', icon: <Monitor className="h-3.5 w-3.5" /> },
+                      { value: 'light', label: t.themeLight, icon: <Sun className="h-3.5 w-3.5" /> },
+                      { value: 'dark', label: t.themeDark, icon: <Moon className="h-3.5 w-3.5" /> },
+                      { value: 'system', label: t.themeSystem, icon: <Monitor className="h-3.5 w-3.5" /> },
                     ].map((opt) => (
                       <label
                         key={opt.value}
@@ -232,8 +232,8 @@ export function SettingsPanel({
                   </RadioGroup>
                 </div>
                 <SettingRow
-                  label="Compact Mode"
-                  description="Reduce padding and font sizes for denser layouts"
+                  label={t.compactMode}
+                  description={t.compactModeDesc}
                 >
                   <Switch
                     checked={settings.compactMode}
@@ -263,7 +263,7 @@ export function SettingsPanel({
 
               {/* ─── 2. Default Behavior ───────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<SlidersHorizontal className="h-3.5 w-3.5" />} title="Default Behavior" />
+                <SectionHeader icon={<SlidersHorizontal className="h-3.5 w-3.5" />} title={t.defaultBehavior} />
 
                 {/* Default Mode */}
                 <SettingRow label="Default Mode" description="Mode shown on app startup">
@@ -337,7 +337,7 @@ export function SettingsPanel({
 
               {/* ─── 3. Data Display ───────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Eye className="h-3.5 w-3.5" />} title="Data Display" />
+                <SectionHeader icon={<Eye className="h-3.5 w-3.5" />} title={t.dataDisplay} />
 
                 <SettingRow
                   label="Show NMR Resolution"
@@ -393,7 +393,7 @@ export function SettingsPanel({
 
               {/* ─── 4. Notifications ──────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Bell className="h-3.5 w-3.5" />} title="Notifications" />
+                <SectionHeader icon={<Bell className="h-3.5 w-3.5" />} title={t.notifications} />
 
                 <SettingRow
                   label="Enable Notifications"
@@ -452,7 +452,7 @@ export function SettingsPanel({
 
               {/* ─── 5. Keyboard Shortcuts ─────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Keyboard className="h-3.5 w-3.5" />} title="Keyboard Shortcuts" />
+                <SectionHeader icon={<Keyboard className="h-3.5 w-3.5" />} title={t.keyboardShortcuts} />
 
                 <div className="rounded-md border border-claude-border dark:border-[#3d3832] overflow-hidden">
                   {KEYBOARD_SHORTCUTS.map((shortcut, i) => (
@@ -475,7 +475,7 @@ export function SettingsPanel({
 
               {/* ─── 6. About ──────────────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Info className="h-3.5 w-3.5" />} title="About" />
+                <SectionHeader icon={<Info className="h-3.5 w-3.5" />} title={t.about} />
 
                 <div className="space-y-2 text-[11px]">
                   <div className="flex items-center justify-between">
