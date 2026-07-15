@@ -1041,7 +1041,7 @@ export function SettingsRunPanel({
       can spotlight the module panel area for steps 4/5/6. */
   tabContentRef?: React.RefObject<HTMLElement | null>;
 } = {}) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [internalOpen, setInternalOpen] = useState(false);
   const [internalTab, setInternalTab] = useState('evaluation');
   const open = externalOpen ?? internalOpen;
@@ -1671,11 +1671,11 @@ export function SettingsRunPanel({
               </div>
               <span>{t.runCenter}</span>
               <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                <Layers className="h-2.5 w-2.5" /> 3 modules
+                <Layers className="h-2.5 w-2.5" /> {locale === 'zh' ? '3 个模块' : '3 modules'}
               </Badge>
               {running.size > 0 && (
                 <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
-                  <Loader2 className="h-2.5 w-2.5 animate-spin" /> {running.size} running
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" /> {running.size} {locale === 'zh' ? '运行中' : 'running'}
                 </Badge>
               )}
             </DialogTitle>
@@ -1694,18 +1694,18 @@ export function SettingsRunPanel({
                 <span className="text-sm font-medium text-foreground">{t.llmProvider}</span>
               </div>
               <code className="px-2 py-0.5 rounded bg-background border border-border/60 font-mono text-sm text-foreground shrink-0">
-                {effectiveProviderId || (scanning ? 'Scanning…' : 'Not detected')}
+                {effectiveProviderId || (scanning ? (locale === 'zh' ? '扫描中…' : 'Scanning…') : (locale === 'zh' ? '未检测到' : 'Not detected'))}
               </code>
               <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground/70">
                 <span>
-                  {chosenProvider === AUTO_PROVIDER ? 'auto · ' : '🔒 Locked · '}
+                  {chosenProvider === AUTO_PROVIDER ? (locale === 'zh' ? 'auto · ' : 'auto · ') : (locale === 'zh' ? '🔒 已锁定 · ' : '🔒 Locked · ')}
                   <span className="font-mono">
                     {llmInfo?.available?.length ?? 0}
                   </span>
-                  available
+                  {locale === 'zh' ? ' 可用' : ' available'}
                 </span>
                 <span className="opacity-50">/</span>
-                <span className="font-mono">{llmInfo?.totalClisScanned ?? 0} CLI</span>
+                <span className="font-mono">{llmInfo?.totalClisScanned ?? 0} {locale === 'zh' ? '个 CLI' : 'CLI'}</span>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -1716,12 +1716,12 @@ export function SettingsRunPanel({
                       <RefreshCw className={`h-3.5 w-3.5 ${scanning ? 'animate-spin' : ''}`} />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top">Re-scan CLI / SDK</TooltipContent>
+                  <TooltipContent side="top">{locale === 'zh' ? '重新扫描 CLI / SDK' : 'Re-scan CLI / SDK'}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <Button variant="ghost" size="sm" className="h-7 text-sm gap-1" onClick={() => setShowLlmCfg(s => !s)}>
                 <ChevronDown className={`h-3 w-3 transition-transform ${showLlmCfg ? 'rotate-180' : ''}`} />
-                {showLlmCfg ? 'Hide Config' : 'LLM Config'}
+                {showLlmCfg ? (locale === 'zh' ? '隐藏配置' : 'Hide Config') : (locale === 'zh' ? 'LLM 配置' : 'LLM Config')}
               </Button>
             </div>
           </div>
@@ -1839,16 +1839,16 @@ export function SettingsRunPanel({
               >
                 <div className="mt-3 pt-3 border-t border-border/40 grid grid-cols-2 gap-2.5">
                   <div className="col-span-2">
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Provider</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? '提供方' : 'Provider'}</Label>
                     <Input
-                      placeholder="cli:hermes | cli:claude | cli:codex | anthropic | openai | (empty=auto)"
+                      placeholder={locale === 'zh' ? 'cli:hermes | cli:claude | cli:codex | anthropic | openai | (空=自动)' : 'cli:hermes | cli:claude | cli:codex | anthropic | openai | (empty=auto)'}
                       value={llmCfg.provider}
                       onChange={e => setLlmCfg({ ...llmCfg, provider: e.target.value })}
                       className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">API Key</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? 'API 密钥' : 'API Key'}</Label>
                     <Input
                       type="password"
                       placeholder="sk-…"
@@ -1858,7 +1858,7 @@ export function SettingsRunPanel({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Base URL</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? 'Base URL' : 'Base URL'}</Label>
                     <Input
                       placeholder="https://api.openai.com/v1"
                       value={llmCfg.baseUrl}
@@ -1867,7 +1867,7 @@ export function SettingsRunPanel({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Model</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? '模型' : 'Model'}</Label>
                     <Input
                       placeholder="claude-sonnet-4-20250514 / gpt-4o-mini"
                       value={llmCfg.model}
@@ -1876,9 +1876,9 @@ export function SettingsRunPanel({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">System</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? 'System' : 'System'}</Label>
                     <Input
-                      placeholder="(optional) System prompt"
+                      placeholder={locale === 'zh' ? '(可选) System 提示词' : '(optional) System prompt'}
                       value={llmCfg.system}
                       onChange={e => setLlmCfg({ ...llmCfg, system: e.target.value })}
                       className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
@@ -1902,16 +1902,16 @@ export function SettingsRunPanel({
               )}
               {dbStatus?.isTest && (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                  <AlertTriangle className="h-2 w-2" /> Test DB
+                  <AlertTriangle className="h-2 w-2" /> {locale === 'zh' ? '测试库' : 'Test DB'}
                 </Badge>
               )}
               {dbStatus?.hasSchema ? (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-2 w-2" /> Schema {dbStatus.tableCount}
+                  <CheckCircle2 className="h-2 w-2" /> {locale === 'zh' ? 'Schema' : 'Schema'} {dbStatus.tableCount}
                 </Badge>
               ) : dbStatus ? (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
-                  <XCircle className="h-2 w-2" /> Not initialized
+                  <XCircle className="h-2 w-2" /> {locale === 'zh' ? '未初始化' : 'Not initialized'}
                 </Badge>
               ) : null}
               {dbStatus?.hasSchema && (dbStatus.counts?.PdbStructure || 0) > 0 && (
@@ -2030,17 +2030,17 @@ export function SettingsRunPanel({
                 index="①"
                 title={t.moduleEvalTitle}
                 endpoint="POST /api/evaluations/run"
-                description="UniProt → metadata + sequence → RCSB direct PDB → SIFTS coverage → NCBI BLASTp homology → scoring → atomic tasks include LLM report generation (writes to Evaluation.report + EvaluationReport table + optional LLM-Wiki). Supports multiple UniProt IDs for batch evaluation with cross-target structure and correlation analysis."
+                description={locale === 'zh' ? 'UniProt → 元数据 + 序列 → RCSB 直接 PDB → SIFTS 覆盖度 → NCBI BLASTp 同源 → 评分 → 原子任务包含 LLM 报告生成（写入 Evaluation.report + EvaluationReport 表 + 可选 LLM-Wiki）。支持多个 UniProt ID 批量评估，含跨靶点结构与关联分析。' : 'UniProt → metadata + sequence → RCSB direct PDB → SIFTS coverage → NCBI BLASTp homology → scoring → atomic tasks include LLM report generation (writes to Evaluation.report + EvaluationReport table + optional LLM-Wiki). Supports multiple UniProt IDs for batch evaluation with cross-target structure and correlation analysis.'}
                 headerBadge={evalTargets.length > 1 ? (
-                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title="Multi-target batch evaluation + correlation analysis">
-                    <Layers className="h-2 w-2" /> Batch · {evalTargets.length} targets
+                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title={locale === 'zh' ? '多靶点批量评估 + 关联分析' : 'Multi-target batch evaluation + correlation analysis'}>
+                    <Layers className="h-2 w-2" /> {locale === 'zh' ? '批量' : 'Batch'} · {evalTargets.length} {locale === 'zh' ? '靶点' : 'targets'}
                   </Badge>
                 ) : null}
               >
                 {/* Input mode toggle: UniProt ID vs Sequence */}
                 <div className="flex items-center gap-1.5 mb-3">
                   <div className="flex items-center gap-0.5 rounded-md bg-muted/40 border border-border/40 p-0.5">
-                    <button type="button" onClick={() => setEvalInputMode('uniprot')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'uniprot' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>UniProt ID</button>
+                    <button type="button" onClick={() => setEvalInputMode('uniprot')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'uniprot' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{locale === 'zh' ? 'UniProt ID' : 'UniProt ID'}</button>
                     <button type="button" onClick={() => setEvalInputMode('sequence')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'sequence' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{t.evalInputModeSequence}</button>
                   </div>
                   {evalInputMode === 'sequence' && (
@@ -2056,14 +2056,20 @@ export function SettingsRunPanel({
                   <div className="space-y-2 mb-3">
                     <div>
                       <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                        {evalSeqType === 'dna' ? 'DNA sequence (auto-transcribed to amino acid)' : 'Amino acid sequence'}
+                        {evalSeqType === 'dna'
+                          ? (locale === 'zh' ? 'DNA 序列（自动转录为氨基酸）' : 'DNA sequence (auto-transcribed to amino acid)')
+                          : (locale === 'zh' ? '氨基酸序列' : 'Amino acid sequence')}
                       </Label>
                       <textarea
                         value={evalSequence}
                         onChange={e => setEvalSequence(e.target.value)}
                         placeholder={evalSeqType === 'dna'
-                          ? 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...'
-                          : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nMAGSCKLP...\n\nMKLTVFGV...'}
+                          ? (locale === 'zh'
+                              ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nATGGCGAGC...\n\nATGTTACGT...'
+                              : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...')
+                          : (locale === 'zh'
+                              ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nMAGSCKLP...\n\nMKLTVFGV...'
+                              : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nMAGSCKLP...\n\nMKLTVFGV...')}
                         className="mt-1 w-full h-24 px-2 py-1.5 rounded-md border border-border/60 bg-background text-xs font-mono resize-y thin-scroll"
                         spellCheck={false}
                       />
@@ -2072,9 +2078,14 @@ export function SettingsRunPanel({
                           ? (() => {
                               const cnt = evalSequence.split(/\n\s*\n+/).map(s => s.trim()).filter(s => s.length > 0).length;
                               const totalLen = evalSequence.replace(/\s/g, '').length;
-                              return `${cnt} sequences · ${totalLen} ${evalSeqType === 'dna' ? 'nt' : 'aa'} total${cnt > 1 ? ' · multi-sequence batch mode (with cross-sequence analysis)' : ''}`;
+                              const seqWord = locale === 'zh' ? '条序列' : 'sequences';
+                              const totalWord = locale === 'zh' ? '总数' : 'total';
+                              const multiWord = locale === 'zh' ? '多序列批量模式（含跨序列关联分析）' : 'multi-sequence batch mode (with cross-sequence analysis)';
+                              return `${cnt} ${seqWord} · ${totalLen} ${evalSeqType === 'dna' ? 'nt' : 'aa'} ${totalWord}${cnt > 1 ? ' · ' + multiWord : ''}`;
                             })()
-                          : `Enter ${evalSeqType === 'dna' ? 'DNA' : 'amino acid'} sequence for BLASTp homology search (separate multiple sequences with blank lines)`}
+                          : (locale === 'zh'
+                              ? `输入${evalSeqType === 'dna' ? 'DNA' : '氨基酸'}序列进行 BLASTp 同源搜索（多条序列以空行分隔）`
+                              : `Enter ${evalSeqType === 'dna' ? 'DNA' : 'amino acid'} sequence for BLASTp homology search (separate multiple sequences with blank lines)`)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -2095,21 +2106,21 @@ export function SettingsRunPanel({
                     <div key={i} className="flex items-end gap-1.5">
                       {/* Left slot: + (add) on row 1, remove (×) on rows 2+, placeholder on row 1 if single */}
                       {i === 0 ? (
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title="Add target">
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title={locale === 'zh' ? '新增靶点' : 'Add target'}>
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
                       ) : (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title="Remove this target">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title={locale === 'zh' ? '移除该靶点' : 'Remove this target'}>
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       )}
                       <div className="w-28 shrink-0">
-                        <Field label={evalTargets.length > 1 ? `UniProt ID ${i + 1}` : 'UniProt ID'}>
+                        <Field label={evalTargets.length > 1 ? (locale === 'zh' ? `UniProt ID ${i + 1}` : `UniProt ID ${i + 1}`) : 'UniProt ID'}>
                           <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
                       <div className="w-16 shrink-0">
-                        <Field label="maxPdb">
+                        <Field label={locale === 'zh' ? 'PDB上限' : 'maxPdb'}>
                           <Input type="number" min={1} max={500} value={t.maxPdb} onChange={e => updateEvalTarget(i, 'maxPdb', parseInt(e.target.value || '80'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
@@ -2119,14 +2130,14 @@ export function SettingsRunPanel({
                         </Field>
                       </div>
                       {i === 0 && (
-                        <div className="w-20 shrink-0" title="Max PubMed literature count attached to LLM report context (sorted by journal IF descending)">
-                          <Field label="Max Lit">
+                        <div className="w-20 shrink-0" title={locale === 'zh' ? '附加到 LLM 报告上下文的最大 PubMed 文献数（按期刊 IF 降序排序）' : 'Max PubMed literature count attached to LLM report context (sorted by journal IF descending)'}>
+                          <Field label={locale === 'zh' ? '上限' : 'Max Lit'}>
                             <Input type="number" min={0} max={200} value={evalMaxLitCount} onChange={e => setEvalMaxLitCount(Math.max(0, Math.min(200, parseInt(e.target.value || '20') || 0)))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                           </Field>
                         </div>
                       )}
-                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="Force BLAST" disabled={t.skipBlast} />
-                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="Skip BLAST" disabled={t.forceBlast} />
+                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label={locale === 'zh' ? '强制 BLAST' : 'Force BLAST'} disabled={t.skipBlast} />
+                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label={locale === 'zh' ? '跳过 BLAST' : 'Skip BLAST'} disabled={t.forceBlast} />
                       {i === 0 && (
                         <div className="ml-auto shrink-0">
                           <RunButton
@@ -2146,7 +2157,7 @@ export function SettingsRunPanel({
                   running={evalStream.state.running}
                   done={evalStream.state.done}
                   ok={evalStream.state.ok}
-                  emptyHint="Enter a UniProt ID and click Run to start the evaluation pipeline"
+                  emptyHint={locale === 'zh' ? '输入 UniProt ID 并点击 “执行” 启动评估流水线' : 'Enter a UniProt ID and click Run to start the evaluation pipeline'}
                 />
 
                 {/* Per-chapter streamed LLM output (collapsible "thinking process") */}
@@ -2163,7 +2174,7 @@ export function SettingsRunPanel({
                 {effectivePrimaryReport && (
                   <LLMPreview
                     content={effectivePrimaryReport.content}
-                    title={`LLM Feasibility Report · ${evalStream.state.result?.uniprotInfo?.proteinName || evalStream.state.result?.uniprot || (evalStream.state.running ? 'Generating…' : 'Primary target')}`}
+                    title={`${locale === 'zh' ? 'LLM 可行性报告' : 'LLM Feasibility Report'} · ${evalStream.state.result?.uniprotInfo?.proteinName || evalStream.state.result?.uniprot || (evalStream.state.running ? (locale === 'zh' ? '生成中…' : 'Generating…') : (locale === 'zh' ? '主靶点' : 'Primary target'))}`}
                     provider={effectivePrimaryReport.provider}
                     model={effectivePrimaryReport.model}
                     durationMs={effectivePrimaryReport.durationMs}
@@ -2215,7 +2226,7 @@ export function SettingsRunPanel({
                   && evalStream.state.result?.crossAnalysis?.crossReport?.content && (
                   <LLMPreview
                     content={evalStream.state.result.crossAnalysis.crossReport.content}
-                    title="Cross-Target Correlation Report · Batch"
+                    title={locale === 'zh' ? '跨靶点关联报告 · 批量' : 'Cross-Target Correlation Report · Batch'}
                     provider={evalStream.state.result.crossAnalysis.crossReport.provider}
                     model={evalStream.state.result.crossAnalysis.crossReport.model}
                     durationMs={evalStream.state.result.crossAnalysis.crossReport.durationMs}
@@ -2231,11 +2242,11 @@ export function SettingsRunPanel({
                 <div className="mt-3 flex items-center gap-3 flex-wrap">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Switch checked={evalGenerateReport} onCheckedChange={setEvalGenerateReport} className="scale-90" />
-                    Generate LLM report
+                    {locale === 'zh' ? '生成 LLM 报告' : 'Generate LLM report'}
                   </label>
                   <label className={`flex items-center gap-2 text-xs cursor-pointer ${evalGenerateReport ? 'text-muted-foreground' : 'text-muted-foreground/40 pointer-events-none'}`}>
                     <Switch checked={evalSaveReportFile} onCheckedChange={setEvalSaveReportFile} disabled={!evalGenerateReport} className="scale-90" />
-                    Save to LLM-Wiki file
+                    {locale === 'zh' ? '保存为 LLM-Wiki 文件' : 'Save to LLM-Wiki file'}
                   </label>
                 </div>
               </ModuleCard>
@@ -2249,22 +2260,22 @@ export function SettingsRunPanel({
                 index="②"
                 title={t.moduleLitTitle}
                 endpoint="POST /api/literature/daily/run"
-                description="Dual-pathway PubMed search (Path A: MeSH+method keywords / Path B: high-IF journals+method keywords) → ±N day window → method filter (Cryo-EM / X-ray / NMR / AlphaFold) → dedup+sort → per-paper LLM summary → optional executive summary → writes to PubMedArticle + daily-reports index."
+                description={locale === 'zh' ? '双通路 PubMed 检索（Path A：MeSH+方法关键词 / Path B：高 IF 期刊+方法关键词）→ ±N 天窗口 → 方法过滤（冷冻电镜 / X 射线 / NMR / AlphaFold）→ 去重+排序 → 单篇 LLM 摘要 → 可选执行摘要 → 写入 PubMedArticle + daily-reports 索引。' : 'Dual-pathway PubMed search (Path A: MeSH+method keywords / Path B: high-IF journals+method keywords) → ±N day window → method filter (Cryo-EM / X-ray / NMR / AlphaFold) → dedup+sort → per-paper LLM summary → optional executive summary → writes to PubMedArticle + daily-reports index.'}
               >
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
-                  <Field label="Date">
+                  <Field label={locale === 'zh' ? '日期' : 'Date'}>
                     <Input type="date" value={litDate} onChange={e => setLitDate(e.target.value)} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="±Days">
+                  <Field label={locale === 'zh' ? '±天数' : '±Days'}>
                     <Input type="number" min={0} max={7} value={litWindowDays} onChange={e => setLitWindowDays(parseInt(e.target.value || '3'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="Path A Max">
+                  <Field label={locale === 'zh' ? 'Path A 上限' : 'Path A Max'}>
                     <Input type="number" min={10} max={1000} value={litMaxPathA} onChange={e => setLitMaxPathA(parseInt(e.target.value || '300'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="Path B Max">
+                  <Field label={locale === 'zh' ? 'Path B 上限' : 'Path B Max'}>
                     <Input type="number" min={5} max={200} value={litMaxPathB} onChange={e => setLitMaxPathB(parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="Max Papers">
+                  <Field label={locale === 'zh' ? '上限' : 'Max Papers'}>
                     <Input type="number" min={1} max={100} value={litMaxPapers} onChange={e => setLitMaxPapers(parseInt(e.target.value || '20'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                 </div>
@@ -2272,7 +2283,7 @@ export function SettingsRunPanel({
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Switch checked={litSkipWikiFiles} onCheckedChange={setLitSkipWikiFiles} className="scale-90" />
-                    DB only (no LLM-Wiki file)
+                    {locale === 'zh' ? '仅入库（不生成 LLM-Wiki 文件）' : 'DB only (no LLM-Wiki file)'}
                   </label>
                   <RunButton
                     running={isRunning('lit')}
@@ -2286,7 +2297,7 @@ export function SettingsRunPanel({
                   running={litStream.state.running}
                   done={litStream.state.done}
                   ok={litStream.state.ok}
-                  emptyHint="Click Run to start PubMed dual-pathway search + LLM summary pipeline"
+                  emptyHint={locale === 'zh' ? '点击 “执行” 启动 PubMed 双通路检索 + LLM 摘要流水线' : 'Click Run to start PubMed dual-pathway search + LLM summary pipeline'}
                 />
 
                 {/* LLM digest inline preview (module ②) — shows real LLM output or failure */}
@@ -2382,7 +2393,7 @@ export function SettingsRunPanel({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                   <div>
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                      <CalendarClock className="h-3 w-3" />ISO Week
+                      <CalendarClock className="h-3 w-3" />{locale === 'zh' ? 'ISO 周' : 'ISO Week'}
                     </Label>
                     <div className="mt-1 flex items-center gap-1">
                       <input
@@ -2399,15 +2410,15 @@ export function SettingsRunPanel({
                       )}
                     </div>
                   </div>
-                  <InfoTile label="Report Date" value={weeklyCustomWeek ? `${weeklyCustomWeek}-5` : (weeklyWindow?.reportDate || '…')} />
-                  <InfoTile label="Start" value={weeklyWindow?.startDate || '…'} />
-                  <InfoTile label="End (RCSB)" value={weeklyWindow?.endDate || '…'} />
+                  <InfoTile label={locale === 'zh' ? '报告日期' : 'Report Date'} value={weeklyCustomWeek ? `${weeklyCustomWeek}-5` : (weeklyWindow?.reportDate || '…')} />
+                  <InfoTile label={locale === 'zh' ? '起始' : 'Start'} value={weeklyWindow?.startDate || '…'} />
+                  <InfoTile label={locale === 'zh' ? '截止 (RCSB)' : 'End (RCSB)'} value={weeklyWindow?.endDate || '…'} />
                 </div>
 
                 {weeklyDbCounts && (
                   <div className="mb-3 flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                     <Database className="h-3 w-3" />
-                    <span>In DB this week:</span>
+                    <span>{locale === 'zh' ? '本周入库：' : 'In DB this week:'}</span>
                     <code className="px-1.5 py-0.5 rounded bg-muted/60 font-mono">PdbStructure {weeklyDbCounts.pdbStructure}</code>
                     <code className="px-1.5 py-0.5 rounded bg-muted/60 font-mono">WeeklyReport {weeklyDbCounts.weeklyReport}</code>
                     <code className="px-1.5 py-0.5 rounded bg-muted/60 font-mono">WeeklySnapshot {weeklyDbCounts.weeklySnapshot}</code>
@@ -2416,7 +2427,7 @@ export function SettingsRunPanel({
 
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <div className="flex items-center gap-1 text-xs">
-                    <span className="text-muted-foreground mr-1">Cycle:</span>
+                    <span className="text-muted-foreground mr-1">{locale === 'zh' ? '周期：' : 'Cycle:'}</span>
                     {([1, 2, 3] as const).map(c => (
                       <button
                         key={c}
@@ -2427,11 +2438,11 @@ export function SettingsRunPanel({
                             ? 'border-primary/50 bg-primary/10 text-foreground font-medium'
                             : 'border-border/60 text-muted-foreground hover:text-foreground hover:border-border'
                         }`}
-                        title={c === 1 ? '~5 min' : c === 2 ? '~10 min' : '~15 min'}
+                        title={c === 1 ? (locale === 'zh' ? '约 5 分钟' : '~5 min') : c === 2 ? (locale === 'zh' ? '约 10 分钟' : '~10 min') : (locale === 'zh' ? '约 15 分钟' : '~15 min')}
                       >
                         {c}
                         <span className="opacity-50 ml-1 hidden sm:inline">
-                          {c === 1 ? '(single)' : c === 2 ? '(Gen+Critic)' : '(full)'}
+                          {c === 1 ? (locale === 'zh' ? '(单步)' : '(single)') : c === 2 ? (locale === 'zh' ? '(生成+评审)' : '(Gen+Critic)') : (locale === 'zh' ? '(完整)' : '(full)')}
                         </span>
                       </button>
                     ))}
@@ -2441,12 +2452,12 @@ export function SettingsRunPanel({
                     running={isRunning('weekly')}
                     onClick={() => runWeekly(weeklyCycles)}
                     onCancel={() => weeklyStream.cancel()}
-                    label={isRunning('weekly') ? 'Running…' : 'Run Now'}
+                    label={isRunning('weekly') ? (locale === 'zh' ? '运行中…' : 'Running…') : (locale === 'zh' ? '立即执行' : 'Run Now')}
                   />
 
                   <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
                     <Cpu className="h-3 w-3" />
-                    LLM → <code className="px-1 py-0.5 rounded bg-muted/60 font-mono">{effectiveProviderId || 'auto'}</code>
+                    {locale === 'zh' ? 'LLM →' : 'LLM →'} <code className="px-1 py-0.5 rounded bg-muted/60 font-mono">{effectiveProviderId || 'auto'}</code>
                   </span>
                 </div>
 
@@ -2463,7 +2474,7 @@ export function SettingsRunPanel({
                   running={weeklyStream.state.running}
                   done={weeklyStream.state.done}
                   ok={weeklyStream.state.ok}
-                  emptyHint="Select cycles and click Run Now to start the adversarial weekly report generator"
+                  emptyHint={locale === 'zh' ? '选择周期数并点击 “立即执行” 启动对抗式周报生成器' : 'Select cycles and click Run Now to start the adversarial weekly report generator'}
                 />
               </ModuleCard>
               </TabsContent>
@@ -2522,10 +2533,10 @@ export function SettingsRunPanel({
                           className="w-16 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50"
                         />
                       </div>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('md')} title="Export Markdown" disabled={logs.length === 0}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('md')} title={locale === 'zh' ? '导出 Markdown' : 'Export Markdown'} disabled={logs.length === 0}>
                         <FileDown className="h-3 w-3" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('json')} title="Export JSON" disabled={logs.length === 0}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('json')} title={locale === 'zh' ? '导出 JSON' : 'Export JSON'} disabled={logs.length === 0}>
                         <Download className="h-3 w-3" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground px-2" onClick={() => setLogs([])}>
@@ -2570,7 +2581,7 @@ export function SettingsRunPanel({
                           );
                         })}
                       {logs.filter(l => logFilter === 'all' || l.module === logFilter).filter(l => !logSearch || l.summary.toLowerCase().includes(logSearch.toLowerCase()) || (l.details || '').toLowerCase().includes(logSearch.toLowerCase())).length === 0 && (
-                        <div className="text-xs text-muted-foreground/60 text-center py-3">No matching logs</div>
+                        <div className="text-xs text-muted-foreground/60 text-center py-3">{locale === 'zh' ? '没有匹配的日志' : 'No matching logs'}</div>
                       )}
                     </div>
                   </div>
@@ -2696,11 +2707,12 @@ function RunButton({
   onCancel?: () => void;
   label?: string;
 }) {
+  const { locale } = useI18n();
   return (
     <div className="flex items-center gap-1.5">
       <Button onClick={onClick} disabled={disabled} size="sm" className="h-8 text-xs gap-1.5 min-w-[88px]">
         {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-        {running ? 'Running…' : label}
+        {running ? (locale === 'zh' ? '运行中…' : 'Running…') : (label === 'Run' ? (locale === 'zh' ? '执行' : 'Run') : label)}
       </Button>
       {running && onCancel && (
         <Button
@@ -2708,9 +2720,9 @@ function RunButton({
           variant="outline"
           size="sm"
           className="h-8 text-xs gap-1 border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400"
-          title="Stop current task (backend may take a few seconds to actually stop)"
+          title={locale === 'zh' ? '停止当前任务（后端可能需要几秒钟才能真正停止）' : 'Stop current task (backend may take a few seconds to actually stop)'}
         >
-          <XCircle className="h-3.5 w-3.5" /> Stop
+          <XCircle className="h-3.5 w-3.5" /> {locale === 'zh' ? '停止' : 'Stop'}
         </Button>
       )}
     </div>

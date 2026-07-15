@@ -93,11 +93,11 @@ export function AiAnalysisPanel({ entry }: AiAnalysisPanelProps) {
       const data = await response.json();
       setAnalysis(data.sections);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Analysis failed');
+      setError(err instanceof Error ? err.message : (locale === 'zh' ? '分析失败' : 'Analysis failed'));
     } finally {
       setLoading(false);
     }
-  }, [entry]);
+  }, [entry, locale]);
 
   if (!entry) {
     return (

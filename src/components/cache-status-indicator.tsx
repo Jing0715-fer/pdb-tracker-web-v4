@@ -96,7 +96,7 @@ export function CacheStatusIndicator({
       dotClass: 'bg-amber-500',
       label: 'Cached',
       icon: <HardDrive className="h-3 w-3 text-amber-500" />,
-      title: 'Showing cached data — background refresh in progress',
+      title: locale === 'zh' ? '显示缓存数据 — 后台刷新中' : 'Showing cached data — background refresh in progress',
     },
     offline: {
       dotClass: 'bg-red-500',
@@ -190,8 +190,8 @@ export function CacheStatusIndicator({
               ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20'
               : 'text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent/10'
           }`}
-          title={showClearConfirm ? 'Click again to confirm clear' : `Clear cache (${formatCacheSize(cacheSize)})`}
-          aria-label={showClearConfirm ? 'Confirm clear cache' : 'Clear cache'}
+          title={showClearConfirm ? (locale === 'zh' ? '再次点击确认清除' : 'Click again to confirm clear') : (locale === 'zh' ? `清除缓存 (${formatCacheSize(cacheSize)})` : `Clear cache (${formatCacheSize(cacheSize)})`)}
+          aria-label={showClearConfirm ? (locale === 'zh' ? '确认清除缓存' : 'Confirm clear cache') : (locale === 'zh' ? '清除缓存' : 'Clear cache')}
         >
           <Trash2 className="h-2.5 w-2.5" />
         </button>

@@ -832,7 +832,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline">
                 <span className="flex items-center gap-1.5">
                   <BookmarkPlus className="h-3 w-3 text-claude-accent" />
-                  Filter Presets
+                  {locale === 'zh' ? '筛选预设' : 'Filter Presets'}
                   {Object.keys(filterPresets).length > 0 && (
                     <span className="counter-badge text-[9px]">{Object.keys(filterPresets).length}</span>
                   )}
@@ -847,7 +847,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-dashed border-claude-border dark:border-[#3d3832] hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:border-claude-accent/40 transition-colors duration-150 group"
                   >
                     <BookmarkPlus className="h-3 w-3 text-claude-text-muted group-hover:text-claude-accent transition-colors" />
-                    <span className="text-[10px] font-medium text-claude-text-muted group-hover:text-claude-accent transition-colors">Save Current Filters</span>
+                    <span className="text-[10px] font-medium text-claude-text-muted group-hover:text-claude-accent transition-colors">{locale === 'zh' ? '保存当前筛选' : 'Save Current Filters'}</span>
                   </button>
                   {/* Preset List */}
                   {Object.values(filterPresets)
@@ -863,27 +863,27 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                           <button
                             onClick={() => loadFilterPreset(preset.id)}
                             className="flex-1 text-left min-w-0"
-                            title={`Load preset: ${preset.name}`}
+                            title={locale === 'zh' ? `加载预设：${preset.name}` : `Load preset: ${preset.name}`}
                           >
                             <span className="text-[10px] font-medium text-claude-text truncate block">{preset.name}</span>
                           </button>
                           <span className="text-[9px] text-claude-text-muted font-mono flex-shrink-0 bg-claude-bg dark:bg-[#1a1917] px-1.5 py-0.5 rounded-full">
-                            {activeCount} filter{activeCount !== 1 ? 's' : ''}
+                            {activeCount} {locale === 'zh' ? '项筛选' : `filter${activeCount !== 1 ? 's' : ''}`}
                           </span>
                           <button
                             onClick={() => {
-                              const newName = prompt('Rename preset:', preset.name);
+                              const newName = prompt(locale === 'zh' ? '重命名预设：' : 'Rename preset:', preset.name);
                               if (newName !== null && newName.trim()) renameFilterPreset(preset.id, newName);
                             }}
                             className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-all"
-                            title="Rename preset"
+                            title={locale === 'zh' ? '重命名预设' : 'Rename preset'}
                           >
                             <Settings className="h-2.5 w-2.5 text-claude-text-muted hover:text-claude-accent" />
                           </button>
                           <button
                             onClick={() => deleteFilterPreset(preset.id)}
                             className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                            title="Delete preset"
+                            title={locale === 'zh' ? '删除预设' : 'Delete preset'}
                           >
                             <Trash2 className="h-2.5 w-2.5 text-claude-text-muted hover:text-red-500" />
                           </button>
@@ -892,7 +892,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     })}
                   {Object.keys(filterPresets).length === 0 && (
                     <div className="px-3 py-2 text-[9px] text-claude-text-muted italic text-center">
-                      No presets saved yet
+                      {locale === 'zh' ? '尚未保存预设' : 'No presets saved yet'}
                     </div>
                   )}
                 </div>

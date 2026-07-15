@@ -527,7 +527,7 @@ export function WeeklyPdbTable({
         icon={<Database className="h-10 w-10" />}
         title={fetchError ? (locale === 'zh' ? '加载结构失败' : 'Failed to load structures') : (locale === 'zh' ? '未找到结构' : 'No structures found')}
         description={fetchError
-          ? 'The server may be temporarily unavailable. Please try again.'
+          ? (locale === 'zh' ? '服务器可能暂时不可用，请稍后重试。' : 'The server may be temporarily unavailable. Please try again.')
           : (locale === 'zh' ? '请尝试调整筛选条件或选择其他周次来查找 PDB 结构。' : 'Try adjusting your filters or selecting a different week to find PDB structures.')}
         accentColor={fetchError ? '#dc2626' : '#2d8f8f'}
         action={fetchError && onRetry ? {
@@ -537,11 +537,11 @@ export function WeeklyPdbTable({
         } : undefined}
         suggestions={fetchError ? [
           { icon: '\uD83D\uDD04', text: 'Click Retry to reload' },
-          { icon: '\uD83D\uDCC5', text: 'Try a different week' },
+          { icon: '\uD83D\uDCC5', text: (locale === 'zh' ? '尝试其他周次' : 'Try a different week') },
         ] : [
           { icon: '\uD83D\uDD0D', text: (locale === 'zh' ? '清除所有筛选' : 'Clear all filters') },
-          { icon: '\uD83D\uDCC5', text: 'Try a different week' },
-          { icon: '\uD83D\uDD2C', text: 'Search by PDB ID' },
+          { icon: '\uD83D\uDCC5', text: (locale === 'zh' ? '尝试其他周次' : 'Try a different week') },
+          { icon: '\uD83D\uDD2C', text: (locale === 'zh' ? '按 PDB ID 搜索' : 'Search by PDB ID') },
         ]}
       />
     );

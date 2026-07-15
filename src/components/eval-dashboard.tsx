@@ -21,6 +21,7 @@ import { EvalScoreEvolution } from '@/components/eval-score-evolution';
 import { DistributionBar, type DistributionSegment } from '@/components/ui/distribution-bar';
 import { EvalBatchProgressTracker } from '@/components/EvalBatchProgressTracker';
 import type { Evaluation, EvalBatch, EvalBatchSubTarget } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Score Parsing ──────────────────────────────────────────────────────────────
 
@@ -378,6 +379,7 @@ function PriorityItem({
   priority: number;
   reason: string;
 }) {
+  const { locale } = useI18n();
   const coverage = evaluation.coverage ?? 0;
   const diseaseRelevance = getScoreValue(evaluation.scores, 'disease_relevance');
 
@@ -406,13 +408,13 @@ function PriorityItem({
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <div className="text-right">
-          <div className="text-[10px] text-claude-text-muted">Coverage</div>
+          <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '覆盖度' : 'Coverage'}</div>
           <div className="text-xs font-mono font-semibold" style={{ color: getScoreColor(coverage / 10) }}>
             {coverage.toFixed(0)}%
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] text-claude-text-muted">Disease</div>
+          <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '疾病' : 'Disease'}</div>
           <div className="text-xs font-mono font-semibold" style={{ color: getScoreColor(diseaseRelevance) }}>
             {diseaseRelevance.toFixed(1)}
           </div>
@@ -576,6 +578,7 @@ interface EvalDashboardProps {
 
 export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {}, onViewBatch }: EvalDashboardProps) {
   const { theme } = useTheme();
+  const { locale } = useI18n();
   const isDark = theme === 'dark';
 
   // ─── Enhanced Summary Stats ─────────────────────────────────────────────
@@ -800,9 +803,9 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[300px] px-4 sparkline-fade-in">
         <LayoutDashboard className="h-12 w-12 text-claude-text-muted mb-3" />
-        <h3 className="text-base font-semibold text-claude-text mb-1">No Evaluations Yet</h3>
+        <h3 className="text-base font-semibold text-claude-text mb-1">{locale === 'zh' ? '暂无评估' : 'No Evaluations Yet'}</h3>
         <p className="text-sm text-claude-text-secondary text-center">
-          Evaluation data will appear here once evaluations are loaded.
+          {locale === 'zh' ? '评估数据加载后将在此处显示。' : 'Evaluation data will appear here once evaluations are loaded.'}
         </p>
       </div>
     );
@@ -814,9 +817,9 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
       <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-shrink-0">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="h-4 w-4 text-claude-accent" />
-          <h2 className="text-sm font-bold text-claude-text">Evaluation Dashboard</h2>
+          <h2 className="text-sm font-bold text-claude-text">{locale === 'zh' ? '评估看板' : 'Evaluation Dashboard'}</h2>
           <span className="text-[10px] text-claude-text-muted font-medium ml-auto">
-            {evaluations.length} evaluations
+            {evaluations.length} {locale === 'zh' ? '项评估' : 'evaluations'}
           </span>
         </div>
       </div>
@@ -979,7 +982,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
         {/* ── Coverage Distribution Chart (preserved) ──────────────────────── */}
         <div className="space-y-2">
-          <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider">Coverage Distribution</h4>
+          <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider">{locale === 'zh' ? '覆盖度分布' : 'Coverage Distribution'}</h4>
           <div className="chart-container chart-inner-shadow rounded-lg p-3 bg-claude-surface dark:bg-[#242220] border border-claude-border-light dark:border-[#2b2926]">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={coverageDistribution} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -1078,7 +1081,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
             <AlertTriangle className="h-3 w-3 text-claude-accent" />
-            Priority Recommendations
+            {locale === 'zh' ? '优先推荐' : 'Priority Recommendations'}
           </h4>
           <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
             {priorities.map((p, idx) => (
@@ -1096,7 +1099,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3 w-3 text-claude-accent" />
-            Recent Activity
+            {locale === 'zh' ? '最近活动' : 'Recent Activity'}
           </h4>
           <div className="space-y-1.5">
             {recentActivity.map((evaluation, idx) => (
@@ -1113,7 +1116,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3 w-3 text-claude-accent" />
-            Progress Timeline
+            {locale === 'zh' ? '进度时间线' : 'Progress Timeline'}
           </h4>
           <div className="relative pl-6 space-y-0">
             {/* Vertical line */}

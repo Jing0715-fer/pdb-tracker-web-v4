@@ -139,11 +139,11 @@ export function AiWeeklySummaryPanel({ weekId, entries }: AiWeeklySummaryPanelPr
       setSummary(newSummary);
       setCachedSummary(weekId, newSummary);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate summary');
+      setError(err instanceof Error ? err.message : (locale === 'zh' ? '摘要生成失败' : 'Failed to generate summary'));
     } finally {
       setLoading(false);
     }
-  }, [weekId, entries]);
+  }, [weekId, entries, locale]);
 
   const handleCopy = useCallback(() => {
     if (!summary) return;

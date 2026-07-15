@@ -60,6 +60,7 @@ import {
   formatCount,
   getBackgroundIcon,
 } from './molecule-controls';
+import { useI18n } from '@/lib/i18n';
 export interface ChainInfo {
   chain: string;
   asym_id: string;
@@ -206,6 +207,7 @@ export function MoleculeViewer({
   viewerActionsRef,
   onFocusIn3D,
 }: MoleculeViewerProps) {
+  const { locale } = useI18n();
   const containerRef = useRef<HTMLDivElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const pluginRef = useRef<any>(null);
@@ -3490,34 +3492,34 @@ export function MoleculeViewer({
               {/* Representation submenu */}
               <div className="border-t border-claude-border-light my-0.5" />
               <div className="px-3 py-1 text-[8px] font-semibold uppercase tracking-wider text-claude-text-muted">
-                Representation
+                {locale === 'zh' ? '表观模式' : 'Representation'}
               </div>
               <button
                 onClick={() => handleContextMenuRepresentation('cartoon')}
                 className="w-full flex items-center gap-2.5 px-3 py-1 text-[9px] text-claude-text-secondary hover:bg-claude-accent-light hover:text-claude-accent transition-colors text-left"
               >
                 <Box className="w-3 h-3" />
-                Cartoon
+                {locale === 'zh' ? '卡通' : 'Cartoon'}
               </button>
               <button
                 onClick={() => handleContextMenuRepresentation('ball-stick')}
                 className="w-full flex items-center gap-2.5 px-3 py-1 text-[9px] text-claude-text-secondary hover:bg-claude-accent-light hover:text-claude-accent transition-colors text-left"
               >
                 <FlaskConical className="w-3 h-3" />
-                Ball & Stick
+                {locale === 'zh' ? '球棒' : 'Ball & Stick'}
               </button>
               <button
                 onClick={() => handleContextMenuRepresentation('surface')}
                 className="w-full flex items-center gap-2.5 px-3 py-1 text-[9px] text-claude-text-secondary hover:bg-claude-accent-light hover:text-claude-accent transition-colors text-left"
               >
                 <Hexagon className="w-3 h-3" />
-                Surface
+                {locale === 'zh' ? '表面' : 'Surface'}
               </button>
             </div>
 
             {/* Footer hint */}
             <div className="px-3 py-1.5 border-t border-claude-border-light bg-claude-bg/30">
-              <span className="text-[7px] text-claude-text-muted">Esc to close</span>
+              <span className="text-[7px] text-claude-text-muted">{locale === 'zh' ? '按 Esc 关闭' : 'Esc to close'}</span>
             </div>
           </div>
         </div>
@@ -3579,7 +3581,7 @@ export function MoleculeViewer({
           <ToolbarButton
             onClick={handleResetCamera}
             icon={<RotateCcw className="w-3.5 h-3.5" />}
-            label="Reset Camera"
+            label={locale === 'zh' ? '重置相机' : 'Reset Camera'}
           />
 
           {/* Focus on Highlighted */}
@@ -3587,7 +3589,7 @@ export function MoleculeViewer({
             <ToolbarButton
               onClick={handleFocusHighlighted}
               icon={<Crosshair className="w-3.5 h-3.5" />}
-              label="Focus on Selection"
+              label={locale === 'zh' ? '聚焦选中' : 'Focus on Selection'}
               active
             />
           )}
@@ -3596,7 +3598,7 @@ export function MoleculeViewer({
           <ToolbarButton
             onClick={handleScreenshot}
             icon={<Camera className="w-3.5 h-3.5" />}
-            label="Screenshot (PNG)"
+            label={locale === 'zh' ? '截图（PNG）' : 'Screenshot (PNG)'}
             disabled={!structureLoaded}
           />
 
@@ -3604,7 +3606,7 @@ export function MoleculeViewer({
           <ToolbarButton
             onClick={handleToggleSpin}
             icon={<RefreshCw className={`w-3.5 h-3.5 ${isSpinning ? 'animate-spin' : ''}`} />}
-            label={isSpinning ? 'Stop Rotation' : 'Auto-Rotate'}
+            label={isSpinning ? (locale === 'zh' ? '停止旋转' : 'Stop Rotation') : (locale === 'zh' ? '自动旋转' : 'Auto-Rotate')}
             active={isSpinning}
             disabled={!structureLoaded}
           />
@@ -3613,7 +3615,7 @@ export function MoleculeViewer({
           <ToolbarButton
             onClick={handleToggleEDMap}
             icon={<Boxes className="w-3.5 h-3.5" />}
-            label={edMapActive ? 'Density: ON' : 'Density: OFF'}
+            label={edMapActive ? (locale === 'zh' ? '密度：开' : 'Density: ON') : (locale === 'zh' ? '密度：关' : 'Density: OFF')}
             active={edMapActive}
             disabled={!structureLoaded}
           />
@@ -3622,14 +3624,14 @@ export function MoleculeViewer({
           <ToolbarButton
             onClick={handleToggleBackground}
             icon={getBackgroundIcon()}
-            label={`Background: ${BACKGROUND_LABELS[backgroundMode]}`}
+            label={locale === 'zh' ? `背景：${BACKGROUND_LABELS[backgroundMode]}` : `Background: ${BACKGROUND_LABELS[backgroundMode]}`}
           />
 
           {/* Fullscreen */}
           <ToolbarButton
             onClick={handleToggleFullscreen}
             icon={isFullscreen ? <Minimize className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
-            label={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+            label={isFullscreen ? (locale === 'zh' ? '退出全屏' : 'Exit Fullscreen') : (locale === 'zh' ? '全屏' : 'Fullscreen')}
           />
 
           {/* Separator */}
@@ -3654,7 +3656,7 @@ export function MoleculeViewer({
               side="bottom"
               className="bg-claude-surface text-claude-text border border-claude-border shadow-lg"
             >
-              View on RCSB PDB
+              {locale === 'zh' ? '在 RCSB PDB 上查看' : 'View on RCSB PDB'}
             </TooltipContent>
           </Tooltip>
 
@@ -3931,16 +3933,16 @@ export function MoleculeViewer({
           </div>
 
           <p className="text-sm text-claude-text font-medium mb-1">
-            Loading {pdbId.toUpperCase()}...
+            {locale === 'zh' ? `加载 ${pdbId.toUpperCase()} 中…` : `Loading ${pdbId.toUpperCase()}...`}
           </p>
           <p className="text-xs text-claude-text-muted">
             {loadProgress < 30
-              ? 'Connecting to RCSB PDB...'
+              ? (locale === 'zh' ? '正在连接 RCSB PDB…' : 'Connecting to RCSB PDB...')
               : loadProgress < 60
-              ? 'Downloading structure data...'
+              ? (locale === 'zh' ? '正在下载结构数据…' : 'Downloading structure data...')
               : loadProgress < 90
-              ? 'Rendering 3D structure...'
-              : 'Almost ready...'}
+              ? (locale === 'zh' ? '正在渲染 3D 结构…' : 'Rendering 3D structure...')
+              : (locale === 'zh' ? '即将完成…' : 'Almost ready...')}
           </p>
 
           {/* Subtle loading animation dots */}
@@ -3976,8 +3978,8 @@ export function MoleculeViewer({
           </p>
           <p className="text-xs text-claude-text-muted mb-4 text-center">
             {webglNotAvailable
-              ? '3D rendering requires WebGL support'
-              : 'Unable to load the 3D structure'}
+              ? (locale === 'zh' ? '3D 渲染需要 WebGL 支持' : '3D rendering requires WebGL support')
+              : (locale === 'zh' ? '无法加载 3D 结构' : 'Unable to load the 3D structure')}
           </p>
 
           <div className="flex items-center gap-2">
@@ -3989,7 +3991,7 @@ export function MoleculeViewer({
                          hover:bg-claude-accent-hover transition-colors shadow-sm"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Retry
+              {locale === 'zh' ? '重试' : 'Retry'}
             </button>
 
             {/* RCSB link */}
@@ -4003,7 +4005,7 @@ export function MoleculeViewer({
                          hover:text-claude-text hover:bg-claude-accent-light transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              View on RCSB
+              {locale === 'zh' ? '在 RCSB 上查看' : 'View on RCSB'}
             </a>
 
             {/* Load from RCSB directly — opens RCSB 3D viewer in a new tab */}

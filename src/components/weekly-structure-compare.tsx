@@ -14,6 +14,7 @@ import {
   parseLigands,
 } from '@/components/pdb-helpers';
 import { StructureRadarCompare } from '@/components/structure-radar-compare';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -55,6 +56,7 @@ export function WeeklyStructureCompare({
   entries,
   onClose,
 }: WeeklyStructureCompareProps) {
+  const { locale } = useI18n();
   // Close on Escape
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -67,7 +69,7 @@ export function WeeklyStructureCompare({
   // Comparison rows definition
   const compareRows: CompareRow[] = useMemo(() => [
     {
-      label: 'Method',
+      label: locale === 'zh' ? '方法' : 'Method',
       key: 'method',
       getValues: (es) => es.map(e => e.method),
       getBest: (vals) => {
@@ -98,7 +100,7 @@ export function WeeklyStructureCompare({
       },
     },
     {
-      label: 'Resolution',
+      label: locale === 'zh' ? '分辨率' : 'Resolution',
       key: 'resolution',
       getValues: (es) => es.map(e => e.resolution),
       getBest: (vals) => bestIndex(vals, 'min'),
@@ -127,7 +129,7 @@ export function WeeklyStructureCompare({
       },
     },
     {
-      label: 'IF',
+      label: locale === 'zh' ? 'IF' : 'IF',
       key: 'journalIf',
       getValues: (es) => es.map(e => e.journalIf),
       getBest: (vals) => bestIndex(vals, 'max'),
@@ -142,7 +144,7 @@ export function WeeklyStructureCompare({
       },
     },
     {
-      label: 'Organism',
+      label: locale === 'zh' ? '物种' : 'Organism',
       key: 'organisms',
       getValues: (es) => es.map(e => e.organisms),
       getBest: () => -1,
@@ -153,7 +155,7 @@ export function WeeklyStructureCompare({
       ),
     },
     {
-      label: 'Ligands',
+      label: locale === 'zh' ? '配体' : 'Ligands',
       key: 'ligands',
       getValues: (es) => es.map(e => e.ligands),
       getBest: () => -1,
@@ -173,7 +175,7 @@ export function WeeklyStructureCompare({
       },
     },
     {
-      label: 'Journal',
+      label: locale === 'zh' ? '期刊' : 'Journal',
       key: 'journal',
       getValues: (es) => es.map(e => e.journal),
       getBest: () => -1,
@@ -184,7 +186,7 @@ export function WeeklyStructureCompare({
       ),
     },
     {
-      label: 'Date',
+      label: locale === 'zh' ? '日期' : 'Date',
       key: 'releaseDate',
       getValues: (es) => es.map(e => e.releaseDate),
       getBest: () => -1,
@@ -195,7 +197,7 @@ export function WeeklyStructureCompare({
       ),
     },
     {
-      label: 'Quality Score',
+      label: locale === 'zh' ? '质量评分' : 'Quality Score',
       key: 'qualityScore',
       getValues: (es) => es.map(e => computeQualityScore(e).score),
       getBest: (vals) => bestIndex(vals, 'max'),
@@ -246,7 +248,7 @@ export function WeeklyStructureCompare({
         <div className="flex items-center justify-between px-5 py-3 border-b border-claude-border dark:border-[#3d3832] bg-gradient-to-r from-[#faf7f4] to-[#f5f0ea] dark:from-[#242220] dark:to-[#2b2926]">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-4 w-4 text-claude-accent" />
-            <span className="text-sm font-bold text-claude-text">Structure Comparison</span>
+            <span className="text-sm font-bold text-claude-text">{locale === 'zh' ? '结构比较' : 'Structure Comparison'}</span>
             <span className="text-[10px] font-medium text-claude-text-muted bg-claude-border-light dark:bg-[#2b2926] px-1.5 py-0.5 rounded">
               {entries.length} structures
             </span>
@@ -266,7 +268,7 @@ export function WeeklyStructureCompare({
           {/* Radar Chart Section */}
           <div className="compare-radar-in border-b border-claude-border-light dark:border-[#2b2926] px-5 py-4">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider">Metric Comparison</span>
+              <span className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider">{locale === 'zh' ? '指标比较' : 'Metric Comparison'}</span>
               <span className="text-[9px] text-claude-text-muted bg-claude-border-light dark:bg-[#2b2926] px-1.5 py-0.5 rounded">
                 0–100 normalized scale
               </span>
@@ -277,7 +279,7 @@ export function WeeklyStructureCompare({
           {/* Comparison Table */}
           <div className="p-5">
             <div className="flex items-center gap-2 mb-3">
-              <span className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider">Detailed Comparison</span>
+              <span className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider">{locale === 'zh' ? '详细比较' : 'Detailed Comparison'}</span>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">

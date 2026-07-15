@@ -199,6 +199,7 @@ function BatchCommonPdbView({
   onSelectSubTarget: (uniprotId: string) => void;
   onSelectPdb?: (pdbId: string) => void;
 }) {
+  const { locale } = useI18n();
   const batch = evalBatches.find(b => b.batchId === batchId);
   const subTargets = evalBatchSubTargets[batchId] || [];
   const commonPdbIds = parseCommonPdbIds(batch?.commonPdbIds);
@@ -278,7 +279,7 @@ function BatchCommonPdbView({
     return (
       <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
         <Layers className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-xs">Batch not found</p>
+        <p className="text-xs">{locale === 'zh' ? '未找到批次' : 'Batch not found'}</p>
       </div>
     );
   }
@@ -312,9 +313,9 @@ function BatchCommonPdbView({
 
       {/* Sub-target chips — clickable to open individual eval */}
       <div className="flex items-center gap-1.5 px-4 py-2 border-b border-claude-border/50 dark:border-[#3d3832]/50 overflow-x-auto flex-shrink-0">
-        <span className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold shrink-0 mr-1">Targets:</span>
+        <span className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold shrink-0 mr-1">{locale === 'zh' ? '靶点：' : 'Targets:'}</span>
         {subTargets.length === 0 ? (
-          <span className="text-[10px] text-claude-text-muted italic">No sub-targets</span>
+          <span className="text-[10px] text-claude-text-muted italic">{locale === 'zh' ? '无子靶点' : 'No sub-targets'}</span>
         ) : (
           subTargets.map(sub => (
             <button
@@ -342,12 +343,12 @@ function BatchCommonPdbView({
           <table className="w-full text-xs">
             <thead className="sticky top-0 z-10 bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832]">
               <tr>
-                <th className="text-left font-semibold text-claude-text-muted px-4 py-2 w-[90px]">PDB ID</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">Method</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[80px]">Res. (Å)</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">IF Tier</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 min-w-0">Title</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[160px]">Shared By</th>
+                <th className="text-left font-semibold text-claude-text-muted px-4 py-2 w-[90px]">{locale === 'zh' ? 'PDB ID' : 'PDB ID'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">{locale === 'zh' ? '方法' : 'Method'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[80px]">{locale === 'zh' ? '分辨率 (Å)' : 'Res. (Å)'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">{locale === 'zh' ? 'IF 级别' : 'IF Tier'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 min-w-0">{locale === 'zh' ? '标题' : 'Title'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[160px]">{locale === 'zh' ? '共享子靶点' : 'Shared By'}</th>
               </tr>
             </thead>
             <tbody>
@@ -499,6 +500,7 @@ function BatchDetailView({
   onSelectSubTarget,
   onOpenBatchReport,
 }: BatchDetailViewProps) {
+  const { locale } = useI18n();
   const [activeTab, setActiveTab] = useState<BatchDetailTab>('Summary');
   const [selectedSubTarget, setSelectedSubTarget] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('pdbId');
@@ -672,7 +674,7 @@ function BatchDetailView({
     return (
       <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
         <Layers className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-xs">Batch not found</p>
+        <p className="text-xs">{locale === 'zh' ? '未找到批次' : 'Batch not found'}</p>
       </div>
     );
   }
@@ -733,12 +735,12 @@ function BatchDetailView({
             {/* Sub-targets list */}
             <div className="p-2 space-y-0.5">
               <div className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold px-2 py-1.5 flex items-center justify-between">
-                <span>Sub-Targets</span>
+                <span>{locale === 'zh' ? '子靶点' : 'Sub-Targets'}</span>
                 <span className="font-mono">{subTargets.length}</span>
               </div>
               {subTargets.length === 0 ? (
                 <p className="text-[10px] text-claude-text-muted italic px-2 py-2">
-                  No sub-targets recorded
+                  {locale === 'zh' ? '暂无子靶点记录' : 'No sub-targets recorded'}
                 </p>
               ) : (
                 subTargets.map(sub => {
@@ -1475,7 +1477,7 @@ export function EvaluationView({
   onSelectSubTarget,
   onOpenBatchReport,
 }: EvaluationViewProps) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   // Sub-view: toolbar + full-width component
   const currentSubView: string = evalSubView;
   if (evalSubView === 'compare' || evalSubView === 'dashboard' || evalSubView === 'timeline' || evalSubView === 'batch') {
@@ -1489,7 +1491,7 @@ export function EvaluationView({
             onClick={() => onSetEvalSubView('default')}
             className="h-7 px-2.5 text-[11px] text-claude-text-secondary hover:text-claude-text"
           >
-            ← Back to Evaluation
+            ← {locale === 'zh' ? '返回评估' : 'Back to Evaluation'}
           </Button>
           <div className="flex items-center gap-1 ml-2">
             <Button
@@ -1581,7 +1583,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'compare' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <ArrowRightLeft className="h-3 w-3 mr-1" />
-          Compare
+          {t.compare}
         </Button>
         <Button
           variant="ghost"
@@ -1590,7 +1592,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'dashboard' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <LayoutDashboard className="h-3 w-3 mr-1" />
-          Dashboard
+          {t.dashboard}
         </Button>
         <Button
           variant="ghost"
@@ -1599,7 +1601,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'timeline' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <Clock className="h-3 w-3 mr-1" />
-          Timeline
+          {t.timeline}
         </Button>
         <Button
           variant="ghost"
@@ -1608,7 +1610,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'batch' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <Database className="h-3 w-3 mr-1" />
-          Batch Matrix
+          {t.batchMatrix}
         </Button>
         {selectedBatchId && !selectedEvalId && (
           <Button
@@ -1616,7 +1618,7 @@ export function EvaluationView({
             size="sm"
             onClick={() => onSelectEvalId(null)}
             className="h-7 px-2.5 text-[11px] text-claude-text-muted ml-auto"
-            title="Exit batch detail"
+            title={locale === 'zh' ? '退出批次详情' : 'Exit batch detail'}
           >
             ← {t.backToList}
           </Button>

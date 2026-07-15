@@ -2460,7 +2460,7 @@ export default function PdbTracker() {
       {/* Mobile: full-screen overlay */}
       <div className="md:hidden fixed inset-0 z-50 flex flex-col bg-claude-bg dark:bg-[#1a1917]">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-shrink-0">
-          <span className="text-sm font-semibold text-claude-text">Details</span>
+          <span className="text-sm font-semibold text-claude-text">{locale === 'zh' ? '详情' : 'Details'}</span>
           <Button variant="ghost" size="sm" onClick={closeHandler} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>
@@ -2537,20 +2537,20 @@ export default function PdbTracker() {
           </div>
           {/* Title */}
           <div className="px-4 py-3 border-b border-claude-border/50 dark:border-[#3d3832]/50">
-            <div className="text-xs text-claude-text-muted mb-1">Title</div>
+            <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '标题' : 'Title'}</div>
             <div className="text-sm text-claude-text font-medium leading-snug">{pdbEntry.title || '—'}</div>
           </div>
           {/* Method & Resolution */}
           <div className="px-4 py-3 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Method</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '方法' : 'Method'}</div>
                 <span className={`method-badge inline-flex px-2 py-0.5 rounded text-[11px] font-medium border ${
                   pdbEntry.isCryoem ? 'method-badge-cryoem bg-claude-cryoem-bg text-claude-cryoem border-claude-cryoem/30' :
                   pdbEntry.isXray ? 'method-badge-xray bg-claude-xray-bg text-claude-xray border-claude-xray/30' :
                   'method-badge-nmr bg-claude-nmr-bg text-claude-nmr border-claude-nmr/30'
                 }`}>
-                  {pdbEntry.method || 'Unknown'}
+                  {pdbEntry.method || (locale === 'zh' ? '未知' : 'Unknown')}
                 </span>
               </div>
               <div>
@@ -2712,7 +2712,7 @@ export default function PdbTracker() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-claude-accent" />
-                  <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">AI Summary</span>
+                  <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">{locale === 'zh' ? 'AI 摘要' : 'AI Summary'}</span>
                 </div>
                 {!litAiSummary && !litAiSummaryLoading && (
                   <button
@@ -2741,7 +2741,7 @@ export default function PdbTracker() {
                   <div className="flex items-start gap-2">
                     <Users className="h-3.5 w-3.5 text-claude-text-muted mt-0.5 flex-shrink-0" />
                     <div>
-                      <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Authors</div>
+                      <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '作者' : 'Authors'}</div>
                       <div className="text-xs text-claude-text-secondary leading-relaxed">{paper.authors}</div>
                     </div>
                   </div>
@@ -2749,13 +2749,13 @@ export default function PdbTracker() {
               )}
               {paper.journal && (
                 <div>
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Journal</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '期刊' : 'Journal'}</div>
                   <div className="text-xs text-claude-text-secondary font-medium">{paper.journal}</div>
                 </div>
               )}
               {paper.IF != null && (
                 <div>
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Impact Factor</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '影响因子' : 'Impact Factor'}</div>
                   <div className={`text-sm font-bold ${
                     paper.IF >= 20 ? 'text-red-600 dark:text-red-400' :
                     paper.IF >= 10 ? 'text-orange-600 dark:text-orange-400' :
@@ -2773,7 +2773,7 @@ export default function PdbTracker() {
                 </div>
               )}
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">PMID</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? 'PMID' : 'PMID'}</div>
                 <div className="text-xs text-claude-text-secondary font-mono">{paper.pmid}</div>
               </div>
             </div>
@@ -2795,7 +2795,7 @@ export default function PdbTracker() {
             {/* Abstract */}
             {paper.abstract && (
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Abstract</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '摘要' : 'Abstract'}</div>
                 <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                   {paper.abstract}
                 </div>
@@ -2863,7 +2863,7 @@ export default function PdbTracker() {
 
             {/* Citation Format Selector */}
             <div>
-              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Cite this paper</div>
+              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '引用本文' : 'Cite this paper'}</div>
               <CitationFormatSelector paper={paper} />
             </div>
 
@@ -2927,7 +2927,7 @@ export default function PdbTracker() {
             {/* Keywords */}
             {paper.keywords && paper.keywords.length > 0 && (
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Keywords</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '关键词' : 'Keywords'}</div>
                 <div className="flex flex-wrap gap-1">
                   {paper.keywords.map((kw, i) => (
                     <span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary border border-claude-border/50 dark:border-[#3d3832]/50">
@@ -3048,7 +3048,7 @@ export default function PdbTracker() {
 
             {/* Title */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Title</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '标题' : 'Title'}</div>
               <div className="text-sm text-claude-text font-medium leading-snug">
                 {row.title || (row as any).description || '—'}
               </div>
@@ -3056,7 +3056,7 @@ export default function PdbTracker() {
 
             {/* Quality Score Breakdown */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-2">Quality Score</div>
+              <div className="text-xs text-claude-text-muted mb-2">{locale === 'zh' ? '质量评分' : 'Quality Score'}</div>
               <div className="flex items-center gap-4">
                 <div className="relative score-ring-glow">
                   <QualityRing score={qualityScore.score} size={56} />
@@ -3066,21 +3066,21 @@ export default function PdbTracker() {
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Resolution</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '分辨率' : 'Resolution'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.resolution}/35</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.resolution / 35) * 100}%`, backgroundColor: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Method</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '方法' : 'Method'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.method}/25</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.method / 25) * 100}%`, backgroundColor: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Impact</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '影响力' : 'Impact'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.impact >= 20 ? '#2d8f8f' : qualityScore.impact >= 10 ? '#c9872e' : '#e55a4f' }}>{qualityScore.impact}/30</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
@@ -3093,7 +3093,7 @@ export default function PdbTracker() {
             {/* Method & Resolution */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Method</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '方法' : 'Method'}</div>
                 <span className={`method-badge inline-flex px-2 py-0.5 rounded text-[11px] font-medium border ${methodStyle.bg} ${methodStyle.text} ${methodStyle.border} border`}>
                   {getMethodLabel(row.method || '')}
                 </span>
@@ -3122,11 +3122,11 @@ export default function PdbTracker() {
             {/* BLAST-specific info (only for homolog rows) */}
             {!isStructure && (
               <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10">
-                <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-2">BLAST Homolog Info</div>
+                <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-2">{locale === 'zh' ? 'BLAST 同源信息' : 'BLAST Homolog Info'}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {(row as any).identity != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">Identity</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '一致性' : 'Identity'}</div>
                       <span className={`text-sm font-mono font-semibold ${
                         (row as any).identity >= 90 ? 'text-green-600 dark:text-green-400'
                           : (row as any).identity >= 70 ? 'text-teal-600 dark:text-teal-400'
@@ -3139,7 +3139,7 @@ export default function PdbTracker() {
                   )}
                   {(row as any).evalue != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">E-value</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? 'E 值' : 'E-value'}</div>
                       <span className="text-sm font-mono font-semibold text-claude-text">
                         {formatEvalue(parseFloat((row as any).evalue))}
                       </span>
@@ -3147,7 +3147,7 @@ export default function PdbTracker() {
                   )}
                   {(row as any).queryCoverage != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">Query Coverage</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '查询覆盖度' : 'Query Coverage'}</div>
                       <span className="text-sm font-mono font-semibold text-claude-text">
                         {(row as any).queryCoverage.toFixed(1)}%
                       </span>
@@ -3155,7 +3155,7 @@ export default function PdbTracker() {
                   )}
                   {(row as any).targetCoverage != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">Target Coverage</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '靶标覆盖度' : 'Target Coverage'}</div>
                       <span className="text-sm font-mono font-semibold text-claude-text">
                         {(row as any).targetCoverage.toFixed(1)}%
                       </span>
@@ -3164,7 +3164,7 @@ export default function PdbTracker() {
                 </div>
                 {(row as any).description && (
                   <div className="mt-2">
-                    <div className="text-[10px] text-claude-text-muted mb-0.5">Description</div>
+                    <div className="text-[10px] text-claude-text-muted mb-0.5">{locale === 'zh' ? '描述' : 'Description'}</div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed">{(row as any).description}</div>
                   </div>
                 )}
@@ -3176,13 +3176,13 @@ export default function PdbTracker() {
               <div className="grid grid-cols-2 gap-3">
                 {(row as any).chainId && (
                   <div>
-                    <div className="text-xs text-claude-text-muted mb-1">Chain</div>
+                    <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '链' : 'Chain'}</div>
                     <div className="text-sm text-claude-text font-mono">{(row as any).chainId}</div>
                   </div>
                 )}
                 {(row as any).unpStart != null && (row as any).unpEnd != null && (
                   <div>
-                    <div className="text-xs text-claude-text-muted mb-1">UniProt Range</div>
+                    <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? 'UniProt 范围' : 'UniProt Range'}</div>
                     <div className="text-sm text-claude-text font-mono">{(row as any).unpStart}–{(row as any).unpEnd}</div>
                   </div>
                 )}
@@ -3194,7 +3194,7 @@ export default function PdbTracker() {
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Users className="h-3 w-3 text-claude-text-muted" />
-                  <span className="text-xs text-claude-text-muted">Authors</span>
+                  <span className="text-xs text-claude-text-muted">{locale === 'zh' ? '作者' : 'Authors'}</span>
                 </div>
                 <div className="text-xs text-claude-text-secondary leading-relaxed">
                   {(row as any).authors || (row as any).pubmedAuthors}
@@ -3205,14 +3205,14 @@ export default function PdbTracker() {
             {/* Organism */}
             {(row as any).organism && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Organism</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '物种' : 'Organism'}</div>
                 <div className="text-sm text-claude-text">{(row as any).organism}</div>
               </div>
             )}
 
             {/* Journal & IF */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Journal</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '期刊' : 'Journal'}</div>
               <div className="text-sm text-claude-text">{row.journal || '—'}</div>
               {row.journalIf != null && (
                 <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
@@ -3229,7 +3229,7 @@ export default function PdbTracker() {
             {/* Release Date */}
             {(row as any).releaseDate && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Release Date</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '发布日期' : 'Release Date'}</div>
                 <div className="text-sm text-claude-text">{formatDate((row as any).releaseDate)}</div>
               </div>
             )}
@@ -3255,7 +3255,7 @@ export default function PdbTracker() {
             {/* Ligands */}
             {ligandList.length > 0 && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Ligands</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '配体' : 'Ligands'}</div>
                 <div className="flex flex-wrap gap-1">
                   {ligandList.map((lig, i) => (
                     <span key={i} className="ligand-chip">{lig}</span>
@@ -3271,7 +3271,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <BookOpen className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Title</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 标题' : 'PubMed Title'}</span>
                     </div>
                     <div className="text-xs text-claude-text font-medium leading-snug pl-4">
                       {(row as any).pubmedTitle}
@@ -3282,7 +3282,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <Users className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Authors</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 作者' : 'PubMed Authors'}</span>
                     </div>
                     <div className="text-[10px] text-claude-text-muted leading-relaxed pl-4">
                       {(row as any).pubmedAuthors}
@@ -3293,7 +3293,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <FileText className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Abstract</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 摘要' : 'PubMed Abstract'}</span>
                     </div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                       {(row as any).pubmedAbstract}
@@ -3916,7 +3916,7 @@ export default function PdbTracker() {
 
             {/* Title */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Title</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '标题' : 'Title'}</div>
               <div className="text-sm text-claude-text font-medium leading-snug">
                 {selectedEntry.title || '—'}
               </div>
@@ -3924,7 +3924,7 @@ export default function PdbTracker() {
 
             {/* Quality Score Breakdown */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-2">Quality Score</div>
+              <div className="text-xs text-claude-text-muted mb-2">{locale === 'zh' ? '质量评分' : 'Quality Score'}</div>
               <div className="flex items-center gap-4">
                 <div className="relative score-ring-glow">
                   <QualityRing score={qualityScore.score} size={56} />
@@ -3934,21 +3934,21 @@ export default function PdbTracker() {
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Resolution</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '分辨率' : 'Resolution'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.resolution}/35</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.resolution / 35) * 100}%`, backgroundColor: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Method</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '方法' : 'Method'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.method}/25</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.method / 25) * 100}%`, backgroundColor: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Impact</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '影响力' : 'Impact'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.impact >= 20 ? '#2d8f8f' : qualityScore.impact >= 10 ? '#c9872e' : '#e55a4f' }}>{qualityScore.impact}/30</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
@@ -3961,7 +3961,7 @@ export default function PdbTracker() {
             {/* Method & Resolution */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Method</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '方法' : 'Method'}</div>
                 <span className={`method-badge inline-flex px-2 py-0.5 rounded text-[11px] font-medium border ${selectedEntry.isCryoem ? 'method-badge-cryoem bg-claude-cryoem-bg text-claude-cryoem border-claude-cryoem/30' : selectedEntry.isXray ? 'method-badge-xray bg-claude-xray-bg text-claude-xray border-claude-xray/30' : 'method-badge-nmr bg-claude-nmr-bg text-claude-nmr border-claude-nmr/30'}`}>
                   {getMethodLabel(selectedEntry.method || '')}
                 </span>
@@ -3984,7 +3984,7 @@ export default function PdbTracker() {
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Users className="h-3 w-3 text-claude-text-muted" />
-                  <span className="text-xs text-claude-text-muted">Authors</span>
+                  <span className="text-xs text-claude-text-muted">{locale === 'zh' ? '作者' : 'Authors'}</span>
                 </div>
                 <div className="text-xs text-claude-text-secondary leading-relaxed">
                   {selectedEntry.authors}
@@ -3995,14 +3995,14 @@ export default function PdbTracker() {
             {/* Organism */}
             {selectedEntry.organisms && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Organism</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '物种' : 'Organism'}</div>
                 <div className="text-sm text-claude-text">{selectedEntry.organisms}</div>
               </div>
             )}
 
             {/* Journal & IF */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Journal</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '期刊' : 'Journal'}</div>
               <div className="text-sm text-claude-text">{selectedEntry.journal || '—'}</div>
               {selectedEntry.journalIf != null && (
                 <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${selectedEntry.ifTier === 'top' ? 'bg-claude-top-bg text-claude-top' : selectedEntry.ifTier === 'high' ? 'bg-claude-high-bg text-claude-high' : selectedEntry.ifTier === 'mid' ? 'bg-claude-mid-bg text-claude-mid' : 'bg-claude-low-bg text-claude-low'}`}>
@@ -4014,7 +4014,7 @@ export default function PdbTracker() {
             {/* Release Date */}
             {selectedEntry.releaseDate && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Release Date</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '发布日期' : 'Release Date'}</div>
                 <div className="text-sm text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
               </div>
             )}
@@ -4043,7 +4043,7 @@ export default function PdbTracker() {
               if (ligandList.length === 0) return null;
               return (
                 <div>
-                  <div className="text-xs text-claude-text-muted mb-1">Ligands</div>
+                  <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '配体' : 'Ligands'}</div>
                   <div className="flex flex-wrap gap-1">
                     {ligandList.map((lig, i) => (
                       <span key={i} className="ligand-chip">{lig}</span>
@@ -4060,7 +4060,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <BookOpen className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Title</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 标题' : 'PubMed Title'}</span>
                     </div>
                     <div className="text-xs text-claude-text font-medium leading-snug pl-4">
                       {selectedEntry.pubmedTitle}
@@ -4071,7 +4071,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <Users className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Authors</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 作者' : 'PubMed Authors'}</span>
                     </div>
                     <div className="text-[10px] text-claude-text-muted leading-relaxed pl-4">
                       {selectedEntry.pubmedAuthors}
@@ -4082,7 +4082,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <FileText className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Abstract</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 摘要' : 'PubMed Abstract'}</span>
                     </div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                       {selectedEntry.pubmedAbstract}

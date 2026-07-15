@@ -122,6 +122,7 @@ function IFGradientBadge({ ifValue }: { ifValue: number }) {
 
 /** Altmetric-style mini donut SVG */
 function AltmetricDonut({ score }: { score: number }) {
+  const { locale } = useI18n();
   const size = 32;
   const strokeWidth = 3;
   const radius = (size - strokeWidth) / 2;
@@ -170,8 +171,8 @@ function AltmetricDonut({ score }: { score: number }) {
         </div>
       </TooltipTrigger>
       <TooltipContent side="left">
-        <p>Altmetric score (simulated): {score}</p>
-        <p className="text-[10px] text-claude-text-muted">Based on IF, PDB count, and metadata</p>
+        <p>{locale === 'zh' ? `Altmetric 分数（模拟）：${score}` : `Altmetric score (simulated): ${score}`}</p>
+        <p className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '基于 IF、PDB 数量与元数据' : 'Based on IF, PDB count, and metadata'}</p>
       </TooltipContent>
     </Tooltip>
   );
@@ -277,7 +278,7 @@ export function LiteratureDetailPanel({
 
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-claude-border dark:border-[#3d3832] bg-gradient-to-r from-[#faf7f4] to-[#f5f0ea] dark:from-[#242220] dark:to-[#2b2926]">
-          <h2 className="text-sm font-bold text-claude-text truncate pr-2">Paper Details</h2>
+          <h2 className="text-sm font-bold text-claude-text truncate pr-2">{locale === 'zh' ? '论文详情' : 'Paper Details'}</h2>
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -341,7 +342,7 @@ export function LiteratureDetailPanel({
                   PubMed
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Open in PubMed</TooltipContent>
+              <TooltipContent>{locale === 'zh' ? '在 PubMed 中打开' : 'Open in PubMed'}</TooltipContent>
             </Tooltip>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -352,11 +353,11 @@ export function LiteratureDetailPanel({
                   className="h-7 px-2 text-[10px] gap-1 border-claude-border dark:border-[#3d3832] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#2b2926]"
                 >
                   <BookOpen className="h-3 w-3" />
-                  <span className="hidden sm:inline">Reading List</span>
-                  <span className="sm:hidden">Read</span>
+                  <span className="hidden sm:inline">{locale === 'zh' ? '阅读列表' : 'Reading List'}</span>
+                  <span className="sm:hidden">{locale === 'zh' ? '阅读' : 'Read'}</span>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Add to reading list</TooltipContent>
+              <TooltipContent>{locale === 'zh' ? '加入阅读列表' : 'Add to reading list'}</TooltipContent>
             </Tooltip>
           </div>
 
@@ -440,7 +441,7 @@ export function LiteratureDetailPanel({
                 <div className="flex items-start gap-2">
                   <Users className="h-3.5 w-3.5 text-claude-text-muted mt-0.5 flex-shrink-0" />
                   <div>
-                    <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Authors</div>
+                    <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '作者' : 'Authors'}</div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed">{paper.authors}</div>
                   </div>
                 </div>
@@ -448,13 +449,13 @@ export function LiteratureDetailPanel({
             )}
             {paper.journal && (
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Journal</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '期刊' : 'Journal'}</div>
                 <div className="text-xs text-claude-text-secondary font-medium">{paper.journal}</div>
               </div>
             )}
             {paper.IF != null && (
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Impact Factor</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '影响因子' : 'Impact Factor'}</div>
                 <div className={`text-sm font-bold ${
                   paper.IF >= 20 ? 'text-red-600 dark:text-red-400' :
                   paper.IF >= 10 ? 'text-orange-600 dark:text-orange-400' :
@@ -469,13 +470,13 @@ export function LiteratureDetailPanel({
               <div>
                 <div className="flex items-center gap-1">
                   <Calendar className="h-3 w-3 text-claude-text-muted" />
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">Date</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">{locale === 'zh' ? '日期' : 'Date'}</div>
                 </div>
                 <div className="text-xs text-claude-text-secondary mt-0.5">{paper.pubdate}</div>
               </div>
             )}
             <div>
-              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">PMID</div>
+              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? 'PMID' : 'PMID'}</div>
               <div className="text-xs text-claude-text-secondary font-mono">{paper.pmid}</div>
             </div>
           </div>
@@ -507,7 +508,7 @@ export function LiteratureDetailPanel({
           {/* Abstract */}
           {paper.abstract && (
             <div>
-              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Abstract</div>
+              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '摘要' : 'Abstract'}</div>
               <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                 {paper.abstract}
               </div>
@@ -656,7 +657,7 @@ export function LiteratureDetailPanel({
             <div>
               <div className="flex items-center gap-1.5 mb-1.5">
                 <Tag className="h-3 w-3 text-claude-text-muted" />
-                <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">Keywords</span>
+                <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">{locale === 'zh' ? '关键词' : 'Keywords'}</span>
               </div>
               <div className="flex flex-wrap gap-1">
                 {paper.keywords.map((kw, i) => (

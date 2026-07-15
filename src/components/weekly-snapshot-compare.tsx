@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { Trophy, ArrowUp, ArrowDown, Minus, TrendingUp } from 'lucide-react';
 import type { WeeklySnapshot } from '@/lib/pdb-types';
 import { getChartAxisColor, getChartTickColor } from '@/components/chart-tooltips';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Props ──────────────────────────────────────────────────────────────────
 
@@ -210,13 +211,13 @@ function MetricCard({
       {hasData ? (
         <div className="flex items-end gap-3">
           <div className="flex-1 min-w-0">
-            <div className="text-[9px] text-claude-text-muted mb-0.5">This week</div>
+            <div className="text-[9px] text-claude-text-muted mb-0.5">{locale === 'zh' ? '本周' : 'This week'}</div>
             <div className="text-lg font-bold font-mono text-claude-text leading-none">
               {metric.current !== null ? metric.formatValue(metric.current) : '—'}
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[9px] text-claude-text-muted mb-0.5">Last week</div>
+            <div className="text-[9px] text-claude-text-muted mb-0.5">{locale === 'zh' ? '上周' : 'Last week'}</div>
             <div className="text-sm font-medium font-mono text-claude-text-secondary leading-none">
               {metric.previous !== null ? metric.formatValue(metric.previous) : '—'}
             </div>
@@ -230,7 +231,7 @@ function MetricCard({
           </div>
         </div>
       ) : (
-        <div className="text-sm text-claude-text-muted italic">No data</div>
+        <div className="text-sm text-claude-text-muted italic">{locale === 'zh' ? '暂无数据' : 'No data'}</div>
       )}
 
       {/* Mini bar chart */}
@@ -252,6 +253,7 @@ function MetricCard({
 
 export function WeeklySnapshotCompare({ currentSnapshot, previousSnapshot, allSnapshots }: WeeklySnapshotCompareProps) {
   const { theme } = useTheme();
+  const { locale } = useI18n();
   const isDark = theme === 'dark';
 
   const metrics = useMemo<MetricData[]>(() => {
@@ -260,13 +262,13 @@ export function WeeklySnapshotCompare({ currentSnapshot, previousSnapshot, allSn
 
     return [
       {
-        label: 'Total Structures',
+        label: locale === 'zh' ? '结构总数' : 'Total Structures',
         current: currentSnapshot?.totalStructures ?? null,
         previous: previousSnapshot?.totalStructures ?? null,
         formatValue: (v) => v.toLocaleString(),
       },
       {
-        label: 'Avg Resolution',
+        label: locale === 'zh' ? '平均分辨率' : 'Avg Resolution',
         current: currentSnapshot?.avgResolution ?? null,
         previous: previousSnapshot?.avgResolution ?? null,
         unit: 'Å',
@@ -274,14 +276,14 @@ export function WeeklySnapshotCompare({ currentSnapshot, previousSnapshot, allSn
         formatValue: (v) => `${v.toFixed(2)}Å`,
       },
       {
-        label: 'Cryo-EM %',
+        label: locale === 'zh' ? '冷冻电镜占比' : 'Cryo-EM %',
         current: computeCryoemPct(currentSnapshot),
         previous: computeCryoemPct(previousSnapshot),
         unit: '%',
         formatValue: (v) => `${v.toFixed(1)}%`,
       },
       {
-        label: 'Top IF (≥20)',
+        label: locale === 'zh' ? '高 IF (≥20)' : 'Top IF (≥20)',
         current: topIfCurrent,
         previous: topIfPrevious,
         formatValue: (v) => v.toString(),
@@ -348,7 +350,7 @@ export function WeeklySnapshotCompare({ currentSnapshot, previousSnapshot, allSn
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-claude-accent" />
-          <h3 className="text-[12px] font-semibold text-claude-text">Week Comparison</h3>
+          <h3 className="text-[12px] font-semibold text-claude-text">{locale === 'zh' ? '周对比' : 'Week Comparison'}</h3>
           {previousSnapshot && (
             <span className="text-[9px] text-claude-text-muted bg-claude-border-light dark:bg-[#2b2926] px-1.5 py-0.5 rounded">
               {currentSnapshot.weekId} vs {previousSnapshot.weekId}

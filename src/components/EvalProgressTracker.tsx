@@ -5,6 +5,8 @@ import { motion } from 'framer-motion';
 import { CheckCircle2, Circle, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Evaluation } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
+import type { LocaleId } from '@/lib/i18n';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -18,39 +20,39 @@ interface Step {
 
 // ─── Step Definitions ─────────────────────────────────────────────────────────
 
-const STEPS: Step[] = [
+const buildSteps = (locale: LocaleId): Step[] => [
   {
     key: 'created',
     label: 'Created',
-    description: 'Evaluation record has been created',
+    description: locale === 'zh' ? '评估记录已创建' : 'Evaluation record has been created',
     isComplete: () => true, // Always done if evaluation exists
     isCurrent: (_eval, idx) => idx === 0,
   },
   {
     key: 'pdb_added',
     label: 'PDB Structures',
-    description: 'PDB structures have been linked to this evaluation',
+    description: locale === 'zh' ? 'PDB 结构已获取' : 'PDB structures have been fetched',
     isComplete: (eval_) => (eval_.pdbStructures?.length ?? 0) > 0,
     isCurrent: (_eval, idx) => idx === 1,
   },
   {
     key: 'blast_analysis',
     label: 'BLAST Analysis',
-    description: 'BLAST search has been performed for homologs',
+    description: locale === 'zh' ? 'BLAST 同源搜索完成' : 'BLAST homology search complete',
     isComplete: (eval_) => (eval_.blastResults?.length ?? 0) > 0,
     isCurrent: (_eval, idx) => idx === 2,
   },
   {
     key: 'report_generated',
     label: 'Report Generated',
-    description: 'An evaluation report has been generated',
+    description: locale === 'zh' ? 'LLM 可行性报告已生成' : 'LLM feasibility report generated',
     isComplete: (eval_) => !!eval_.report,
     isCurrent: (_eval, idx) => idx === 3,
   },
   {
     key: 'review_complete',
     label: 'Review Complete',
-    description: 'The evaluation has been reviewed and finalized',
+    description: locale === 'zh' ? '评估已审核并完成' : 'The evaluation has been reviewed and finalized',
     isComplete: (eval_) => {
       // Review complete if report exists and scores are high enough
       if (!eval_.report) return false;
@@ -71,6 +73,9 @@ interface EvalProgressTrackerProps {
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function EvalProgressTracker({ evaluation, compact = false }: EvalProgressTrackerProps) {
+  const { t, locale } = useI18n();
+  const STEPS = useMemo(() => buildSteps(locale), [locale]);
+
   // Determine which steps are complete
   const stepStates = useMemo(() => {
     const states: { complete: boolean; current: boolean }[] = [];
@@ -95,7 +100,7 @@ export function EvalProgressTracker({ evaluation, compact = false }: EvalProgres
     }
 
     return states;
-  }, [evaluation]);
+  }, [evaluation, STEPS]);
 
   const completedCount = stepStates.filter((s) => s.complete).length;
   const progressPct = (completedCount / STEPS.length) * 100;

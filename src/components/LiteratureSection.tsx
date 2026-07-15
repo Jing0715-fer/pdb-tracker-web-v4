@@ -1044,7 +1044,7 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
         <p className="text-[11px] mt-1.5 text-claude-text-muted/60 max-w-[240px] text-center leading-relaxed">
           {entries && entries.length > 0
             ? 'Entries found but no PubMed IDs available for this week'
-            : 'Select a week with PDB entries to view associated literature'}
+            : locale === 'zh' ? '选择有 PDB 条目的周次以查看相关文献' : 'Select a week with PDB entries to view associated literature'}
         </p>
       </div>
     );
