@@ -3448,6 +3448,16 @@ export default function PdbTracker() {
         <div className="flex-1 overflow-y-auto preview-scroll p-4">
           {evalDetailTab === 'Summary' && (
             <div className="space-y-3">
+              {/* Report button — at top, opens modal with combined report */}
+              {combinedReport && (
+                <button
+                  onClick={() => handleOpenBatchReport(selectedBatchId, batch?.title || 'Batch')}
+                  className="w-full flex items-center gap-2 px-3 h-9 rounded-lg text-xs font-semibold border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
+                >
+                  <FileText className="h-4 w-4" /> View Report
+                  <Maximize2 className="h-3.5 w-3.5 ml-auto opacity-50" />
+                </button>
+              )}
               {/* Stat cards row */}
               <div className="grid grid-cols-2 gap-2">
                 <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
@@ -3501,16 +3511,6 @@ export default function PdbTracker() {
                   <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Score Comparison (Batch Avg vs Targets)</div>
                   <EvalScoreRadar evaluation={aggregateEval} comparisonEvaluations={subTargetEvals.slice(0, 4)} size={200} />
                 </div>
-              )}
-              {/* Report button — opens modal with combined report */}
-              {combinedReport && (
-                <button
-                  onClick={() => handleOpenBatchReport(selectedBatchId, batch?.title || 'Batch')}
-                  className="w-full flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
-                >
-                  <FileText className="h-3.5 w-3.5" /> 查看跨靶点报告
-                  <Maximize2 className="h-3 w-3 ml-auto opacity-50" />
-                </button>
               )}
             </div>
           )}
@@ -3829,8 +3829,7 @@ export default function PdbTracker() {
           <div className="flex-1 overflow-y-auto preview-scroll p-4">
             {evalDetailTab === 'Summary' && (
               <div className="space-y-3">
-                <EvalSummary evaluation={selectedEval} comparisonEvaluations={allEvaluations.filter(e => e.uniprotId !== selectedEval.uniprotId)} />
-                {/* Report button — opens modal with full report */}
+                {/* Report button — at top, opens modal with full report */}
                 {(evalReportContent || selectedEval.report) && (
                   <button
                     onClick={() => {
@@ -3840,12 +3839,13 @@ export default function PdbTracker() {
                       });
                       setReportModalOpen(true);
                     }}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
+                    className="w-full flex items-center gap-2 px-3 h-9 rounded-lg text-xs font-semibold border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
                   >
-                    <FileText className="h-3.5 w-3.5" /> 查看评估报告
-                    <Maximize2 className="h-3 w-3 ml-auto opacity-50" />
+                    <FileText className="h-4 w-4" /> View Report
+                    <Maximize2 className="h-3.5 w-3.5 ml-auto opacity-50" />
                   </button>
                 )}
+                <EvalSummary evaluation={selectedEval} comparisonEvaluations={allEvaluations.filter(e => e.uniprotId !== selectedEval.uniprotId)} />
               </div>
             )}
             {evalDetailTab === 'Structures' && evalStructuresTab}

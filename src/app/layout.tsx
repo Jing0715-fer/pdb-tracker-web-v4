@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
+import { I18nProvider } from "@/lib/i18n";
 
 // Use static generation for the HTML shell — the page is client-rendered
 // (PdbTracker uses ssr:false dynamic import). force-dynamic caused OOM on
@@ -33,8 +34,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          {children}
-          <Toaster position="bottom-right" />
+          <I18nProvider>
+            {children}
+            <Toaster position="bottom-right" />
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

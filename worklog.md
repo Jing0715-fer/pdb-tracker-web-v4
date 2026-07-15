@@ -2349,3 +2349,51 @@ Stage Summary:
 - Report moved from separate tab to a button in Summary that opens a full-screen modal
 - Both batch and single eval use the same pattern (Summary → Report button → modal)
 - Key files: PdbViewerModal.tsx (thumbHeight/hideInfoBar props), pdb-tracker.tsx (Structures tab + Report button)
+
+---
+Task ID: i18n-and-report-reposition
+Agent: main
+Task: Move Report button to top, English text for Run Center + buttons, create i18n system with zh/en switching
+
+Work Log:
+- Created i18n system:
+  - `src/lib/i18n/en.ts` — English locale strings
+  - `src/lib/i18n/zh.ts` — Chinese locale strings
+  - `src/lib/i18n/index.tsx` — I18nProvider + useI18n hook (localStorage persistence)
+- Added I18nProvider to layout.tsx (wraps children)
+- Added language switcher in Settings panel (Appearance section):
+  - RadioGroup with "English" and "中文" options
+  - Persists to localStorage `pdb-tracker:locale`
+  - Defaults to English
+- Applied i18n to SettingsRunPanel:
+  - "运行中心" → `{t.runCenter}` (Run Center / 运行中心)
+  - Description → `{t.runCenterDesc}`
+  - "LLM 提供方" → `{t.llmProvider}` (LLM Provider)
+  - "数据库" → `{t.database}` (Database)
+  - "新建/选择/切换" → `{t.dbNew/dbSelect/dbSwitch}` (New/Select/Switch)
+  - Module tabs: "蛋白靶点评估" → `{t.tabEval}` (Protein Evaluation)
+  - Module tabs: "每日文献检索" → `{t.tabLit}` (Literature Search)
+  - Module tabs: "PDB 周报生成" → `{t.tabWeekly}` (PDB Weekly Report)
+  - "执行日志" → `{t.execLog}` (Execution Log)
+  - Log search/clear/filter titles → translated
+  - DB test warning → translated
+- Moved Report button to TOP of Summary tab (both batch and single eval):
+  - Was at bottom of Summary
+  - Now first element, full-width, with FileText icon + "View Report" text + Maximize2 icon
+  - Opens ReportModal on click
+- Report button text changed to English "View Report"
+- Lint: 0 errors, 0 warnings (313 files)
+- Build: succeeded
+- Browser verification:
+  - "Run Center" button in English ✓
+  - Run Center dialog: all text in English (title, description, LLM Provider, Database, module tabs) ✓
+  - Settings panel: Language switcher with English/中文 radio buttons ✓
+  - Switching to Chinese: "运行中心" appears immediately ✓
+  - Report button "View Report" visible at top of Summary ✓
+
+Stage Summary:
+- i18n system created with en/zh locales, localStorage persistence, context-based hook
+- Run Center fully translated (trigger button, dialog title, description, LLM provider, database, module tabs, execution log)
+- Report button moved to top of Summary tab with English "View Report" text
+- Language switcher added to Settings panel (Appearance section)
+- Switching language updates UI immediately (no page reload needed)

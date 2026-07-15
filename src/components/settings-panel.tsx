@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes';
 import {
   X, Sun, Moon, Monitor, Palette, SlidersHorizontal,
   Eye, Bell, Keyboard, Info, RotateCcw, ChevronRight,
-  Dna, BarChart3, Microscope, FileText,
+  Dna, BarChart3, Microscope, FileText, Languages,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { useI18n } from '@/lib/i18n';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -104,6 +105,7 @@ export function SettingsPanel({
   toggleActivityType,
 }: SettingsPanelProps) {
   const { setTheme } = useTheme();
+  const { t, locale, setLocale } = useI18n();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   const handleThemeChange = (value: string) => {
@@ -201,7 +203,34 @@ export function SettingsPanel({
                   </RadioGroup>
                 </div>
 
-                {/* Compact Mode */}
+                {/* Language */}
+                <div className="mb-3">
+                  <Label className="text-xs font-medium text-claude-text mb-2 block flex items-center gap-1.5">
+                    <Languages className="h-3.5 w-3.5" /> {t.language}
+                  </Label>
+                  <RadioGroup
+                    value={locale}
+                    onValueChange={(v) => setLocale(v as 'en' | 'zh')}
+                    className="flex gap-2"
+                  >
+                    {[
+                      { value: 'en', label: 'English' },
+                      { value: 'zh', label: '中文' },
+                    ].map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md border cursor-pointer transition-all text-xs font-medium ${
+                          locale === opt.value
+                            ? 'border-claude-accent bg-claude-accent/10 text-claude-accent'
+                            : 'border-claude-border dark:border-[#3d3832] text-claude-text-muted hover:border-claude-accent/50 hover:text-claude-text'
+                        }`}
+                      >
+                        <RadioGroupItem value={opt.value} className="sr-only" />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </div>
                 <SettingRow
                   label="Compact Mode"
                   description="Reduce padding and font sizes for denser layouts"

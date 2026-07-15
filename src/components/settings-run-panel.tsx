@@ -37,6 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useRunStream, type StreamEvent } from '@/lib/use-run-stream';
+import { useI18n } from '@/lib/i18n';
 import {
   Dialog,
   DialogContent,
@@ -1040,6 +1041,7 @@ export function SettingsRunPanel({
       can spotlight the module panel area for steps 4/5/6. */
   tabContentRef?: React.RefObject<HTMLElement | null>;
 } = {}) {
+  const { t } = useI18n();
   const [internalOpen, setInternalOpen] = useState(false);
   const [internalTab, setInternalTab] = useState('evaluation');
   const open = externalOpen ?? internalOpen;
@@ -1364,7 +1366,7 @@ export function SettingsRunPanel({
       ext = 'json';
     } else {
       content = [
-        `# 运行中心执行日志`,
+        `# ${t.execLogExportTitle}`,
         ``,
         `导出时间：${new Date().toISOString()}`,
         `过滤：${logFilter} · 搜索："${logSearch}" · ${filtered.length} 条`,
@@ -1649,7 +1651,7 @@ export function SettingsRunPanel({
           className="h-8 gap-1.5 text-xs font-medium border-border/60 hover:border-primary/40 hover:bg-accent/50 transition-all relative"
         >
           <Settings2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">运行中心</span>
+          <span className="hidden sm:inline">{t.runCenter}</span>
           {running.size > 0 && (
             <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-500 text-white text-4xs font-bold px-1">
               {running.size}
@@ -1667,7 +1669,7 @@ export function SettingsRunPanel({
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/20">
                 <Sparkles className="h-4.5 w-4.5 text-primary" />
               </div>
-              <span>运行中心</span>
+              <span>{t.runCenter}</span>
               <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                 <Layers className="h-2.5 w-2.5" /> 3 modules
               </Badge>
@@ -1678,7 +1680,7 @@ export function SettingsRunPanel({
               )}
             </DialogTitle>
             <DialogDescription className="text-sm leading-relaxed pt-1 text-muted-foreground">
-              每日文献检索 · 蛋白靶点评估 · PDB 周报生成 — 支持并行触发、SSE 实时进度、自动 provider 选择（hermes / claude / codex / Anthropic / OpenAI）
+              {t.runCenterDesc}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -1689,7 +1691,7 @@ export function SettingsRunPanel({
             <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
               <div className="flex items-center gap-1.5 shrink-0">
                 <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">LLM 提供方</span>
+                <span className="text-sm font-medium text-foreground">{t.llmProvider}</span>
               </div>
               <code className="px-2 py-0.5 rounded bg-background border border-border/60 font-mono text-sm text-foreground shrink-0">
                 {effectiveProviderId || (scanning ? '扫描中…' : '未检测')}
@@ -1892,7 +1894,7 @@ export function SettingsRunPanel({
             {/* Title + active path + schema badges + loaded status — single dense line */}
             <div className="flex items-center gap-1.5 flex-wrap mb-3">
               <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-sm font-medium text-foreground shrink-0">数据库</span>
+              <span className="text-sm font-medium text-foreground shrink-0">{t.database}</span>
               {dbStatus?.activeFsPath && (
                 <code className="text-xs font-mono text-muted-foreground truncate min-w-0" title={dbStatus.activeFsPath}>
                   {dbStatus.activeFsPath}
@@ -1950,7 +1952,7 @@ export function SettingsRunPanel({
                 disabled={dbPathSaving}
               >
                 {dbPathSaving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-3 w-3" />}
-                <span className="ml-1">切换</span>
+                <span className="ml-1">{t.dbSwitch}</span>
               </Button>
               <Button
                 variant="outline"
@@ -1958,7 +1960,7 @@ export function SettingsRunPanel({
                 className="h-8 text-xs shrink-0 px-2 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                 onClick={() => { setDbWizardMode('create'); setDbWizardOpen(true); }}
               >
-                <FilePlus2 className="h-3 w-3" /> 新建
+                <FilePlus2 className="h-3 w-3" /> {t.dbNew}
               </Button>
               <Button
                 variant="outline"
@@ -1966,14 +1968,14 @@ export function SettingsRunPanel({
                 className="h-8 text-xs shrink-0 px-2 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
                 onClick={() => { setDbWizardMode('select'); setDbWizardOpen(true); }}
               >
-                <FolderOpen className="h-3 w-3" /> 选择
+                <FolderOpen className="h-3 w-3" /> {t.dbSelect}
               </Button>
             </div>
 
             {dbStatus?.isTest && (
               <div className="mt-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                 <AlertTriangle className="h-3 w-3 inline mr-1" />
-                当前使用的是测试数据库（<code className="font-mono">db/custom.db</code>），仅用于功能验证。建议点击「新建」创建正式数据库以保存您的工作数据。
+                {t.dbTestWarning}
               </div>
             )}
           </div>
@@ -2000,20 +2002,20 @@ export function SettingsRunPanel({
             <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
               <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <FlaskConical className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">① 蛋白靶点评估</span>
-                <span className="sm:hidden">① 评估</span>
+                <span className="hidden sm:inline">① {t.tabEval}</span>
+                <span className="sm:hidden">① {t.tabEvalShort}</span>
                 {isRunning('eval') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="literature" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <BookOpen className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">② 每日文献检索</span>
-                <span className="sm:hidden">② 文献</span>
+                <span className="hidden sm:inline">② {t.tabLit}</span>
+                <span className="sm:hidden">② {t.tabLitShort}</span>
                 {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="weekly" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <CalendarClock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">③ PDB 周报生成</span>
-                <span className="sm:hidden">③ 周报</span>
+                <span className="hidden sm:inline">③ {t.tabWeekly}</span>
+                <span className="sm:hidden">③ {t.tabWeeklyShort}</span>
                 {isRunning('weekly') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
             </TabsList>
@@ -2482,7 +2484,7 @@ export function SettingsRunPanel({
                   <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60 bg-muted/40 flex-wrap">
                     <div className="flex items-center gap-2">
                       <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold">执行日志</span>
+                      <span className="text-xs font-semibold">{t.execLog}</span>
                       <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                         {logFilter === 'all' ? logs.length : logs.filter(l => l.module === logFilter).length}
                       </Badge>
@@ -2503,7 +2505,7 @@ export function SettingsRunPanel({
                             className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                               logFilter === f.k ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'
                             }`}
-                            title={f.k === 'all' ? '全部' : f.k === 'literature' ? '文献' : f.k === 'eval' ? '评估' : '周报'}
+                            title={f.k === 'all' ? t.execLogFilterAll : f.k === 'literature' ? t.tabLit : f.k === 'eval' ? t.tabEval : t.tabWeekly}
                           >
                             {f.label}
                           </button>
@@ -2516,7 +2518,7 @@ export function SettingsRunPanel({
                           type="text"
                           value={logSearch}
                           onChange={e => setLogSearch(e.target.value)}
-                          placeholder="搜索…"
+                          placeholder={t.execLogSearch}
                           className="w-16 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50"
                         />
                       </div>
@@ -2527,7 +2529,7 @@ export function SettingsRunPanel({
                         <Download className="h-3 w-3" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground px-2" onClick={() => setLogs([])}>
-                        清空
+                        {t.execLogClear}
                       </Button>
                     </div>
                   </div>
