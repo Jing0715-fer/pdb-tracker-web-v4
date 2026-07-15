@@ -34,55 +34,55 @@ export interface TourStepConfig {
  */
 export const TOUR_STEPS: Omit<TourStepConfig, 'targetRef'>[] = [
   {
-    title: '欢迎使用 PDB Structure Tracker',
-    description: '蛋白结构数据库追踪平台。追踪 PDB 每周发布、评估蛋白靶点可成药性、监控结构生物学文献。点击「下一步」了解核心功能。',
+    title: '欢迎使用 PDB Tracker',
+    description: '蛋白结构追踪平台，整合 PDB 周报、靶点评估、文献监控三大功能。本引导将带你了解核心操作，约需 1 分钟。',
     icon: <Sparkles className="h-4 w-4" />,
   },
   {
     title: '模式切换',
-    description: '在 Weekly / Evaluation / Literature 三种模式间切换。Weekly 浏览每周 PDB 发布；Evaluation 评估蛋白靶点；Literature 追踪结构生物学文献。',
+    description: '顶部三个按钮切换工作模式：Weekly 浏览每周 PDB 发布，Evaluation 评估蛋白靶点可成药性，Literature 追踪结构生物学文献。',
     icon: <LayoutGrid className="h-4 w-4" />,
   },
   {
     title: '数据库配置',
-    description: '首次使用需要创建数据库。点击「新建」创建新数据库，或点击「选择」使用已有数据库。首次运行必须完成此步骤。',
+    description: '首次使用需创建数据库。在运行中心内点击「新建」创建 SQLite 数据库，或「选择」已有数据库。所有模块共用此数据库。',
     icon: <Database className="h-4 w-4" />,
     onEnter: 'openDbWizard',
     onExit: 'closeDbWizard',
   },
   {
     title: '运行中心',
-    description: '点击顶部「运行中心」按钮打开运行中心。支持三大模块：评估、文献检索、周报生成。',
+    description: '点击顶部「运行中心」按钮打开操作面板，包含评估、文献、周报三个模块，支持并行执行和 SSE 实时进度。',
     icon: <Rocket className="h-4 w-4" />,
     onEnter: 'openRunCenter',
   },
   {
     title: '评估模块',
-    description: 'UniProt ID 模式支持单靶点 + 多靶点批量评估（含跨靶点相关性分析）。序列输入模式支持 AA / DNA（DNA 自动转录为氨基酸），BLAST 优先搜 pdbaa，无命中或 identity<95% 时回退 nr。可配置 maxPdb、BLAST 上限、maxLitCount，并可切换 skipBlast / forceBlast。完成后 LLM 生成分章节评估报告（附 PubMed 文献）。',
+    description: '输入 UniProt ID 或氨基酸序列，自动获取 PDB 结构、BLAST 同源、PubMed 文献，LLM 生成 8 章节可成药性评估报告。支持多靶点批量评估与跨靶点相关性分析。',
     icon: <FlaskConical className="h-4 w-4" />,
     onEnter: 'switchEval',
   },
   {
     title: '文献模块',
-    description: 'PubMed 双通路检索（Path A 结构生物学关键词 + Path B 期刊 RSS），按方法筛选（Cryo-EM / X-ray / NMR），LLM 中文摘要聚合，可在历史报告列表中回看任意日期摘要。',
+    description: 'PubMed 双通路检索（关键词 + 期刊 RSS），按实验方法筛选（Cryo-EM / X-ray / NMR），LLM 生成中文摘要聚合，支持历史回看。',
     icon: <BookOpen className="h-4 w-4" />,
     onEnter: 'switchLit',
   },
   {
     title: '周报模块',
-    description: '对抗式生成 PDB 周报：Generator → Critic → Synthesis。支持 ISO 周选择（自动检测最近可用窗口），可设 1–3 cycle 迭代提升质量。',
+    description: '对抗式生成 PDB 周报：Generator → Critic → Synthesis 三阶段迭代，支持 1–3 cycle 提升质量，自动检测最近可用 ISO 周。',
     icon: <CalendarClock className="h-4 w-4" />,
     onEnter: 'switchWeekly',
     onExit: 'closeRunCenter',
   },
   {
     title: '搜索与快捷键',
-    description: '按 / 聚焦搜索框，按 ? 查看所有快捷键。搜索支持 PDB ID、UniProt ID、基因名。',
+    description: '按 / 快速聚焦搜索框，按 ? 查看全部快捷键。搜索支持 PDB ID、UniProt ID、基因名、蛋白名。',
     icon: <Search className="h-4 w-4" />,
   },
   {
-    title: '开始使用',
-    description: '设置完成后即可开始使用。如需重新查看引导，点击右上角帮助按钮。',
+    title: '准备就绪',
+    description: '设置完成！点击右上角帮助按钮可随时重新查看引导。现在开始探索 PDB Structure Tracker 吧。',
     icon: <CheckCircle2 className="h-4 w-4" />,
   },
 ];
@@ -269,6 +269,26 @@ export function TourOverlay({
     };
   }, [tourActive, tourStep, updatePosition, currentStep, isCentered]);
 
+  // Keyboard navigation: Esc → skip tour, ← → prev, → / Enter → next
+  useEffect(() => {
+    if (!tourActive) return;
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        finishTour();
+      } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
+        e.preventDefault();
+        if (isLastStep) finishTour();
+        else setTourStep(tourStep + 1);
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (tourStep > 0) setTourStep(tourStep - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [tourActive, tourStep, isLastStep, setTourStep, finishTour]);
+
   if (!tourActive || !currentStep || !stepConfig) return null;
 
   const pos = computeTooltipPos(spotlightRect, tooltipHeight);
@@ -405,7 +425,7 @@ export function TourOverlay({
                 ))}
               </div>
 
-              {/* Footer — buttons */}
+              {/* Footer — buttons + keyboard hint */}
               <div className="flex items-center gap-2">
                 {tourStep > 0 && (
                   <button
@@ -414,6 +434,12 @@ export function TourOverlay({
                   >
                     <ChevronLeft className="h-3.5 w-3.5" /> 上一步
                   </button>
+                )}
+                {/* Keyboard hint — subtle, only on non-first step */}
+                {tourStep > 0 && (
+                  <span className="text-[9px] text-claude-text-muted/50 font-mono hidden sm:inline">
+                    ← → 导航 · Esc 跳过
+                  </span>
                 )}
                 <button
                   onClick={() => { if (isLastStep) finishTour(); else setTourStep(tourStep + 1); }}

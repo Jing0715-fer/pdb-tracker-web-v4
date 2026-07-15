@@ -2153,3 +2153,50 @@ Stage Summary:
 - Visual polish improved: rounded-2xl card, top accent gradient bar, segmented progress bar, corner accent marks on spotlight frame, better typography and spacing
 - Server scripts preserved in /home/z/my-project/server-scripts/ to survive rebuilds
 - Key files: tour-overlay.tsx (positioning + aesthetics), use-tour.ts (step→ref mapping), settings-run-panel.tsx (tabContentRef), pdb-tracker.tsx (wiring)
+
+---
+Task ID: eval-batch-unify-and-tour-polish
+Agent: main
+Task: Unify batch eval UI with single eval, fix report height, add delete, generate fake data, polish tour
+
+Work Log:
+- **Unified batch evaluation UI**: Replaced the complex `BatchDetailView` (2-column layout with 4 tabs) with a new `BatchCommonPdbView` component that mirrors the single-eval layout:
+  - Middle: common PDB table (same visual style as single eval PDB table, with columns: PDB ID, Method, Resolution, IF Tier, Title, Shared By)
+  - Top: batch toolbar with title, target count, shared PDB count
+  - Below toolbar: clickable sub-target chips (UniProt IDs) that open individual eval view
+  - Right: batch detail panel (same as single eval) with Summary/Targets/Report tabs
+- **Added batch detail panel** in `pdb-tracker.tsx` `renderDetailPanel()`:
+  - Shows when `selectedBatchId && !selectedEvalId`
+  - Summary tab: target count, shared PDB count, common PDB ID chips (links to RCSB)
+  - Targets tab: clickable sub-target list with scores
+  - Report tab: combined report with markdown tables + "Open Full Report" button
+- **Fixed report height bug**: Removed `max-h-[36rem]` cap from `evalReportTab` in pdb-tracker.tsx. Report content now fills the full detail panel height (parent `flex-1 overflow-y-auto` handles scrolling).
+- **Added delete functionality**:
+  - Single eval: trash icon in eval detail panel header → calls `handleDeleteEval(uniprotId)`
+  - Batch: trash icon in batch detail panel header → calls new `handleDeleteBatch(batchId)` which deletes all sub-target evals + the batch record
+  - Created API endpoint `DELETE /api/evaluations/batch/[batchId]` for batch deletion
+- **Generated fake batch data** (`scripts/seed-batch-data.mjs`):
+  - Batch 1: "HER2/HER3 Signaling Axis" (P04626 ERBB2 + P04629 ERBB3, common PDB: 6J71)
+  - Batch 2: "Ubiquitin System" (P0CG48 UBC + P62987 RPL40, common PDB: 1UBQ)
+  - Each target has PDB structures, BLAST results, individual LLM report with tables
+  - Each batch has a combined cross-target report with comparison tables
+- **Polished tour to production quality**:
+  - Shortened and refined all 9 step descriptions (more concise, actionable, user-friendly)
+  - Added keyboard navigation: Esc → skip tour, ← → prev step, →/Enter → next step
+  - Added keyboard hint text in footer: "← → 导航 · Esc 跳过" (hidden on first step, hidden on mobile)
+  - Final step title changed from "开始使用" to "准备就绪" for better UX
+- **Lint**: 0 errors, 0 warnings (310 files)
+- **Browser verification** (agent-browser + VLM):
+  - Batch view: common PDB table ✓, sub-target chips ✓, right panel ✓, delete icon ✓ (8/10)
+  - Batch report: combined report with tables ✓, borders/headers ✓, delete icon ✓ (8/10)
+  - Single eval report: fills full height ✓, tables render ✓, delete icon ✓ (8/10)
+  - Sub-target click → single eval view: PDB table 6 rows ✓, right panel ✓
+  - Tour auto-start: ✓, keyboard navigation ✓, keyboard hint visible ✓ (8/10)
+
+Stage Summary:
+- Batch evaluation now uses the same UI pattern as single eval (middle: PDB list, right: report)
+- Report height bug fixed — content fills full panel, no empty lower half
+- Delete functionality added for both individual evals and batches
+- 2 fake batches with 4 evaluations seeded for testing
+- Tour polished: concise descriptions, keyboard nav, production-ready quality
+- Key files: evaluation-view.tsx (BatchCommonPdbView), pdb-tracker.tsx (batch detail panel + delete), tour-overlay.tsx (keyboard nav + descriptions), scripts/seed-batch-data.mjs

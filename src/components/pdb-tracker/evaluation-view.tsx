@@ -179,6 +179,230 @@ interface BatchDetailViewProps {
   onOpenBatchReport?: (batchId: string, title: string) => void;
 }
 
+// ─── BatchCommonPdbView ────────────────────────────────────────────────────
+// Simplified batch view: shows the common (shared) PDB list in the middle,
+// mirroring the single-eval PDB table layout. The batch's combined report
+// is shown in the right detail panel (same as single eval).
+function BatchCommonPdbView({
+  batchId,
+  allEvals,
+  evalBatches,
+  evalBatchSubTargets,
+  onSelectSubTarget,
+  onSelectPdb,
+}: {
+  batchId: string;
+  allEvals: Evaluation[];
+  evalBatches: EvalBatch[];
+  evalBatchSubTargets: Record<string, EvalBatchSubTarget[]>;
+  onSelectSubTarget: (uniprotId: string) => void;
+  onSelectPdb?: (pdbId: string) => void;
+}) {
+  const batch = evalBatches.find(b => b.batchId === batchId);
+  const subTargets = evalBatchSubTargets[batchId] || [];
+  const commonPdbIds = parseCommonPdbIds(batch?.commonPdbIds);
+
+  // Build a map of pdbId → list of UniProt IDs that have it (for "Shared By" column)
+  const pdbHolders = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const sub of subTargets) {
+      const evalData = allEvals.find(e => e.uniprotId === sub.uniprotId);
+      if (!evalData) continue;
+      for (const s of evalData.pdbStructures || []) {
+        if (!map[s.pdbId]) map[s.pdbId] = [];
+        if (!map[s.pdbId].includes(sub.uniprotId)) {
+          map[s.pdbId].push(sub.uniprotId);
+        }
+      }
+      for (const b of evalData.blastResults || []) {
+        if (!map[b.pdbId]) map[b.pdbId] = [];
+        if (!map[b.pdbId].includes(sub.uniprotId)) {
+          map[b.pdbId].push(sub.uniprotId);
+        }
+      }
+    }
+    return map;
+  }, [subTargets, allEvals]);
+
+  // Build rows for the common PDB table — merge structure info from any eval that has it
+  const rows = useMemo(() => {
+    return commonPdbIds.map(pdbId => {
+      // Find the first eval that has this PDB to get method/resolution/title
+      let method = '';
+      let resolution: number | null = null;
+      let title = '';
+      let ifTier = '';
+      let journalIf: number | null = null;
+      let releaseDate: string | null = null;
+
+      for (const sub of subTargets) {
+        const evalData = allEvals.find(e => e.uniprotId === sub.uniprotId);
+        if (!evalData) continue;
+        const struct = (evalData.pdbStructures || []).find(s => s.pdbId === pdbId);
+        if (struct) {
+          method = struct.method || method;
+          resolution = resolution ?? struct.resolution ?? null;
+          title = title || struct.title || '';
+          ifTier = ifTier || struct.ifTier || '';
+          journalIf = journalIf ?? struct.journalIf ?? null;
+          releaseDate = releaseDate || struct.releaseDate || null;
+          break;
+        }
+        const blast = (evalData.blastResults || []).find(b => b.pdbId === pdbId);
+        if (blast) {
+          method = method || blast.method || '';
+          resolution = resolution ?? blast.resolution ?? null;
+          title = title || blast.title || blast.description || '';
+          ifTier = ifTier || blast.ifTier || '';
+          journalIf = journalIf ?? blast.journalIf ?? null;
+          releaseDate = releaseDate || blast.releaseDate || null;
+          break;
+        }
+      }
+
+      return {
+        pdbId,
+        method,
+        resolution,
+        title,
+        ifTier,
+        journalIf,
+        releaseDate,
+        holders: pdbHolders[pdbId] || [],
+      };
+    });
+  }, [commonPdbIds, subTargets, allEvals, pdbHolders]);
+
+  if (!batch) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+        <Layers className="h-8 w-8 mb-2 opacity-40" />
+        <p className="text-xs">Batch not found</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Toolbar — batch title + stats */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 border border-violet-500/20 flex items-center justify-center flex-shrink-0">
+            <Layers className="h-4 w-4 text-violet-600 dark:text-violet-300" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-claude-text truncate">{batch.title || 'Batch'}</span>
+              <Badge variant="outline" className="text-[9px] font-semibold px-1.5 h-4 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800/40 shrink-0">
+                {subTargets.length} targets
+              </Badge>
+            </div>
+            <div className="text-[10px] text-claude-text-muted font-mono">{batch.batchId}</div>
+          </div>
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-3 text-[10px] text-claude-text-muted">
+          <span className="flex items-center gap-1">
+            <Box className="h-3 w-3" />
+            <span className="font-mono font-semibold text-claude-text-secondary">{commonPdbIds.length}</span> shared PDB
+          </span>
+        </div>
+      </div>
+
+      {/* Sub-target chips — clickable to open individual eval */}
+      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-claude-border/50 dark:border-[#3d3832]/50 overflow-x-auto flex-shrink-0">
+        <span className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold shrink-0 mr-1">Targets:</span>
+        {subTargets.length === 0 ? (
+          <span className="text-[10px] text-claude-text-muted italic">No sub-targets</span>
+        ) : (
+          subTargets.map(sub => (
+            <button
+              key={sub.uniprotId}
+              onClick={() => onSelectSubTarget(sub.uniprotId)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono font-medium bg-claude-border-light/60 dark:bg-[#2b2926]/60 hover:bg-claude-accent/10 hover:text-claude-accent text-claude-text-secondary transition-all border border-transparent hover:border-claude-accent/20 whitespace-nowrap"
+              title={`${sub.proteinName || sub.geneName || sub.uniprotId} · ${sub.pdbCount} PDB · ${sub.blastCount} BLAST`}
+            >
+              {sub.uniprotId}
+              <span className="text-[8px] text-claude-text-muted font-sans">{sub.pdbCount}P</span>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Common PDB list — same visual style as single eval PDB table */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+            <Box className="h-8 w-8 mb-2 opacity-40" />
+            <p className="text-xs">No common PDB structures found between targets</p>
+            <p className="text-[10px] mt-1">Run the batch evaluation to detect shared structures.</p>
+          </div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832]">
+              <tr>
+                <th className="text-left font-semibold text-claude-text-muted px-4 py-2 w-[90px]">PDB ID</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">Method</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[80px]">Res. (Å)</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">IF Tier</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 min-w-0">Title</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[160px]">Shared By</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const methodStyle = getMethodColor(row.method);
+                const resColor = row.resolution != null
+                  ? row.resolution < 2.5 ? 'text-emerald-600 dark:text-emerald-400'
+                    : row.resolution < 3.5 ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-red-600 dark:text-red-400'
+                  : 'text-claude-text-muted';
+                return (
+                  <tr
+                    key={row.pdbId}
+                    onClick={() => onSelectPdb?.(row.pdbId)}
+                    className={`border-b border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-claude-border-light/20 dark:bg-[#1a1917]/20'}`}
+                  >
+                    <td className="px-4 py-2">
+                      <span className="font-mono font-bold text-[11px] text-claude-accent">{row.pdbId}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${methodStyle}`}>{row.method || '—'}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <span className={`font-mono text-[11px] font-medium ${resColor}`}>{row.resolution != null ? row.resolution.toFixed(1) : '—'}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      {row.ifTier ? (
+                        <span className="text-[10px] font-medium" style={getIfTierStyle(row.ifTier)}>{row.ifTier}</span>
+                      ) : (
+                        <span className="text-[10px] text-claude-text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 min-w-0">
+                      <span className="text-[11px] text-claude-text-secondary truncate block max-w-[300px]" title={row.title}>{row.title || '—'}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-0.5 flex-wrap">
+                        {row.holders.slice(0, 3).map(h => (
+                          <span key={h} className="text-[9px] font-mono px-1 py-0.5 rounded bg-claude-border-light/60 dark:bg-[#2b2926]/60 text-claude-text-muted">{h}</span>
+                        ))}
+                        {row.holders.length > 3 && (
+                          <span className="text-[9px] text-claude-text-muted">+{row.holders.length - 3}</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function getScoreColor(score: number): string {
   if (score >= 80) return '#2d8f8f';
   if (score >= 50) return '#c9872e';
@@ -1396,15 +1620,13 @@ export function EvaluationView({
           </Button>
         )}
       </div>
-      {/* When a batch is selected and no individual sub-target is open, show the
-          batch-level preview (common PDB IDs, cross-target LLM report, sub-target
-          list with their individual reports). Otherwise fall back to the regular
-          individual-eval detail page. */}
+      {/* When a batch is selected and no individual sub-target is open, show
+          the common PDB list in the middle (same layout as single eval).
+          The batch's combined report shows in the right detail panel. */}
       {selectedBatchId && !selectedEvalId ? (
-        <BatchDetailView
+        <BatchCommonPdbView
           batchId={selectedBatchId}
           allEvals={allEvaluations}
-          batchFetchedEvals={batchFetchedEvals || {}}
           evalBatches={evalBatches}
           evalBatchSubTargets={batchSubTargets}
           onSelectSubTarget={(uniprotId) => {
@@ -1414,7 +1636,6 @@ export function EvaluationView({
               onSelectEvalId(uniprotId);
             }
           }}
-          onOpenBatchReport={onOpenBatchReport}
         />
       ) : (
         <EvaluationPage

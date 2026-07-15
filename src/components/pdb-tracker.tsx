@@ -11,8 +11,10 @@ import {
   Calendar, ArrowRightLeft, LayoutDashboard, Clock, FileDown, Settings,
   Microscope, ArrowUp, RefreshCw, Download, Box, Upload, ChevronLeft,
   StickyNote, Tag, Trophy, Eye, AlertTriangle, HelpCircle,
+  Maximize2, Layers, Info, CheckCircle2, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Mode, PdbEntry, WeeklySnapshot, WeeklyReport, Evaluation, LitPaper, LitReport, LitStats, EvalBatch, EvalBatchSubTarget, EvalRow } from '@/lib/pdb-types';
@@ -851,6 +853,7 @@ export default function PdbTracker() {
     setSelectedEval(null);
     setSelectedEvalStructure(null);
     setEvalSubView('default');
+    setEvalDetailTab('Summary');
     setDetailPanelOpen(true);
   }, []);
 
@@ -858,6 +861,7 @@ export default function PdbTracker() {
     setSelectedBatchId(batchId);
     setSelectedEvalId(uniprotId);
     setSelectedEvalStructure(null);
+    setEvalDetailTab('Summary');
     setDetailPanelOpen(true);
   }, []);
 
@@ -914,6 +918,36 @@ export default function PdbTracker() {
       });
     }
   }, [selectedEvalId, fetchEvaluations]);
+
+  // Delete an entire batch + all its sub-target evaluations.
+  const handleDeleteBatch = useCallback(async (batchId: string) => {
+    const batch = evalBatches.find(b => b.batchId === batchId);
+    const subTargets = batchSubTargets[batchId] || [];
+    const confirmed = window.confirm(
+      `Delete batch "${batch?.title || batchId}"?\n\nThis will permanently remove ${subTargets.length} evaluation(s), their PDB structures, BLAST results, and the cross-target report.`
+    );
+    if (!confirmed) return;
+    try {
+      // Delete each sub-target evaluation
+      for (const sub of subTargets) {
+        await queuedFetchWithRetry(`/api/evaluations/${sub.uniprotId}`, { method: 'DELETE' });
+      }
+      // Delete the batch record itself
+      await queuedFetchWithRetry(`/api/evaluations/batch/${batchId}`, { method: 'DELETE' });
+      toast.success(`Deleted batch ${batchId}`);
+      setSelectedBatchId(null);
+      setSelectedEvalId(null);
+      setSelectedEval(null);
+      setSelectedEvalStructure(null);
+      setDetailPanelOpen(false);
+      await fetchEvaluations();
+    } catch (err) {
+      console.error('Failed to delete batch:', err);
+      toast.error('Failed to delete batch', {
+        description: err instanceof Error ? err.message : 'unknown error',
+      });
+    }
+  }, [evalBatches, batchSubTargets, fetchEvaluations]);
 
   const fetchLitStats = useCallback(async () => {
     try {
@@ -3301,6 +3335,159 @@ export default function PdbTracker() {
       return renderDetailPanelWrapper(evalStructureDetailContent, () => { setSelectedEvalStructure(null); setDetailPanelOpen(false); });
     }
 
+    // Batch detail — show batch's combined report in the right panel (same as
+    // single eval, but with batch-level info instead of per-target info).
+    if (mode === 'evaluation' && selectedBatchId && !selectedEvalId) {
+      const batch = evalBatches.find(b => b.batchId === selectedBatchId);
+      const subTargets = batchSubTargets[selectedBatchId] || [];
+      const commonPdbIds = (() => {
+        if (!batch?.commonPdbIds) return [];
+        try { const p = JSON.parse(batch.commonPdbIds); return Array.isArray(p) ? p.filter(Boolean) : []; }
+        catch { return batch.commonPdbIds.split(/[\s,]+/).filter(Boolean); }
+      })();
+      const combinedReport = batch?.combinedReport || '';
+      const crossOk = batch?.crossReportOk;
+
+      const batchDetailContent = (<>
+        <div className="glass-detail-panel-accent" />
+        <div className="glass-noise-overlay" />
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] flex items-center justify-between relative z-[1]">
+          <div className="flex items-center gap-2 min-w-0">
+            <Layers className="h-4 w-4 text-violet-500 dark:text-violet-300 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-claude-text truncate block">{batch?.title || 'Batch'}</span>
+              <span className="text-[10px] text-claude-text-muted font-mono">{selectedBatchId}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {crossOk !== null && crossOk !== undefined && (
+              <Badge variant="outline" className={`text-[9px] font-semibold h-5 ${crossOk ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/40' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/40'}`}>
+                {crossOk ? <CheckCircle2 className="h-2.5 w-2.5" /> : <Info className="h-2.5 w-2.5" />}
+                {crossOk ? 'OK' : 'Failed'}
+              </Badge>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => handleDeleteBatch(selectedBatchId)} className="h-7 w-7 p-0 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200" title="Delete batch">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedBatchId(null); }} className="h-7 w-7 p-0 rounded-full bg-claude-border-light/80 dark:bg-[#2b2926]/80 hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Tab buttons */}
+        <div className="flex border-b border-claude-border dark:border-[#3d3832]">
+          {(['Summary', 'Targets', 'Report'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setEvalDetailTab(tab)}
+              className={`px-3 py-2 text-[11px] font-medium transition-colors ${
+                evalDetailTab === tab
+                  ? 'text-claude-accent border-b-2 border-claude-accent'
+                  : 'text-claude-text-muted hover:text-claude-text-secondary'
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto preview-scroll p-4">
+          {evalDetailTab === 'Summary' && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Targets</div>
+                  <div className="text-lg font-bold text-claude-text">{subTargets.length}</div>
+                </div>
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Shared PDB</div>
+                  <div className="text-lg font-bold text-claude-text">{commonPdbIds.length}</div>
+                </div>
+              </div>
+              <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Common PDB IDs</div>
+                {commonPdbIds.length === 0 ? (
+                  <p className="text-xs text-claude-text-muted italic">No shared structures detected.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {commonPdbIds.map(id => (
+                      <a key={id} href={`https://www.rcsb.org/structure/${id}`} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] font-mono font-bold text-claude-accent hover:underline px-1.5 py-0.5 rounded bg-claude-accent/5">
+                        {id}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+          {evalDetailTab === 'Targets' && (
+            <div className="space-y-1.5">
+              {subTargets.length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">No sub-targets recorded</p>
+              ) : (
+                subTargets.map(sub => (
+                  <button
+                    key={sub.uniprotId}
+                    onClick={() => handleSelectSubTarget(sub.uniprotId)}
+                    className="w-full flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 hover:border-claude-accent/20 transition-all text-left"
+                  >
+                    <div className="h-8 w-8 rounded-md bg-gradient-to-br from-claude-accent/15 to-claude-accent/5 border border-claude-accent/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[9px] font-mono font-bold text-claude-accent">{sub.uniprotId.slice(0, 2)}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-mono font-semibold text-claude-text">{sub.uniprotId}</span>
+                        <span className="text-[10px] text-claude-text-muted">{sub.geneName || sub.proteinName}</span>
+                      </div>
+                      <div className="text-[10px] text-claude-text-muted">{sub.pdbCount} PDB · {sub.blastCount} BLAST</div>
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className="text-[10px] text-claude-text-muted">Score</span>
+                      <span className={`text-sm font-bold ${sub.bestScore >= 7 ? 'text-emerald-600 dark:text-emerald-400' : sub.bestScore >= 4 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {sub.bestScore.toFixed(1)}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          {evalDetailTab === 'Report' && (
+            <div className="space-y-3">
+              {combinedReport ? (
+                <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
+                  <div className="markdown-content">
+                    <LazyMarkdown>{combinedReport}</LazyMarkdown>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-xs text-claude-text-muted py-4 text-center">
+                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  No cross-target report was generated for this batch.
+                </div>
+              )}
+              {combinedReport && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleOpenBatchReport(selectedBatchId, batch?.title || 'Batch')}
+                  className="w-full h-8 text-xs"
+                >
+                  <Maximize2 className="h-3 w-3 mr-1" /> Open Full Report
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+      </>);
+
+      return renderDetailPanelWrapper(batchDetailContent, () => { setDetailPanelOpen(false); });
+    }
+
     // Evaluation detail — tabbed panel
     if (mode === 'evaluation' && selectedEval) {
       const evalTabNames = ['Summary', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Report'] as const;
@@ -3425,17 +3612,18 @@ export default function PdbTracker() {
         </div>
       );
 
-      // Inline Report tab content
+      // Inline Report tab content — no max-h cap so it fills the available
+      // detail panel height (parent flex-1 overflow-y-auto handles scroll).
       const evalReportTab = (
         <div className="space-y-3">
           {evalReportContent ? (
-            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50 max-h-[36rem] overflow-y-auto thin-scroll">
+            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
               <div className="markdown-content">
                 <LazyMarkdown>{evalReportContent}</LazyMarkdown>
               </div>
             </div>
           ) : selectedEval.report ? (
-            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50 max-h-[36rem] overflow-y-auto thin-scroll">
+            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
               <div className="markdown-content">
                 <LazyMarkdown>{selectedEval.report}</LazyMarkdown>
               </div>
@@ -3453,13 +3641,18 @@ export default function PdbTracker() {
           <div className="glass-noise-overlay" />
           {/* Header */}
           <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] flex items-center justify-between relative z-[1]">
-            <div className="flex items-center gap-2">
-              <FlaskConical className="h-4 w-4 text-claude-accent" />
-              <span className="font-mono font-bold text-sm text-claude-accent">{selectedEval.uniprotId}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <FlaskConical className="h-4 w-4 text-claude-accent flex-shrink-0" />
+              <span className="font-mono font-bold text-sm text-claude-accent truncate">{selectedEval.uniprotId}</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-7 w-7 p-0 rounded-full bg-claude-border-light/80 dark:bg-[#2b2926]/80 hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200">
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Button variant="ghost" size="sm" onClick={() => handleDeleteEval(selectedEval.uniprotId)} className="h-7 w-7 p-0 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200" title="Delete evaluation">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-7 w-7 p-0 rounded-full bg-claude-border-light/80 dark:bg-[#2b2926]/80 hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Tab buttons */}
