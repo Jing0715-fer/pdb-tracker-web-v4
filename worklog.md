@@ -2076,3 +2076,37 @@ Stage Summary:
 - Start command: `cd .next/standalone && node --max-old-space-size=2048 server.js` with DATABASE_URL env var
 - All features verified working: page load, tour (9 steps), Run Center (3 modules), layout fix
 - The dev server was crashing due to OOM during webpack compilation; standalone build avoids this by pre-compiling everything
+
+---
+Task ID: standalone-fix-concurrent-crash
+Agent: main
+Task: Fix standalone server crash on concurrent requests (page won't load)
+
+Work Log:
+- Built standalone production server with `bun run build`
+- Changed layout.tsx from `dynamic = 'force-dynamic'` to `dynamic = 'force-static'` to enable static HTML generation (eliminates SSR memory spike per request)
+- Rebuilt and deployed standalone
+- Discovered the server crashes silently on concurrent requests (no error log, no OOM in dmesg)
+- Root cause: Node HTTP server + Caddy reverse proxy keep-alive connection reuse causes silent process termination
+- Solution: Created a 2-tier server architecture:
+  1. **API server** (port 3001): Next.js standalone server in cluster mode (2 workers, 384MB heap each)
+  2. **Static server** (port 3000): Custom Node.js HTTP server in cluster mode (2 workers, 128MB heap each) that:
+     - Serves the static index.html directly from memory (no SSR)
+     - Serves JS/CSS chunks from pre-indexed file map
+     - Proxies /api/* requests to port 3001 with `Connection: close` (disables keep-alive)
+     - Sets `keepAliveTimeout = 1` and `Connection: close` headers to prevent Caddy connection reuse crashes
+- Created startup script at `/home/z/my-project/start-standalone.sh`
+- Key files created:
+  - `.next/standalone/custom-server.js` — static file server with API proxy (cluster mode)
+  - `.next/standalone/api-server.js` — cluster wrapper for Next.js standalone server
+  - `.next/standalone/server-wrap.js` — error handler wrapper
+- Verified all routes via Caddy (port 81): Page 200, db-config 200, entries 200, snapshots 200, activity 200
+- Page loads in 13ms (static HTML), API routes respond normally
+
+Stage Summary:
+- The standalone server now handles concurrent requests via Caddy gateway
+- Architecture: Caddy (81) → Static Server (3000, 2 workers) → API Server (3001, 2 workers)
+- Static HTML served from memory (no SSR overhead)
+- API requests proxied with keep-alive disabled (prevents Caddy crash)
+- Total memory: ~700MB for 4 Node workers, leaving ~3.3GB for browser/Chrome
+- Start command: `bash /home/z/my-project/start-standalone.sh`
