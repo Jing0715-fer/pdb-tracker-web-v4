@@ -2629,3 +2629,47 @@ Stage Summary:
 - Mode tabs translated for both desktop (周报/评估/文献) and mobile (same)
 - Run Center 3 module titles translated (蛋白靶点评估/每日结构生物学文献检索/对抗式 PDB 周报生成器)
 - Chinese fonts improved with comprehensive CJK font stack (PingFang SC, Microsoft YaHei, Source Han Sans, etc.)
+
+---
+Task ID: i18n-settings-panel-complete
+Agent: main
+Task: Complete Chinese translation of settings panel
+
+Work Log:
+- Added 30+ new i18n keys to en.ts and zh.ts for settings panel:
+  - Card Style: 卡片样式, 默认/玻璃/扁平
+  - Default Mode: 默认模式, 周报/评估/文献
+  - Default Sort: 默认排序, 初始排序列
+  - Sort Direction: 排序方向, 降序/升序
+  - Page Size: 每页显示条目数
+  - Show NMR Resolution: 显示 NMR 分辨率
+  - Show Ligand Chips: 显示配体标签
+  - Show Method Badges: 显示方法标签
+  - Abstract Truncation: 摘要截断
+  - Enable Notifications: 启用通知
+  - Notification Sound: 通知声音
+  - Version/Data Source/Storage: 版本/数据来源/存储
+  - Reset All Settings: 重置所有设置
+  - Reset Settings?/Cancel/Reset: 重置设置？/取消/重置
+  - Keyboard shortcuts: 切换到周报/评估/文献模式, 关闭详情面板, 打开命令面板, 切换书签, 翻页导航
+- Converted KEYBOARD_SHORTCUTS from static const to useKeyboardShortcuts() hook for locale-aware descriptions
+- Applied i18n to ALL SettingRow labels and descriptions in settings-panel.tsx
+- Applied i18n to all SelectItem options (Default/Glass/Flat, Weekly/Evaluation/Literature, Descending/Ascending)
+- Applied i18n to About section (Version, Data Source, Storage labels)
+- Applied i18n to Reset dialog (title, description, Cancel, Reset buttons)
+- Lint: 0 errors, 0 warnings
+- Build: succeeded
+- Browser verification (Chinese mode):
+  - 外观 ✓, 默认行为 ✓, 数据显示 ✓, 通知 ✓, 键盘快捷键 ✓, 关于 ✓
+  - 卡片样式 ✓, 默认模式 ✓, 默认排序 ✓, 排序方向 ✓, 每页 ✓
+  - NMR 分辨率 ✓, 配体 ✓, 方法标签 ✓, 摘要 ✓
+  - 启用通知 ✓, 通知声音 ✓
+  - 版本 ✓, 数据来源 ✓, 重置所有设置 ✓
+  - 切换到周报/评估/文献模式 ✓, 翻页导航 ✓
+
+Stage Summary:
+- Settings panel is now fully translated in Chinese mode
+- All 6 sections (Appearance, Default Behavior, Data Display, Notifications, Keyboard Shortcuts, About) use i18n
+- All labels, descriptions, select options, and button texts are locale-aware
+- Keyboard shortcuts descriptions translated
+- Reset dialog fully translated
