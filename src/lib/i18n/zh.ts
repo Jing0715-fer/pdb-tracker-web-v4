@@ -407,6 +407,30 @@ export const zh = {
   shortcutCmdK: '打开命令面板',
   shortcutBookmark: '切换悬停行的书签',
   shortcutNavigate: '翻页导航',
+
+  // ─── Empty states ────────────────────────────────────────────────────────
+  evalEmptyTitle: '蛋白结构评估',
+  evalEmptyDesc: '从侧边栏选择一个蛋白评估，查看其 PDB 结构、BLAST 同源、质量评分和覆盖率分析。',
+  evalEmptySugg1: '选择一个评估',
+  evalEmptySugg2: '查看质量评分',
+  evalEmptySugg3: '探索 BLAST 结果',
+  litEmptyTitle: '暂无论文',
+  litEmptyDescFiltered: '没有论文匹配当前筛选条件。请尝试调整搜索条件或清除部分筛选。',
+  litEmptyDescEmpty: '数据库中暂无论文。论文添加后将显示在此处。',
+  litEmptyAction: '清除所有筛选',
+  litEmptySugg1: '移除日期筛选',
+  litEmptySugg2: '降低 IF 阈值',
+  litEmptySugg3: '扩大搜索范围',
+  weeklyEmptyTitle: '未找到结构',
+  weeklyEmptyDesc: '从侧边栏选择一个周次，查看该周发布的 PDB 结构。',
+  weeklyEmptySugg1: '选择一个周次',
+  weeklyEmptySugg2: '调整筛选条件',
+  weeklyEmptySugg3: '按关键词搜索',
+  noBookmarksTitle: '暂无收藏',
+  noBookmarksDesc: '点击任意结构上的收藏图标，将其保存到此处。',
+  noCollectionsTitle: '暂无集合',
+  noCollectionsDesc: '右键点击表格行，将结构添加到集合中。',
+  collections: '集合',
 } as const;
 
 export type Locale = typeof zh;

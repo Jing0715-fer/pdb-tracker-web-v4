@@ -407,6 +407,30 @@ export const en = {
   shortcutCmdK: 'Open command palette',
   shortcutBookmark: 'Toggle bookmark on hovered row',
   shortcutNavigate: 'Navigate pages',
+
+  // ─── Empty states ────────────────────────────────────────────────────────
+  evalEmptyTitle: 'Protein Structure Evaluation',
+  evalEmptyDesc: 'Select a protein evaluation from the sidebar to explore its PDB structures, BLAST homologs, quality scores, and coverage analysis.',
+  evalEmptySugg1: 'Choose an evaluation',
+  evalEmptySugg2: 'View quality scores',
+  evalEmptySugg3: 'Explore BLAST results',
+  litEmptyTitle: 'No papers found',
+  litEmptyDescFiltered: 'No papers match your current filters. Try adjusting your search criteria or clearing some filters.',
+  litEmptyDescEmpty: 'There are no papers in the database yet. Papers will appear here once they are added.',
+  litEmptyAction: 'Clear all filters',
+  litEmptySugg1: 'Remove date filter',
+  litEmptySugg2: 'Lower IF threshold',
+  litEmptySugg3: 'Broaden search',
+  weeklyEmptyTitle: 'No structures found',
+  weeklyEmptyDesc: 'Select a week from the sidebar to view PDB structures released that week.',
+  weeklyEmptySugg1: 'Select a week',
+  weeklyEmptySugg2: 'Adjust filters',
+  weeklyEmptySugg3: 'Search by keyword',
+  noBookmarksTitle: 'No bookmarks yet',
+  noBookmarksDesc: 'Click the bookmark icon on any structure to save it here.',
+  noCollectionsTitle: 'No collections',
+  noCollectionsDesc: 'Right-click a table row to add structures to a collection.',
+  collections: 'Collections',
 } as const;
 
 export type Locale = typeof en;

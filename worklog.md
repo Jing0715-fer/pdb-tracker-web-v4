@@ -2673,3 +2673,28 @@ Stage Summary:
 - All labels, descriptions, select options, and button texts are locale-aware
 - Keyboard shortcuts descriptions translated
 - Reset dialog fully translated
+
+---
+Task ID: i18n-empty-states-translation
+Agent: main
+Task: Translate empty states (evaluation, literature, bookmarks, collections) to Chinese
+
+Work Log:
+- Added 15 new i18n keys to en.ts and zh.ts for empty states:
+  - Evaluation: 蛋白结构评估, 从侧边栏选择一个蛋白评估…, 选择一个评估/查看质量评分/探索 BLAST 结果
+  - Literature: 暂无论文, 没有论文匹配当前筛选条件…, 数据库中暂无论文…, 清除所有筛选, 移除日期筛选/降低 IF 阈值/扩大搜索范围
+  - Bookmarks: 暂无收藏, 点击任意结构上的收藏图标…
+  - Collections: 暂无集合, 右键点击表格行…, 集合
+  - Weekly: 未找到结构, 从侧边栏选择一个周次…
+- Applied i18n to evaluation-page.tsx EmptyState component
+- Applied i18n to LiteratureEmptyState.tsx component
+- Applied i18n to pdb-sidebar.tsx bookmark/collection empty states + Collections header
+- Lint: 0 errors, 0 warnings
+- Build: succeeded
+- Browser verification (Chinese mode):
+  - Evaluation empty state: 蛋白结构评估 ✓, 从侧边栏选择… ✓, 选择一个评估 ✓, 查看质量评分 ✓, 探索 BLAST 结果 ✓, no English ✓
+  - Literature empty state: 暂无论文 ✓, 没有论文匹配… ✓, 移除日期筛选 ✓, 降低 IF 阈值 ✓, 扩大搜索范围 ✓, no English ✓
+
+Stage Summary:
+- All empty states (evaluation, literature, bookmarks, collections) fully translated
+- Zero English text remaining in these empty states in Chinese mode

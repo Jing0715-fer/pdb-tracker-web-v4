@@ -678,8 +678,8 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               </Collapsible>
             ) : (
               <EnhancedEmptyState
-                title="No bookmarks yet"
-                description="Click the bookmark icon on any structure to save it here."
+                title={t.noBookmarksTitle}
+                description={t.noBookmarksDesc}
                 className="py-6 px-2"
               />
             )}
@@ -692,7 +692,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                 <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline underline-grow">
                   <span className="flex items-center gap-1.5">
                     <Layers className="h-3 w-3 text-claude-accent" />
-                    Collections
+                    {t.collections}
                     <span className="counter-badge text-[9px]">{Object.keys(collections).length}</span>
                   </span>
                   <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${collectionsExpanded ? 'rotate-0' : '-rotate-90'}`} />
@@ -821,8 +821,8 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               </Collapsible>
             ) : (
               <EnhancedEmptyState
-                title="No collections"
-                description="Right-click a table row to add structures to a collection."
+                title={t.noCollectionsTitle}
+                description={t.noCollectionsDesc}
                 className="py-6 px-2"
               />
             )}
