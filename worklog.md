@@ -2281,3 +2281,32 @@ Stage Summary:
 - Synthetic aggregate Evaluation enables radar charts and score breakdown for batch-level analysis
 - EvalBatchCompare provides per-target comparison matrix
 - All components verified rendering correctly with real batch data (HER2/HER3, Ubiquitin System)
+
+---
+Task ID: tour-redesign-v4
+Agent: main
+Task: Fix page load + redesign tour tooltip (remove top accent line, improve aesthetics to production quality)
+
+Work Log:
+- Fixed page load: pdb-tracker.db was 0 bytes again. Restored from custom.db + re-seeded batch data.
+- Redesigned tour tooltip card — removed the top accent gradient bar (user disliked it):
+  - **Removed**: h-[3px] top gradient bar
+  - **Removed**: Animated pulsing border frame (boxShadow animation)
+  - **Removed**: Corner accent L-marks (scanner aesthetic)
+  - **New header**: Step number badge (rounded-full, bg-accent/10) + "/ N" + close button — clean, no gradient bar
+  - **New content**: Icon (h-7 w-7, subtle bg-accent/8) + title inline, description below
+  - **New progress**: Dot-style indicators (current = wider pill w-4 h-1.5, completed = dot, upcoming = faint dot)
+  - **New footer**: "跳过" text button (subtle) + "上一步" ghost button + "下一步" solid button (no gradient, flat bg-claude-accent)
+  - **New animation**: Simpler opacity+y transition (no scale), faster (0.18s, Material easing [0.4,0,0.2,1])
+  - **New shadow**: Cleaner multi-layer shadow [0_8px_32px_-4px,0_4px_12px_-2px] instead of heavy shadow-2xl
+  - **New border**: ring-1 ring-black/[0.08] (subtle) instead of border + shadow-2xl
+  - **New spotlight**: Clean ring-2 ring-claude-accent border (no animation, no corner marks)
+- Verified via DOM inspection: `hasNoAccentBar: true` — no top accent line in DOM
+- Lint: 0 errors, 0 warnings
+- Browser verified: Page loads (200), tour triggers, step 1 + step 2 screenshots taken
+
+Stage Summary:
+- Page load fixed (DB restored + seed data re-applied)
+- Tour tooltip redesigned: removed top accent line, removed pulsing/corner accents, cleaner card with dot progress indicators, flatter buttons, simpler animations
+- Spotlight frame simplified to clean static ring border (no animation)
+- Design now closer to mature tour libraries (Shepherd.js, Intro.js style)
