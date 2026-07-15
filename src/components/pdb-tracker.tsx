@@ -3427,9 +3427,9 @@ export default function PdbTracker() {
           </div>
         </div>
 
-        {/* Tab buttons — expanded with Structures, BLAST, Analysis, Breakdown, Compare */}
+        {/* Tab buttons — Report moved into Summary as a button */}
         <div className="flex border-b border-claude-border dark:border-[#3d3832] overflow-x-auto">
-          {(['Summary', 'Targets', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Compare', 'Report'] as const).map(tab => (
+          {(['Summary', 'Targets', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Compare'] as const).map(tab => (
             <button
               key={tab}
               onClick={() => setEvalDetailTab(tab)}
@@ -3502,6 +3502,16 @@ export default function PdbTracker() {
                   <EvalScoreRadar evaluation={aggregateEval} comparisonEvaluations={subTargetEvals.slice(0, 4)} size={200} />
                 </div>
               )}
+              {/* Report button — opens modal with combined report */}
+              {combinedReport && (
+                <button
+                  onClick={() => handleOpenBatchReport(selectedBatchId, batch?.title || 'Batch')}
+                  className="w-full flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
+                >
+                  <FileText className="h-3.5 w-3.5" /> 查看跨靶点报告
+                  <Maximize2 className="h-3 w-3 ml-auto opacity-50" />
+                </button>
+              )}
             </div>
           )}
           {evalDetailTab === 'Targets' && (
@@ -3542,16 +3552,20 @@ export default function PdbTracker() {
                 <p className="text-xs text-claude-text-muted py-4 text-center">No structure data available</p>
               ) : subTargetEvals.flatMap(e => e.pdbStructures || []).length === 0 ? (
                 <p className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found in this batch</p>
-              ) : (
-                subTargetEvals.flatMap(e => (e.pdbStructures || []).map(s => ({ ...s, _uniprotId: e.uniprotId, _type: 'structure' as const }))).map((s, i) => {
+              ) : (() => {
+                const allStructures = subTargetEvals.flatMap(e => (e.pdbStructures || []).map(s => ({ ...s, _uniprotId: e.uniprotId, _type: 'structure' as const })));
+                const showThumbnails = allStructures.length <= 10;
+                return allStructures.map((s, i) => {
                   const methodStyle = getMethodColor(s.method || '');
                   return (
                     <div key={`${s.pdbId}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors">
-                      <div className="flex-shrink-0">
-                        <PdbThumbnailPreview pdbId={s.pdbId} title={s.title ?? undefined} onClick={() => { setViewerModalPdbId(s.pdbId); setViewerModalOpen(true); }} />
-                      </div>
+                      {showThumbnails && (
+                        <div className="flex-shrink-0 w-[70px]">
+                          <PdbThumbnailPreview pdbId={s.pdbId} title={s.title ?? undefined} thumbHeight={70} hideInfoBar onClick={() => { setViewerModalPdbId(s.pdbId); setViewerModalOpen(true); }} />
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 mb-0.5">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                           <span className="font-mono font-bold text-xs text-claude-accent">{s.pdbId}</span>
                           <span className="text-[9px] font-mono text-claude-text-muted bg-claude-border-light/60 dark:bg-[#2b2926] px-1 rounded">{s._uniprotId}</span>
                           <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${methodStyle}`}>{s.method || '—'}</span>
@@ -3563,8 +3577,8 @@ export default function PdbTracker() {
                       </div>
                     </div>
                   );
-                })
-              )}
+                });
+              })()}
             </div>
           )}
           {evalDetailTab === 'BLAST' && (
@@ -3610,32 +3624,6 @@ export default function PdbTracker() {
               selectedBatchId={selectedBatchId}
             />
           )}
-          {evalDetailTab === 'Report' && (
-            <div className="space-y-3">
-              {combinedReport ? (
-                <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
-                  <div className="markdown-content">
-                    <LazyMarkdown>{combinedReport}</LazyMarkdown>
-                  </div>
-                </div>
-              ) : (
-                <div className="text-xs text-claude-text-muted py-4 text-center">
-                  <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
-                  No cross-target report was generated for this batch.
-                </div>
-              )}
-              {combinedReport && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleOpenBatchReport(selectedBatchId, batch?.title || 'Batch')}
-                  className="w-full h-8 text-xs"
-                >
-                  <Maximize2 className="h-3 w-3 mr-1" /> Open Full Report
-                </Button>
-              )}
-            </div>
-          )}
         </div>
       </>);
 
@@ -3644,60 +3632,71 @@ export default function PdbTracker() {
 
     // Evaluation detail — tabbed panel
     if (mode === 'evaluation' && selectedEval) {
-      const evalTabNames = ['Summary', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Report'] as const;
+      const evalTabNames = ['Summary', 'Structures', 'BLAST', 'Analysis', 'Breakdown'] as const;
 
       // Inline Structures tab content
-      const evalStructuresTab = (
-        <div className="space-y-2">
-          {(selectedEval.pdbStructures || []).length === 0 ? (
-            <div className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found</div>
-          ) : (
-            (selectedEval.pdbStructures || []).map((s) => {
-              const methodStyle = getMethodColor(s.method || '');
-              const resDotColor = s.resolution != null
-                ? s.resolution < 2.5 ? 'bg-emerald-500'
-                  : s.resolution < 3.5 ? 'bg-amber-500'
-                  : 'bg-red-500'
-                : null;
-              return (
-                <div key={s.id} className="p-2.5 rounded-lg border border-claude-border/60 dark:border-[#3d3832]/60 bg-claude-border-light/30 dark:bg-[#1a1917]/30 hover:bg-claude-border-light/60 dark:hover:bg-[#2b2926]/60 transition-colors cursor-pointer"
-                  onClick={() => {
-                    setSelectedEvalStructure({ ...s, _type: 'structure' as const });
-                  }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    {resDotColor && (
-                      <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                        s.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                        s.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                        'Low resolution (≥3.5Å)'
-                      } />
+      const evalStructuresTab = (() => {
+        const structures = selectedEval.pdbStructures || [];
+        const showThumbnails = structures.length <= 10;
+        return (
+          <div className="space-y-2">
+            {structures.length === 0 ? (
+              <div className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found</div>
+            ) : (
+              structures.map((s) => {
+                const methodStyle = getMethodColor(s.method || '');
+                const resDotColor = s.resolution != null
+                  ? s.resolution < 2.5 ? 'bg-emerald-500'
+                    : s.resolution < 3.5 ? 'bg-amber-500'
+                    : 'bg-red-500'
+                  : null;
+                return (
+                  <div key={s.id} className="flex items-start gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedEvalStructure({ ...s, _type: 'structure' as const });
+                    }}>
+                    {showThumbnails && (
+                      <div className="flex-shrink-0 w-[70px]">
+                        <PdbThumbnailPreview pdbId={s.pdbId} title={s.title ?? undefined} thumbHeight={70} hideInfoBar onClick={() => { setViewerModalPdbId(s.pdbId); setViewerModalOpen(true); }} />
+                      </div>
                     )}
-                    <a href={`https://www.rcsb.org/structure/${s.pdbId}`} target="_blank" rel="noopener noreferrer"
-                      className="text-xs font-mono font-bold text-claude-accent dark:text-claude-accent-hover hover:underline"
-                      onClick={(e) => e.stopPropagation()}>
-                      {s.pdbId}
-                    </a>
-                    <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium ${methodStyle.bg} ${methodStyle.text} ${methodStyle.border} border`}>
-                      {getMethodLabel(s.method || '')}
-                    </span>
-                    {s.resolution != null && (
-                      <span className="text-[10px] text-claude-text-muted font-mono ml-auto">
-                        {s.resolution.toFixed(2)}Å
-                      </span>
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        {resDotColor && (
+                          <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
+                            s.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
+                            s.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
+                            'Low resolution (≥3.5Å)'
+                          } />
+                        )}
+                        <a href={`https://www.rcsb.org/structure/${s.pdbId}`} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-mono font-bold text-claude-accent dark:text-claude-accent-hover hover:underline"
+                          onClick={(e) => e.stopPropagation()}>
+                          {s.pdbId}
+                        </a>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium ${methodStyle.bg} ${methodStyle.text} ${methodStyle.border} border`}>
+                          {getMethodLabel(s.method || '')}
+                        </span>
+                        {s.resolution != null && (
+                          <span className="text-[10px] text-claude-text-muted font-mono ml-auto">
+                            {s.resolution.toFixed(2)}Å
+                          </span>
+                        )}
+                      </div>
+                      {s.title && (
+                        <div className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2">{s.title}</div>
+                      )}
+                      {s.organism && (
+                        <div className="text-[10px] text-claude-text-muted mt-0.5">{s.organism}</div>
+                      )}
+                    </div>
                   </div>
-                  {s.title && (
-                    <div className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2">{s.title}</div>
-                  )}
-                  {s.organism && (
-                    <div className="text-[10px] text-claude-text-muted mt-1">{s.organism}</div>
-                  )}
-                </div>
-              );
-            })
-          )}
-        </div>
-      );
+                );
+              })
+            )}
+          </div>
+        );
+      })();
 
       // Inline BLAST tab content
       const evalBlastTab = (
@@ -3828,7 +3827,27 @@ export default function PdbTracker() {
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto preview-scroll p-4">
-            {evalDetailTab === 'Summary' && <EvalSummary evaluation={selectedEval} comparisonEvaluations={allEvaluations.filter(e => e.uniprotId !== selectedEval.uniprotId)} />}
+            {evalDetailTab === 'Summary' && (
+              <div className="space-y-3">
+                <EvalSummary evaluation={selectedEval} comparisonEvaluations={allEvaluations.filter(e => e.uniprotId !== selectedEval.uniprotId)} />
+                {/* Report button — opens modal with full report */}
+                {(evalReportContent || selectedEval.report) && (
+                  <button
+                    onClick={() => {
+                      setSelectedReport({
+                        title: `${selectedEval.uniprotId} — Evaluation Report`,
+                        content: evalReportContent || selectedEval.report || '',
+                      });
+                      setReportModalOpen(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 h-8 rounded-lg text-xs font-medium border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
+                  >
+                    <FileText className="h-3.5 w-3.5" /> 查看评估报告
+                    <Maximize2 className="h-3 w-3 ml-auto opacity-50" />
+                  </button>
+                )}
+              </div>
+            )}
             {evalDetailTab === 'Structures' && evalStructuresTab}
             {evalDetailTab === 'BLAST' && evalBlastTab}
             {evalDetailTab === 'Analysis' && (
@@ -3839,7 +3858,6 @@ export default function PdbTracker() {
             {evalDetailTab === 'Breakdown' && (
               <EvalScoreBreakdown evaluation={selectedEval} allEvaluations={allEvaluations} />
             )}
-            {evalDetailTab === 'Report' && evalReportTab}
           </div>
       </>);
 

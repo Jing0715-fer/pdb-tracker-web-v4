@@ -2310,3 +2310,42 @@ Stage Summary:
 - Tour tooltip redesigned: removed top accent line, removed pulsing/corner accents, cleaner card with dot progress indicators, flatter buttons, simpler animations
 - Spotlight frame simplified to clean static ring border (no animation)
 - Design now closer to mature tour libraries (Shepherd.js, Intro.js style)
+
+---
+Task ID: structure-thumbnails-and-report-modal
+Agent: main
+Task: Unify structure thumbnail sizes, hide when >10, move Report tab into Summary as modal button
+
+Work Log:
+- Added `thumbHeight` and `hideInfoBar` props to PdbThumbnailPreview component for flexible sizing
+- Updated batch Structures tab:
+  - All thumbnails now use unified 70px height + 70px width + hideInfoBar (compact mode)
+  - When total structures > 10, thumbnails are hidden to save space (only text info shown)
+  - Layout: flex row with thumbnail (left, 70px) + info (right, flex-1)
+- Updated single eval Structures tab:
+  - Same unified 70px thumbnails with hideInfoBar
+  - Same >10 threshold for hiding thumbnails
+  - Changed from vertical card layout to horizontal row layout (matching batch style)
+- Moved Report tab out of both batch and single eval tab lists:
+  - Batch: tabs reduced from 8 to 7 (Summary, Targets, Structures, BLAST, Analysis, Breakdown, Compare)
+  - Single: tabs reduced from 6 to 5 (Summary, Structures, BLAST, Analysis, Breakdown)
+- Added "查看跨靶点报告" / "查看评估报告" button in Summary tab:
+  - Styled as full-width button with accent border, icon, and maximize icon
+  - Opens the existing ReportModal with the report content
+  - Batch: uses handleOpenBatchReport(selectedBatchId, title) → sets selectedReport + opens modal
+  - Single eval: sets selectedReport with evalReportContent || selectedEval.report + opens modal
+- Removed old Report tab content blocks from both batch and single eval panels
+- Lint: 0 errors, 0 warnings
+- Browser verification:
+  - Batch tabs: 7 tabs (no Report) ✓
+  - Report button visible in Summary ✓
+  - Report modal opens with full report content (8/10) ✓
+  - Structures tab: 7 thumbnails loaded at 70px height ✓
+  - Images loading from RCSB API (naturalWidth=800) ✓
+
+Stage Summary:
+- Structure thumbnails unified to 70px compact size in both batch and single eval
+- Thumbnails hidden when >10 structures to save space
+- Report moved from separate tab to a button in Summary that opens a full-screen modal
+- Both batch and single eval use the same pattern (Summary → Report button → modal)
+- Key files: PdbViewerModal.tsx (thumbHeight/hideInfoBar props), pdb-tracker.tsx (Structures tab + Report button)
