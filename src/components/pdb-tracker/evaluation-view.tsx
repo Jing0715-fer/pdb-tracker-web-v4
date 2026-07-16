@@ -56,6 +56,7 @@ function EvalStatCards({ evaluations, evalBatches, evalLoading }: {
   evalBatches: EvalBatch[];
   evalLoading: boolean;
 }) {
+  const { locale } = useI18n();
   const totalEvals = evaluations.length;
   const totalBatches = evalBatches.length;
 

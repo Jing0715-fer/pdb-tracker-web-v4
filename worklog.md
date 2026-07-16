@@ -3002,3 +3002,28 @@ Stage Summary:
 - eval-dashboard stat card titles/subtitles translated
 - weekly-dashboard-charts empty states translated
 - Final verification: 0 remaining visible English in Chinese mode across all 3 modes
+
+---
+Task ID: fix-eval-crash-and-lit-stats
+Agent: main
+Task: Fix eval mode crash (locale not defined) and translate literature stat cards
+
+Work Log:
+- **Eval mode crash fix**: `EvalStatCards` component in evaluation-view.tsx used `locale` from stat card titles/subtitles/tooltips but didn't have its own `useI18n()` call. The `locale` was only defined in the parent `EvaluationView` component. Added `const { locale } = useI18n();` to `EvalStatCards` function body. This fixed the "locale is not defined" error that crashed evaluation mode.
+- **Literature stat cards translation** (quick-stats-panel.tsx):
+  - Weekly mode: "Top Journals" → 顶级期刊
+  - Eval mode: "Coverage Overview" → 覆盖率概览, "With PDB structures" → 有 PDB 结构, "With BLAST hits" → 有 BLAST 命中, "Avg coverage" → 平均覆盖率, "Top Organisms" → 热门物种, "Summary" → 摘要, "Total targets" → 靶点总数, "With structures" → 有结构, "With homologs" → 有同源
+  - Literature mode: "Top Journals" → 顶级期刊, "Summary" → 摘要, "Total papers" → 论文总数, "With IF" → 有 IF, "Avg IF" → 平均 IF, "No PDB methods" → 暂无 PDB 方法
+  - Header: "avg IF" → 平均 IF
+- Fixed sed corruption on line 255 (duplicate condition text)
+- Lint: 3 non-blocking React Compiler warnings
+- Build: succeeded
+- **Browser verification (Chinese mode)**:
+  - Evaluation mode: 0 errors ✓, 0 English ✓
+  - Literature mode: 0 English ✓
+  - Weekly mode: 0 English ✓
+
+Stage Summary:
+- Eval mode crash fixed: EvalStatCards now has its own useI18n() hook
+- All 3 modes' stat cards (quick-stats-panel) fully translated: weekly (Top Journals), eval (Coverage Overview/Top Organisms/Summary), literature (Top Journals/Summary/labels)
+- 0 English remaining across all 3 modes in Chinese mode

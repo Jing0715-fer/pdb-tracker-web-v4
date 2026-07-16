@@ -252,7 +252,7 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
         {mode === 'literature' && litStats && (
           <span className="ml-1 text-[10px] text-claude-text-muted">
             · {litStats.total} {locale === 'zh' ? '篇论文' : 'papers'}
-            {litStats.avgIf != null && ` · avg IF ${litStats.avgIf.toFixed(1)}`}
+            {litStats.avgIf != null && (locale === 'zh' ? ` · 平均 IF ${litStats.avgIf.toFixed(1)}` : ` · avg IF ${litStats.avgIf.toFixed(1)}`)}
           </span>
         )}
       </button>
@@ -275,7 +275,7 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
               </div>
               {/* Top Journals */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Top Journals</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '顶级期刊' : 'Top Journals'}</div>
                 <SvgBarChart data={weeklyStats.topJournals} />
               </div>
             </div>
@@ -284,41 +284,41 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {/* Coverage Overview */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Coverage Overview</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '覆盖率概览' : 'Coverage Overview'}</div>
                 <div className="space-y-2">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-secondary">With PDB structures</span>
+                    <span className="text-claude-text-secondary">{locale === 'zh' ? '有 PDB 结构' : 'With PDB structures'}</span>
                     <span className="font-mono font-medium text-claude-text">{evalStats.withStruct}/{evalStats.total}</span>
                   </div>
                   <div className="h-2 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full bg-[#2d8f8f] rounded-full transition-all duration-500" style={{ width: `${evalStats.total > 0 ? (evalStats.withStruct / evalStats.total) * 100 : 0}%` }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-secondary">With BLAST hits</span>
+                    <span className="text-claude-text-secondary">{locale === 'zh' ? '有 BLAST 命中' : 'With BLAST hits'}</span>
                     <span className="font-mono font-medium text-claude-text">{evalStats.withBlast}/{evalStats.total}</span>
                   </div>
                   <div className="h-2 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full bg-[#7c5cbf] rounded-full transition-all duration-500" style={{ width: `${evalStats.total > 0 ? (evalStats.withBlast / evalStats.total) * 100 : 0}%` }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-secondary">Avg coverage</span>
+                    <span className="text-claude-text-secondary">{locale === 'zh' ? '平均覆盖率' : 'Avg coverage'}</span>
                     <span className="font-mono font-medium text-claude-text">{evalStats.avgCov.toFixed(1)}%</span>
                   </div>
                 </div>
               </div>
               {/* Top Organisms */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Top Organisms</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '热门物种' : 'Top Organisms'}</div>
                 <SvgBarChart data={evalStats.topOrgs} defaultColor="#7c5cbf" />
               </div>
               {/* Summary */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Summary</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '摘要' : 'Summary'}</div>
                 <div className="space-y-1.5 text-[11px]">
-                  <div className="flex justify-between"><span className="text-claude-text-secondary">Total targets</span><span className="font-mono font-medium text-claude-text">{evalStats.total}</span></div>
-                  <div className="flex justify-between"><span className="text-claude-text-secondary">With structures</span><span className="font-mono font-medium text-[#2d8f8f]">{evalStats.withStruct}</span></div>
-                  <div className="flex justify-between"><span className="text-claude-text-secondary">With homologs</span><span className="font-mono font-medium text-[#7c5cbf]">{evalStats.withBlast}</span></div>
-                  <div className="flex justify-between"><span className="text-claude-text-secondary">Avg coverage</span><span className="font-mono font-medium text-[#c9872e]">{evalStats.avgCov.toFixed(1)}%</span></div>
+                  <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '靶点总数' : 'Total targets'}</span><span className="font-mono font-medium text-claude-text">{evalStats.total}</span></div>
+                  <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '有结构' : 'With structures'}</span><span className="font-mono font-medium text-[#2d8f8f]">{evalStats.withStruct}</span></div>
+                  <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '有同源' : 'With homologs'}</span><span className="font-mono font-medium text-[#7c5cbf]">{evalStats.withBlast}</span></div>
+                  <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '平均覆盖率' : 'Avg coverage'}</span><span className="font-mono font-medium text-[#c9872e]">{evalStats.avgCov.toFixed(1)}%</span></div>
                 </div>
               </div>
             </div>
@@ -331,22 +331,22 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
                 {litStats.methodDist.length > 0 ? (
                   <SvgPieChart data={litStats.methodDist} />
                 ) : (
-                  <div className="text-[10px] text-claude-text-muted py-4 text-center">No PDB methods</div>
+                  <div className="text-[10px] text-claude-text-muted py-4 text-center">{locale === 'zh' ? '暂无 PDB 方法' : 'No PDB methods'}</div>
                 )}
               </div>
               {/* Top Journals */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Top Journals</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '顶级期刊' : 'Top Journals'}</div>
                 <SvgBarChart data={litStats.topJournals} defaultColor="#c9872e" />
               </div>
               {/* Summary */}
               <div className="p-3 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/20 dark:bg-[#1a1917]/20">
-                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">Summary</div>
+                <div className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider mb-2">{locale === 'zh' ? '摘要' : 'Summary'}</div>
                 <div className="space-y-1.5 text-[11px]">
-                  <div className="flex justify-between"><span className="text-claude-text-secondary">Total papers</span><span className="font-mono font-medium text-claude-text">{litStats.total}</span></div>
-                  <div className="flex justify-between"><span className="text-claude-text-secondary">With IF</span><span className="font-mono font-medium text-[#c9872e]">{litStats.withIf}</span></div>
+                  <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '论文总数' : 'Total papers'}</span><span className="font-mono font-medium text-claude-text">{litStats.total}</span></div>
+                  <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '有 IF' : 'With IF'}</span><span className="font-mono font-medium text-[#c9872e]">{litStats.withIf}</span></div>
                   {litStats.avgIf != null && (
-                    <div className="flex justify-between"><span className="text-claude-text-secondary">Avg IF</span><span className="font-mono font-medium text-[#c96442]">{litStats.avgIf.toFixed(1)}</span></div>
+                    <div className="flex justify-between"><span className="text-claude-text-secondary">{locale === 'zh' ? '平均 IF' : 'Avg IF'}</span><span className="font-mono font-medium text-[#c96442]">{litStats.avgIf.toFixed(1)}</span></div>
                   )}
                 </div>
               </div>
