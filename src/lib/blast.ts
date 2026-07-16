@@ -1,6 +1,54 @@
 export interface BlastHit { pdbId: string; uniprotRef: string; description: string; identity: number; evalue: string; queryCoverage: number; targetCoverage?: number; taxonomyId?: string; }
 const BLAST_URL = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi';
 
+// NCBI BLAST URL — kept identical to BLAST_URL above; deliberately not split
+// into per-database endpoints so we don't lose the simpler retry path.
+
+interface BlastDbConfig {
+  /** Max polling attempts before declaring failure. */
+  maxAttempts: number;
+  /** Min ms between polls (the actual sleep is max(this, rtoe*1000)). */
+  minPollIntervalMs: number;
+  /** Per-attempt fetch timeout, ms. */
+  fetchTimeoutMs: number;
+  /** Max retries on transient 'fetch failed' / network errors per poll cycle. */
+  maxFetchRetries: number;
+}
+
+const BLAST_DB_CONFIG: Record<string, BlastDbConfig> = {
+  // pdbaa is small (~700 MB) and runs in seconds.
+  pdbaa: { maxAttempts: 30, minPollIntervalMs: 3000, fetchTimeoutMs: 30_000, maxFetchRetries: 2 },
+  // nr is the entire non-redundant protein set (~80 GB); queries against it
+  // routinely take 1–3 minutes on NCBI's side, and the server occasionally
+  // returns transient network errors / 'fetch failed' under load. We poll
+  // more patiently and retry aggressively before giving up.
+  nr:    { maxAttempts: 60, minPollIntervalMs: 10_000, fetchTimeoutMs: 60_000, maxFetchRetries: 5 },
+};
+
+const DEFAULT_DB_CONFIG: BlastDbConfig = { maxAttempts: 30, minPollIntervalMs: 5000, fetchTimeoutMs: 30_000, maxFetchRetries: 3 };
+
+function sleep(ms: number): Promise<void> { return new Promise(r => setTimeout(r, ms)); }
+
+/** Fetch a URL with bounded retries on transient 'fetch failed' / network errors. */
+async function fetchWithRetry(url: string, opts: RequestInit, cfg: BlastDbConfig): Promise<Response> {
+  let lastErr: unknown = null;
+  for (let attempt = 0; attempt <= cfg.maxFetchRetries; attempt++) {
+    try {
+      return await fetch(url, { ...opts, signal: AbortSignal.timeout(cfg.fetchTimeoutMs) });
+    } catch (err: any) {
+      lastErr = err;
+      // undici / Node fetch wraps network errors as 'fetch failed' (TypeError)
+      // or 'network error' / 'aborted'. Treat all as retryable.
+      const msg = String(err?.message ?? err);
+      const retryable = /fetch failed|network|aborted|timeout|ETIMEDOUT|ECONNRESET|ECONNREFUSED|socket hang up/i.test(msg);
+      if (!retryable || attempt === cfg.maxFetchRetries) throw err;
+      const backoff = Math.min(15_000, 1000 * 2 ** attempt);
+      await sleep(backoff);
+    }
+  }
+  throw lastErr;
+}
+
 /**
  * Run BLASTp against a specified NCBI database.
  * @param sequence Amino acid sequence
@@ -9,10 +57,11 @@ const BLAST_URL = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi';
  * @param onProgress Optional progress callback
  */
 export async function runBlastDb(sequence: string, maxHits = 20, database = 'pdbaa', onProgress?: (msg: string) => void): Promise<BlastHit[]> {
+  const cfg = BLAST_DB_CONFIG[database] ?? DEFAULT_DB_CONFIG;
   if (!sequence || sequence.length < 30) { onProgress?.('序列过短（<30 aa），跳过 BLAST'); return []; }
   onProgress?.(`提交 BLASTp 任务到 NCBI (数据库: ${database})…`);
   const submitBody = new URLSearchParams({ CMD: 'Put', PROGRAM: 'blastp', DATABASE: database, QUERY: sequence, HITLIST_SIZE: String(maxHits), EXPECT: '1e-5', FILTER: 'F' });
-  const submitRes = await fetch(BLAST_URL, { method: 'POST', body: submitBody, signal: AbortSignal.timeout(30000) });
+  const submitRes = await fetchWithRetry(BLAST_URL, { method: 'POST', body: submitBody }, cfg);
   if (!submitRes.ok) throw new Error(`BLAST submit ${submitRes.status}`);
   const submitText = await submitRes.text();
   const ridMatch = submitText.match(/RID\s*=\s*(\S+)/);
@@ -22,20 +71,32 @@ export async function runBlastDb(sequence: string, maxHits = 20, database = 'pdb
   const rtoe = parseInt(rtoeMatch?.[1] || '10', 10);
   onProgress?.(`BLAST 已提交 (RID=${rid}, 预计 ${rtoe}s)`);
   let attempts = 0;
-  const maxAttempts = 30;
-  while (attempts < maxAttempts) {
-    const waitMs = Math.max(3000, rtoe * 1000);
-    await new Promise(r => setTimeout(r, waitMs));
-    onProgress?.(`轮询 BLAST 结果 (${attempts + 1}/${maxAttempts})…`);
-    const pollRes = await fetch(`${BLAST_URL}?CMD=Get&FORMAT_TYPE=XML&RID=${rid}`, { signal: AbortSignal.timeout(30000) });
-    if (!pollRes.ok) { attempts++; continue; }
+  while (attempts < cfg.maxAttempts) {
+    // First poll: respect RTOE. Subsequent: cap at minPollIntervalMs so we
+    // don't hammer NCBI when RTOE was small but the actual job is still running.
+    const waitMs = attempts === 0 ? rtoe * 1000 : cfg.minPollIntervalMs;
+    await sleep(waitMs);
+    attempts++;
+    onProgress?.(`轮询 BLAST 结果 (${attempts}/${cfg.maxAttempts})…`);
+    let pollRes: Response;
+    try {
+      pollRes = await fetchWithRetry(`${BLAST_URL}?CMD=Get&FORMAT_TYPE=XML&RID=${rid}`, {}, cfg);
+    } catch (err: any) {
+      // Transient network error — log and keep polling until maxAttempts.
+      onProgress?.(`轮询网络抖动：${err?.message ?? err}（继续轮询 ${attempts}/${cfg.maxAttempts}）`);
+      continue;
+    }
+    if (!pollRes.ok) { continue; }
     const xml = await pollRes.text();
-    if (xml.includes('<BlastOutput>') || xml.includes('<BlastOutput_iterations>')) { onProgress?.(`BLAST 完成，解析结果…`); return parseBlastXml(xml); }
+    if (xml.includes('<BlastOutput>') || xml.includes('<BlastOutput_iterations>')) {
+      onProgress?.(`BLAST 完成，解析结果…`);
+      return parseBlastXml(xml);
+    }
     if (xml.includes('Status=FAILED')) throw new Error('BLAST job failed on NCBI side');
     if (xml.includes('Status=UNKNOWN')) throw new Error(`BLAST RID ${rid} unknown (expired?)`);
-    attempts++;
+    // Status=WAITING (still running) — fall through and keep polling.
   }
-  throw new Error(`BLAST polling timed out after ${maxAttempts} attempts (RID=${rid})`);
+  throw new Error(`BLAST polling timed out after ${cfg.maxAttempts} attempts (RID=${rid})`);
 }
 
 /** Backward-compatible wrapper: BLASTp against pdbaa (PDB database). */
