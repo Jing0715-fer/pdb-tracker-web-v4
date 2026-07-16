@@ -353,16 +353,33 @@ ${blastTable}${litBlock}
           const scoresJson = JSON.stringify({ 'X-ray': { score: scores.xray.score, rating: scores.xray.rating }, 'Cryo-EM': { score: scores.cryoem.score, rating: scores.cryoem.rating }, 'NMR': { score: scores.nmr.score, rating: scores.nmr.rating }, 'Overall': { score: scores.overall.score, rating: scores.overall.rating } });
           await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${seqId}, ${uniprotInfo.entryName}, ${uniprotInfo.proteinName}, ${uniprotInfo.geneNames}, ${uniprotInfo.organism}, ${uniprotInfo.sequenceLength}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, 0, false, ${pdbDetails.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
           await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${seqId}`;
+          // Dedup by pdbId — the same PDB can show up multiple times in
+          // pdbDetails (BLAST report can return the same entry for
+          // multiple chains / HSP regions). We keep the first occurrence.
+          const seenPdbIds = new Set<string>();
+          let dedupedPdbCount = 0;
           for (const e of pdbDetails) {
+            if (!e.pdbId || seenPdbIds.has(e.pdbId)) continue;
+            seenPdbIds.add(e.pdbId);
+            dedupedPdbCount++;
             const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
             const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
             await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${seqId}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate || null}, ${e.releaseDate}, ${e.ligands || ''}, ${e.ligands || ''}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms || ''}, ${e.authors || ''}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
           }
           await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${seqId}`;
+          // Dedup blastHits by pdbId as well — same PDB can show up via
+          // both pdbaa and nr fallback searches.
+          const seenBlastPdbIds = new Set<string>();
+          let dedupedBlastCount = 0;
+          let paralogCount = 0;
           for (const h of blastHits) {
-            await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${seqId}, ${h.pdbId}, ${h.uniprotRef || ''}, ${h.description || ''}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
+            if (!h.pdbId || seenBlastPdbIds.has(h.pdbId)) continue;
+            seenBlastPdbIds.add(h.pdbId);
+            dedupedBlastCount++;
+            if (h.isParalog) paralogCount++;
+            await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source, isParalog) VALUES (${seqId}, ${h.pdbId}, ${h.uniprotRef || ''}, ${h.description || ''}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'}, ${!!h.isParalog})`;
           }
-          emit({ stage: 'write-db', level: 'success', message: `${prefix}已写入 Evaluation + ${pdbDetails.length} PDB + ${blastHits.length} BLAST`, progress: 95 });
+          emit({ stage: 'write-db', level: 'success', message: `${prefix}已写入 Evaluation + ${dedupedPdbCount} PDB (去重自 ${pdbDetails.length}) + ${dedupedBlastCount} BLAST (${paralogCount} 个同源蛋白 ≥95%, 去重自 ${blastHits.length})`, progress: 95 });
         } catch (err: any) {
           emit({ stage: 'write-db', level: 'error', message: `${prefix}DB 写入失败：${err?.message}`, progress: 95 });
         }
@@ -853,9 +870,21 @@ ${overlapSummary}${crossLitBlock}
 
         if (!skipReportGeneration) {
         await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${uniprot}`;
+        // Dedup blastHits by pdbId — same PDB can show up via both pdbaa
+        // and nr fallback searches. Keep first occurrence (which is the
+        // highest-identity one because blastHits is sorted desc by
+        // identity in dedupBlastHits).
+        const seenBlastPdbIds = new Set<string>();
+        let dedupedBlastCount = 0;
+        let paralogCount = 0;
         for (const h of blastHits) {
-          await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${uniprot}, ${h.pdbId}, ${h.uniprotRef}, ${h.description}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
+          if (!h.pdbId || seenBlastPdbIds.has(h.pdbId)) continue;
+          seenBlastPdbIds.add(h.pdbId);
+          dedupedBlastCount++;
+          if (h.isParalog) paralogCount++;
+          await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source, isParalog) VALUES (${uniprot}, ${h.pdbId}, ${h.uniprotRef}, ${h.description}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'}, ${!!h.isParalog})`;
         }
+        emit({ stage: 'write-db', level: 'info', message: `  ↳ BLAST 去重: ${dedupedBlastCount}/${blastHits.length} (${paralogCount} 个同源蛋白 ≥95%)`, progress: 98 });
         } // end if (!skipReportGeneration) BLAST
 
         if (report?.ok && report.content) {

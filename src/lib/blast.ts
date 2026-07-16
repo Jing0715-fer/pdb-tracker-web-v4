@@ -1,4 +1,12 @@
-export interface BlastHit { pdbId: string; uniprotRef: string; description: string; identity: number; evalue: string; queryCoverage: number; targetCoverage?: number; taxonomyId?: string; }
+export interface BlastHit { pdbId: string; uniprotRef: string; description: string; identity: number; evalue: string; queryCoverage: number; targetCoverage?: number; taxonomyId?: string; isParalog?: boolean; }
+
+/// Identity threshold for classifying a BLAST hit as a "direct homolog
+/// (paralog)" vs. a "structural homolog (fold-level)" hit. Hits with
+/// identity ≥ this value are likely the same protein / a very close
+/// paralog and can be treated as direct structural references rather
+/// than remote fold matches. Default 95% is the conventional "same
+/// protein" cutoff in structural-biology annotation.
+export const PARALOG_IDENTITY_THRESHOLD = 95;
 const BLAST_URL = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi';
 
 // NCBI BLAST URL — kept identical to BLAST_URL above; deliberately not split
@@ -90,7 +98,14 @@ export async function runBlastDb(sequence: string, maxHits = 20, database = 'pdb
     const xml = await pollRes.text();
     if (xml.includes('<BlastOutput>') || xml.includes('<BlastOutput_iterations>')) {
       onProgress?.(`BLAST 完成，解析结果…`);
-      return parseBlastXml(xml);
+      const raw = parseBlastXml(xml);
+      // Dedup (same PDB can appear multiple times — one entry per chain
+      // / per HSP region) and classify each hit as direct homolog vs
+      // structural homolog before returning. Downstream code consumes
+      // the cleaned, labeled set.
+      const cleaned = dedupBlastHits(raw);
+      classifyBlastHits(cleaned);
+      return cleaned;
     }
     if (xml.includes('Status=FAILED')) throw new Error('BLAST job failed on NCBI side');
     if (xml.includes('Status=UNKNOWN')) throw new Error(`BLAST RID ${rid} unknown (expired?)`);
@@ -128,6 +143,37 @@ function parseBlastXml(xml: string): BlastHit[] {
       queryCoverage = queryTo > queryFrom ? queryTo - queryFrom + 1 : 0;
     }
     hits.push({ pdbId, uniprotRef: acc, description: def, identity: Math.round(identity * 10) / 10, evalue, queryCoverage });
+  }
+  return hits;
+}
+
+/**
+ * Deduplicate BLAST hits by (pdbId, uniprotRef). The same PDB can appear
+ * multiple times in a single BLAST report — one entry per chain / per
+ * HSP region / per alternative transcript — and we only want to keep
+ * the best (highest-identity) hit per unique key. If a hit has no
+ * pdbId (nr database hits, e.g. an uniprot accession only), we fall
+ * back to uniprotRef.
+ */
+export function dedupBlastHits(hits: BlastHit[]): BlastHit[] {
+  const seen = new Map<string, BlastHit>();
+  for (const h of hits) {
+    const key = (h.pdbId && h.pdbId.length >= 4 ? h.pdbId : h.uniprotRef) || `idx-${seen.size}`;
+    const existing = seen.get(key);
+    if (!existing || h.identity > existing.identity) {
+      seen.set(key, h);
+    }
+  }
+  return [...seen.values()].sort((a, b) => b.identity - a.identity);
+}
+
+/**
+ * Mark each hit with isParalog = (identity ≥ PARALOG_IDENTITY_THRESHOLD).
+ * Mutates the hits in place and returns the same array for chaining.
+ */
+export function classifyBlastHits(hits: BlastHit[]): BlastHit[] {
+  for (const h of hits) {
+    h.isParalog = h.identity >= PARALOG_IDENTITY_THRESHOLD;
   }
   return hits;
 }
