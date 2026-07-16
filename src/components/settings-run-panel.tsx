@@ -934,6 +934,12 @@ function CycleTimeline({
   running: boolean;
   result?: any;
 }) {
+  // Fix: locale was previously referenced as a free variable here but never
+  // bound — ReferenceError crashed the whole Home page on first render.
+  // CycleTimeline is a top-level function component, so it has its own
+  // useI18n() scope (the parent SettingsRunPanel's locale is in a different
+  // closure and not accessible).
+  const { locale } = useI18n();
   const roles = [
     { key: 'generator', label: 'Generator', desc: locale === 'zh' ? '初版周报生成' : 'Initial report generation', color: 'sky' },
     { key: 'critic-scientific', label: 'Critic-Sci', desc: locale === 'zh' ? '科学性评审' : 'Scientific review', color: 'amber' },
