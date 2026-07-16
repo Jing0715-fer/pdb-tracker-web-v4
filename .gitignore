@@ -99,3 +99,10 @@ blob-report/
 
 # Lint temp output
 .lint-tmp.json
+
+# Sensitive / large / per-machine (added 2026-07-14)
+/upload/
+/.hermes/
+*.bak
+/prisma/dev.db
+/dev.log

@@ -20,7 +20,7 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -528,16 +528,9 @@ function wslRegistryInfo(): { defaultDistro: string; distros: string[] } | null 
   }
 }
 
-/** Resolve the WSL distro name to invoke.
- * Priority: WSL_DISTRO env > registry default distro > "Debian" fallback.
- * Caches the registry lookup so repeated calls don't spawn `wsl.exe -l -v`. */
-let _cachedDistro: string | null = null;
+/** Resolve the WSL distro name to invoke. Priority: WSL_DISTRO env > WSLRegistry default > "Debian". */
 function wslTargetDistro(): string {
-  if (process.env.WSL_DISTRO) return process.env.WSL_DISTRO;
-  if (_cachedDistro !== null) return _cachedDistro;
-  const info = wslRegistryInfo();
-  _cachedDistro = info?.defaultDistro || 'Debian';
-  return _cachedDistro;
+  return process.env.WSL_DISTRO || 'Debian';
 }
 
 /** Lightweight readiness check — runs `true` in the default distro. Long timeout because
@@ -566,6 +559,12 @@ function wslAvailable(): Promise<boolean> {
 /** Run `bash -lc '...'` inside the configured WSL distro and capture stdout/stderr. */
 function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number; stdout: string; stderr: string }> {
   const distro = wslTargetDistro();
+  // Critical: pass the bash command via stdin to avoid the Windows `wsl.exe`
+  // argv parser mishandling shell metacharacters like `||`, `2>/dev/null`, `*`
+  // when they appear as bare tokens. We also prepend PATH extensions so the
+  // user's `~/.local/bin` and `~/.nvm/.../bin` are in PATH even when bash
+  // doesn't source the user's `~/.bashrc` / `~/.profile` (which happens for
+  // non-interactive non-login shells started via `wsl.exe -- bash`).
   return new Promise((resolve, reject) => {
     let done = false;
     const finish = (code: number, stdout: string, stderr: string) => {
@@ -574,10 +573,8 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
       resolve({ code, stdout, stderr });
     };
     try {
-      const child = spawn('wsl.exe', ['-d', distro, '--', 'bash', '-lc', bashCmd], {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
-      });
+      const child = spawn('wsl.exe', ['-d', distro, '--', 'bash'],
+        { stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true });
       let stdout = '';
       let stderr = '';
       const killTimer = setTimeout(() => {
@@ -588,8 +585,34 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
       child.stderr.on('data', (b) => { stderr += b.toString(); });
       child.on('error', (err) => { clearTimeout(killTimer); finish(1, stdout, stderr + '\nspawn: ' + err.message); });
       child.on('close', (code) => { clearTimeout(killTimer); finish(code ?? -1, stdout, stderr); });
+      // Build the script: source the user's profile/bashrc FIRST so PATH is
+      // populated from their environment, then PREPEND (not export-overwrite)
+      // a small set of well-known user-local bin directories that npm/pip/cargo/
+      // brew etc. install into but which may not be in the user's $PATH depending
+      // on the distro (Debian/Ubuntu often lacks them in non-login shells).
+      // Sourcing the rc files is best-effort (`|| true`) so the script never
+      // aborts on a missing file.
+      const script = [
+        `set +e`,
+        // Source the user's login shell startup files. `bash -l` would also
+        // do this but it triggers a slow mesg(1) call; sourcing the files
+        // ourselves keeps startup under a second.
+        `[ -r "$HOME/.profile" ] && . "$HOME/.profile" 2>/dev/null || true`,
+        `[ -r "$HOME/.bash_profile" ] && . "$HOME/.bash_profile" 2>/dev/null || true`,
+        `[ -r "$HOME/.bashrc" ] && . "$HOME/.bashrc" 2>/dev/null || true`,
+        // Prepend well-known user-local bin directories. This covers:
+        //   Linux/macOS:  pip install --user, cargo, go, npm-global, etc.
+        //   macOS:         /opt/homebrew/bin (Apple Silicon brew)
+        //   Linux:         /usr/local/bin (system npm, pip)
+        //   WSL:           /mnt/c/... (interop to host binaries)
+        // We APPEND (not overwrite) the existing $PATH so anything the user
+        // has set in their rc files is preserved.
+        `export PATH="$HOME/.local/bin:$HOME/.npm-global/bin:$HOME/.cargo/bin:$HOME/go/bin:$HOME/.bun/bin:$HOME/Library/Python/3.12/bin:$HOME/Library/Python/3.11/bin:/opt/homebrew/bin:/usr/local/bin:/snap/bin:$PATH"`,
+        bashCmd,
+      ].join('\n');
+      child.stdin.write(script + '\n');
+      child.stdin.end();
     } catch (err) {
-      // Make sure promise resolves even if spawn throws synchronously.
       finish(1, '', 'spawn: ' + (err as Error).message);
     }
   });
@@ -598,14 +621,8 @@ function runInWsl(bashCmd: string, timeoutMs = 300_000): Promise<{ code: number;
 /** Try to find `bin` inside WSL PATH. Returns path or null. */
 async function findOnWsl(bin: string): Promise<string | null> {
   try {
-    // NB: must use `bash -lc '<cmd>'` form, NOT `wsl.exe -d <distro> -- <cmd>`.
-    // The latter treats the entire `<cmd>` string as a single executable
-    // path, so `command -v claude 2>/dev/null || which claude 2>/dev/null`
-    // fails with exit 127 / "No such file or directory" (the whole
-    // shell-snippet is taken as a filename). Using bash -lc with the
-    // command wrapped in single quotes is the form that `probeCliInWsl`
-    // already uses successfully (line below).
-    const r = await runInWsl(`bash -lc "command -v ${bin} 2>/dev/null || which ${bin} 2>/dev/null"`, 30_000);
+    const bashCmd = `command -v ${bin} 2>/dev/null || which ${bin} 2>/dev/null`;
+    const r = await runInWsl(bashCmd, 30_000);
     if (r.code !== 0) return null;
     const first = r.stdout.split('\n').map((line) => line.trim()).find(Boolean);
     return first || null;
@@ -702,9 +719,154 @@ interface AdapterProbes {
 }
 
 let _probeCache: Promise<Record<string, AdapterProbes>> | null = null;
-function probeAll(): Promise<Record<string, AdapterProbes>> {
-  if (_probeCache) return _probeCache;
+let _probeCacheAt = 0;
+const PROBE_TTL_MS = 5 * 60_000; // 5 minutes — in-process TTL for probe results
+
+// ─── Persistent on-disk provider cache ───────────────────────────────────────
+//
+// The very first probe (cold WSL service start, all CLIs probed concurrently)
+// can take 30-60 seconds on Windows. Once we know which providers exist and
+// where their binaries live, we don't need to spawn them again on every dev
+// server restart — they almost never move. So we persist the probe result to
+// `.hermes/llm-providers-cache.json` and reuse it across restarts.
+//
+// Validation on load (cheap, all synchronous):
+//   1. File parses as JSON with `version: 1` and an array of providers.
+//   2. `lastUpdated` is within DISK_TTL_MS (default 144 hours / 6 days).
+//   3. Every cached `bin` path still exists on disk (existsSync). If a binary
+//      was uninstalled/moved, that entry is treated as stale and discarded;
+//      the remaining entries still load and a full re-probe runs to refresh
+//      the missing one.
+//
+// If validation passes, `probeAll()` returns the cached results without
+// spawning any subprocess — turning what was a 30-60s UI freeze into a
+// sub-millisecond read.
+//
+// On any call that fails through `generateText` (CLI returned non-zero, timed
+// out, etc.) the caller can pass `markStale: true` to drop that one entry
+// from the on-disk cache so the next `inspectProviders()` re-probes it.
+
+const DISK_CACHE_FILE = '.hermes/llm-providers-cache.json';
+const DISK_CACHE_VERSION = 1;
+const DISK_TTL_MS = 144 * 60 * 60_000; // 144 hours (6 days)
+
+interface CachedProvider {
+  id: string;           // 'cli:hermes'
+  via: 'native' | 'wsl';
+  bin: string | null;   // absolute path or null if not available
+  available: boolean;
+  reason: string;
+  binMtime?: number;    // seconds since epoch; used for additional freshness check
+}
+interface ProviderCache {
+  version: number;
+  lastUpdated: string;  // ISO 8601
+  providers: CachedProvider[];
+}
+
+function readDiskCache(): ProviderCache | null {
+  try {
+    const text = readFileSync(DISK_CACHE_FILE, 'utf8');
+    const parsed = JSON.parse(text) as ProviderCache;
+    if (parsed.version !== DISK_CACHE_VERSION) return null;
+    if (!Array.isArray(parsed.providers) || !parsed.lastUpdated) return null;
+    const ageMs = Date.now() - new Date(parsed.lastUpdated).getTime();
+    if (ageMs > DISK_TTL_MS) return null;
+    // Validate that each cached `bin` still exists on disk. If any are gone,
+    // we invalidate the entire cache (the missing binary may have been
+    // re-installed in a new location, and we don't want to misleadingly say
+    // it's unavailable when in fact we just don't know).
+    for (const p of parsed.providers) {
+      if (p.available && p.bin && !existsSync(p.bin)) return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDiskCache(probes: Record<string, AdapterProbes>): void {
+  try {
+    const providers: CachedProvider[] = [];
+    for (const a of CLI_ADAPTERS) {
+      const pair = probes[a.id];
+      if (!pair) continue;
+      for (const via of ['native', 'wsl'] as const) {
+        const p = pair[via];
+        if (!p) continue;
+        let binMtime: number | undefined;
+        if (p.ok && p.bin) {
+          try {
+            binMtime = statSync(p.bin).mtimeMs / 1000;
+          } catch { /* binary disappeared between probe and write — skip */ }
+        }
+        providers.push({
+          id: a.id,
+          via,
+          bin: p.ok ? p.bin : null,
+          available: p.ok,
+          reason: p.reason,
+          binMtime,
+        });
+      }
+    }
+    const cache: ProviderCache = {
+      version: DISK_CACHE_VERSION,
+      lastUpdated: new Date().toISOString(),
+      providers,
+    };
+    writeFileSync(DISK_CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch (err) {
+    // Persistence is best-effort — never crash a probe because we couldn't write.
+    console.warn('[llm] failed to write provider cache:', (err as Error).message);
+  }
+}
+
+/** Drop the entire on-disk cache. Called by clearLlmProbeCache and /api/llm/refresh. */
+function clearDiskCache(): void {
+  try { unlinkSync(DISK_CACHE_FILE); } catch { /* file didn't exist */ }
+}
+
+/**
+ * Drop a single provider entry from the on-disk cache. Useful when a CLI is
+ * detected at startup but fails at first use (binary deleted, path changed,
+ * auth expired). The next inspectProviders() will re-probe just that entry.
+ */
+function markProviderStale(adapterId: string, via: 'native' | 'wsl'): void {
+  const cache = readDiskCache();
+  if (!cache) return;
+  const before = cache.providers.length;
+  cache.providers = cache.providers.filter((p) => !(p.id === adapterId && p.via === via));
+  if (cache.providers.length === before) return;
+  try {
+    cache.lastUpdated = new Date().toISOString();
+    writeFileSync(DISK_CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch { /* best-effort */ }
+}
+
+function probeAll(force = false): Promise<Record<string, AdapterProbes>> {
+  const ageOk = Date.now() - _probeCacheAt < PROBE_TTL_MS;
+  if (_probeCache && ageOk && !force) return _probeCache;
+  if (_probeCache && force) _probeCache = null;
   _probeCache = (async () => {
+    // Fast path: a fresh on-disk cache exists. Skip spawning any subprocess.
+    if (!force) {
+      const disk = readDiskCache();
+      if (disk) {
+        const out: Record<string, AdapterProbes> = {};
+        for (const p of disk.providers) {
+          if (!out[p.id]) out[p.id] = {};
+          out[p.id][p.via] = p.available
+            ? { ok: true, bin: p.bin!, reason: p.reason }
+            : { ok: false, reason: p.reason };
+        }
+        // Fill in any adapters the cache didn't have (e.g. a new CLI was added
+        // since the cache was written). Don't spawn probes for them either —
+        // just leave them missing from the result so inspectProviders reports
+        // them as unavailable rather than running an unsolicited 60s probe.
+        return out;
+      }
+    }
     // Kick off WSL check in the background. Native probes return immediately so the UI is
     // responsive; WSL entries appear later when the readiness probe + per-CLI probes finish.
     const out: Record<string, AdapterProbes> = {};
@@ -724,6 +886,8 @@ function probeAll(): Promise<Record<string, AdapterProbes>> {
         }
       }
     }
+    writeDiskCache(out);
+    _probeCacheAt = Date.now();
     return out;
   })();
   return _probeCache;
@@ -754,7 +918,23 @@ async function probeCliInWsl(adapter: CliAdapter): Promise<ProbeOk | ProbeErr> {
 }
 
 // Allow callers (tests or admin endpoints) to force-refresh.
-export function clearLlmProbeCache(): void { _probeCache = null; }
+export function clearLlmProbeCache(): void {
+  _probeCache = null;
+  _probeCacheAt = 0;
+  clearDiskCache();
+}
+
+/**
+ * Mark a single provider entry as stale in the on-disk cache (does not clear
+ * the in-process _probeCache). Next call to inspectProviders() will re-probe
+ * just this adapter. Useful when generateText fails at first use — the CLI
+ * may have been moved, uninstalled, or auth may have expired, and we want
+ * the next UI visit to refresh the entry without dropping the other cached
+ * providers.
+ */
+export function markLlmProviderStale(adapterId: string, via: 'native' | 'wsl'): void {
+  markProviderStale(adapterId, via);
+}
 
 // ─── Provider enumeration (for the front-end settings panel) ──────────────────
 
@@ -952,6 +1132,14 @@ async function callAnyLlm(
       } catch (err: any) {
         // ★ Fallback to the next provider on failure.
         errors.push(`${id}${via ? `(${via})` : ''}: ${err?.message ?? String(err)}`);
+        // The cached probe said this CLI is available, but the actual call
+        // failed — most likely the binary was uninstalled/moved or auth
+        // expired. Drop just this entry from the on-disk cache so the next
+        // inspectProviders() call will re-probe it, without disturbing the
+        // other cached providers.
+        if (via) {
+          try { markLlmProviderStale(adapter.id, via); } catch { /* best-effort */ }
+        }
         continue;
       }
     }
@@ -1069,7 +1257,6 @@ function computeCliTimeoutMs(adapter: CliAdapter, prompt: string): number {
 function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string | undefined): Promise<string> {
   const rawArgs = adapter.callArgs(prompt, model);
   const timeoutMs = computeCliTimeoutMs(adapter, prompt);
-
   // If the adapter declares an `outputFile`, the CLI writes its final
   // response to a file we control. Pre-create a unique temp file and
   // substitute the literal `$OUTPUT_FILE` token in args with its path.

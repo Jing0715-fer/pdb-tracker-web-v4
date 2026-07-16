@@ -755,14 +755,13 @@ ${overlapSummary}${crossLitBlock}
         let perChapterFailCount = 0;
         const tReportStart = Date.now();
 
-        emit({ stage: 'llm-report', level: 'info', message: `准备分 ${totalChapters} 章节并发生成报告 (${provider})… 共 ${pdbDetails.length} 个 PDB + ${blastHitCount} 个 BLAST 已加载到上下文`, progress: 60 });
+        emit({ stage: 'llm-report', level: 'info', message: `准备分 ${totalChapters} 章节并发生成报告 (${provider})… 共 ${pdbDetails.length} 个 PDB + ${blastHitCount} 个 BLAST 已加载到上下文`, progress: 66 });
 
         for (let i = 0; i < chapters.length; i++) {
           const ck = chapters[i];
           const chapterIdx = i + 1;
-          // Per-chapter progress: 60..84 (primary target caps at 90% so batch
-          // mode can use 91-99 for subsequent targets).
-          const baseProgress = 60 + Math.round((i / totalChapters) * 24);
+          // Per-chapter progress: 66..91
+          const baseProgress = 66 + Math.round((i / totalChapters) * 24);
           emit({ stage: 'chapter', level: 'info', message: `[${chapterIdx}/${totalChapters}] ${labelOf(ck)} — 开始生成`, progress: baseProgress, chapter: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
 
           const userPrompt = buildChapterPrompt({ ...reportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
@@ -807,9 +806,9 @@ ${overlapSummary}${crossLitBlock}
         const finalReport = chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n');
         const allOk = perChapterFailCount === 0;
         if (allOk) {
-          emit({ stage: 'llm-report', level: 'success', message: `✓ LLM 分章生成完成 · ${perChapterOkCount}/${totalChapters} 章节 · ${finalReport.length} chars · 共 ${(chaptersTotalMs / 1000).toFixed(1)}s · ${provider}/${model}${saveReportFile ? ' · 已落盘' : ''}`, progress: 86 });
+          emit({ stage: 'llm-report', level: 'success', message: `✓ LLM 分章生成完成 · ${perChapterOkCount}/${totalChapters} 章节 · ${finalReport.length} chars · 共 ${(chaptersTotalMs / 1000).toFixed(1)}s · ${provider}/${model}${saveReportFile ? ' · 已落盘' : ''}`, progress: 91 });
         } else {
-          emit({ stage: 'llm-report', level: 'warn', message: `⚠ LLM 分章生成部分失败 · ${perChapterOkCount}✓ ${perChapterFailCount}✗ · ${finalReport.length} chars · ${provider}/${model}`, progress: 86 });
+          emit({ stage: 'llm-report', level: 'warn', message: `⚠ LLM 分章生成部分失败 · ${perChapterOkCount}✓ ${perChapterFailCount}✗ · ${finalReport.length} chars · ${provider}/${model}`, progress: 91 });
         }
         report = {
           ok: allOk,
@@ -828,7 +827,7 @@ ${overlapSummary}${crossLitBlock}
         };
       }
 
-      emit({ stage: 'write-db', level: 'info', message: `写入 Prisma (Evaluation ${pdbDetails.length} PDB + ${blastHits.length} BLAST)`, progress: 87 });
+      emit({ stage: 'write-db', level: 'info', message: `写入 Prisma (Evaluation ${pdbDetails.length} PDB + ${blastHits.length} BLAST)`, progress: 96 });
       let dbSaved = false;
       try {
         // ★ FIX: Insert Evaluation (parent) FIRST so FOREIGN KEY constraints succeed.
@@ -892,9 +891,9 @@ ${overlapSummary}${crossLitBlock}
           },
         });
         dbSaved = true;
-        emit({ stage: 'write-db', level: 'success', message: `✓ 已写入 Evaluation + EvaluationPdbStructure(${pdbDetails.length}) + EvaluationBlastResult(${blastHits.length}) + SkillRunRecord`, progress: 89 });
+        emit({ stage: 'write-db', level: 'success', message: `✓ 已写入 Evaluation + EvaluationPdbStructure(${pdbDetails.length}) + EvaluationBlastResult(${blastHits.length}) + SkillRunRecord`, progress: 99 });
       } catch (err: any) {
-        emit({ stage: 'write-db', level: 'error', message: `✗ 数据库写入失败：${err?.message}`, progress: 89 });
+        emit({ stage: 'write-db', level: 'error', message: `✗ 数据库写入失败：${err?.message}`, progress: 99 });
       }
 
       const result = {
@@ -912,22 +911,31 @@ ${overlapSummary}${crossLitBlock}
         dbSaved,
         durationMs: Date.now() - t0,
       };
-      // Primary target done — cap at 90% so batch mode (90-99) + final done
-      // (100%) still show meaningful progress to the user.
-      emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: 90 });
+      emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: windowStart + 5 });
 
       // ── Batch mode: evaluate remaining targets + cross-target relationship analysis ──
+      // Progress is split evenly across all targets so the user sees each target
+      // receive roughly the same progress share:
+      //   - Primary target (bi=0): progress 2..(97/N)
+      //   - Each batch target (bi): progress ((bi*97+2)/N)..(((bi+1)*97)/N)
+      //   - Cross-analysis + write-batch-db: progress 97..100
+      // The 3% at the end is reserved for cross-target analysis (per-target
+      // relationship report) and final batch DB write.
       if (isBatch && targets.length > 1) {
+        const targetCount = targets.length;
+        const slot = 97 / targetCount; // 97% of bar split across N targets
         const batchResults: any[] = [{ uniprot, uniprotInfo, pdbDetails, scores, report }];
         // Evaluate remaining targets (target[0] already done above)
         for (let bi = 1; bi < targets.length; bi++) {
           const bt = targets[bi];
           const bUid = (bt.uniprot || '').trim().toUpperCase();
           if (!bUid) continue;
-          // Batch targets share the 91-95% progress band (each target gets a
-          // distinct sub-range so the progress bar still advances).
-          const batchProgress = 91 + Math.round((bi / targets.length) * 5);
-          emit({ stage: `batch-${bi}`, level: 'info', message: `[Batch ${bi + 1}/${targets.length}] 评估 ${bUid}…`, progress: batchProgress });
+          // Map bi (1..N-1) into progress window (slot..2*slot). Add 2 for
+          // initial slot so the very first emit at "begin batch target"
+          // never shows 0%.
+          const windowStart = Math.round(bi * slot + 2);
+          const windowEnd = Math.round((bi + 1) * slot);
+          emit({ stage: `batch-${bi}`, level: 'info', message: `[Batch ${bi + 1}/${targets.length}] 评估 ${bUid}…`, progress: windowStart });
           try {
             const bMeta = await fetchUniprotMeta(bUid);
             const bInfo = bMeta ? { uniprotId: bUid, entryName: bMeta.entryName, proteinName: bMeta.proteinName, geneNames: bMeta.geneNames || '—', organism: bMeta.organism || '—', sequenceLength: bMeta.sequenceLength || 0 } : { uniprotId: bUid, entryName: bUid, proteinName: `Unknown`, geneNames: '—', organism: '—', sequenceLength: 0 };
@@ -943,7 +951,7 @@ ${overlapSummary}${crossLitBlock}
             let bCacheHit = false;
             if (bCached && bCached.maxPdbUsed === bMaxPdb && !!bCached.blastWasSkipped === (bSkipBlast && !bForceBlast) && bCached.pdbCountAtEval === bDirectPdbCount) {
               bCacheHit = true;
-              emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 缓存命中（参数+PDB数未变），跳过重新获取`, progress: batchProgress });
+              emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 缓存命中（参数+PDB数未变），跳过重新获取`, progress: windowStart + 5 });
               try {
                 const existing = await db.$queryRaw<any[]>`SELECT pdbId, method, resolution, title, journal, journalIf, doi, pubmedId, organism, authors, ligand, depositionDate, releaseDate FROM EvaluationPdbStructure WHERE uniprotId = ${bUid}`;
                 bPdbDetails = (existing as any[]).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title, journal: e.journal, journalIf: e.journalIf, doi: e.doi, pubmedId: e.pubmedId, organisms: e.organism, authors: e.authors, ligands: e.ligand, depositDate: e.depositionDate, releaseDate: e.releaseDate }));
@@ -958,15 +966,14 @@ ${overlapSummary}${crossLitBlock}
             const bScores = { xray: { score: calcS(bXray), structures: bXray }, cryoem: { score: calcS(bCryoem), structures: bCryoem }, nmr: { score: calcS(bNmr), structures: bNmr }, overall: { score: Math.min(10, Math.max(1, Math.round((calcS(bXray) + calcS(bCryoem) + calcS(bNmr)) / 3))) } };
             // Write to DB — skip PDB structure insert if cache hit
             let bReport: any = undefined;
-            // Generate individual LLM report for this batch target using the SAME
-            // 8-chapter streaming approach as the primary target (instead of a
-            // single-call summary report). Each chapter = its own short LLM call
-            // so the front-end can render them incrementally via SSE
-            // `batch-${bi}-chapter` / `batch-${bi}-chapter_done` events.
+            // Generate individual LLM report for this batch target (unless cached with existing report)
             if (generateReport && !(bCacheHit && bCached?.report)) {
-              emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] 生成 ${bUid} 的 LLM 报告（8 章节流式）…`, progress: batchProgress });
+              emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] 生成 ${bUid} 的 LLM 报告（8 章节流式，跟 primary 模板一致）…`, progress: windowStart + 5 });
               try {
-                // ── Build COMPRESSED but COMPREHENSIVE data tables from this batch target ──
+                // ── Per-chapter LLM streaming (same 8-chapter flow as primary target,
+                //    so batch target reports share the same template). Each chapter
+                //    is its own short LLM call so the front-end can render
+                //    incrementally via SSE `batch-${bi}-chapter` / `batch-${bi}-chapter_done`.
                 const PDB_CAP = 80;
                 const BLAST_CAP = Math.min(maxBlastHits, 50);
                 const bPdbTable = bPdbDetails.length > 0
@@ -975,13 +982,10 @@ ${overlapSummary}${crossLitBlock}
                 const bBlastTable = bSkipBlast
                   ? '| PDB ID | UniProt | Identity | E-value | Description |\n|--------|---------|----------|---------|-------------|\n| (BLAST 已跳过) | - | - | - | - |'
                   : (bCached?.blastResults ? buildDetailedBlastTable(bCached.blastResults, BLAST_CAP) : '| PDB ID | UniProt | Identity | E-value | Description |\n|--------|---------|----------|---------|-------------|\n| (无 BLAST 数据) | - | - | - | - |');
-
-                // ── Literature info for this batch target (capped at maxLitCount, IF desc) ──
                 const bLitInfo = await buildLiteratureInfo(bPdbDetails, maxLitCount);
                 const bLiteratureInfo = bLitInfo.count > 0
                   ? `共 ${bLitInfo.count} 篇相关文献（按期刊影响因子降序，已截取前 ${bLitInfo.count} 篇；摘要截取 200 字）：\n\n${bLitInfo.text}`
                   : '（无 PubMed 文献数据 — PubMedArticle 表为空或这些 PDB 结构无对应文献）';
-
                 const bReportData = {
                   uniprot: bUid,
                   entryName: bInfo.entryName,
@@ -1000,88 +1004,55 @@ ${overlapSummary}${crossLitBlock}
                   literatureInfo: bLiteratureInfo,
                   literatureCount: bLitInfo.count,
                 };
-
-                // ── Chapter-streaming mode — same 8 chapters as the primary target ──
                 const chapters: ReportChapterKey[] = [
                   'summary', 'function', 'topology', 'pdb_analysis',
                   'feasibility', 'experimental', 'references', 'conclusion',
                 ];
                 const chapterContents: Record<string, string> = {};
-                const totalChapters = chapters.length;
                 let perChapterOkCount = 0;
                 let perChapterFailCount = 0;
                 const tBatchReportStart = Date.now();
-
-                emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] ${bUid} 准备分 ${totalChapters} 章节生成报告 (${provider})… 共 ${bPdbDetails.length} 个 PDB${bLitInfo.count > 0 ? ` + ${bLitInfo.count} 篇文献` : ''} 已加载到上下文`, progress: batchProgress });
-
+                emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] ${bUid} 准备分 ${chapters.length} 章节生成报告 (${provider})… 共 ${bPdbDetails.length} 个 PDB${bLitInfo.count > 0 ? ` + ${bLitInfo.count} 篇文献` : ''} 已加载到上下文`, progress: windowStart + 5 });
                 for (let i = 0; i < chapters.length; i++) {
                   const ck = chapters[i];
                   const chapterIdx = i + 1;
-                  emit({ stage: `batch-${bi}-chapter`, level: 'info', message: `[Batch ${bi + 1}] [${chapterIdx}/${totalChapters}] ${labelOf(ck)} — 开始生成`, progress: batchProgress, chapter: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
-
-                  const userPrompt = buildChapterPrompt({ ...bReportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
+                  emit({ stage: `batch-${bi}-chapter`, level: 'info', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} — 开始生成`, progress: windowStart + 5, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
+                  const userPrompt = buildChapterPrompt({ ...bReportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
                   const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
-
                   const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
                   if (r.ok) {
                     perChapterOkCount++;
                     chapterContents[ck] = r.content;
-                    // Stream chapter content as a separate SSE event so the front-end
-                    // can render it inline (per-batch ChapterStream).
-                    emit({
-                      stage: `batch-${bi}-chapter_done`,
-                      level: 'success',
-                      message: `[Batch ${bi + 1}] [${chapterIdx}/${totalChapters}] ${labelOf(ck)} ✓ ${r.content.length} chars · ${(r.durationMs / 1000).toFixed(1)}s`,
-                      progress: batchProgress,
-                      chapter: ck,
-                      chapterIndex: chapterIdx,
-                      chapterTotal: totalChapters,
-                      chapterContent: r.content,
-                      chapterDurationMs: r.durationMs,
-                    });
+                    emit({ stage: `batch-${bi}-chapter_done`, level: 'success', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} ✓ ${r.content.length} chars · ${(r.durationMs / 1000).toFixed(1)}s`, progress: windowStart + 5, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length, chapterContent: r.content });
                   } else {
                     perChapterFailCount++;
                     chapterContents[ck] = `_(${labelOf(ck)}: LLM 调用失败 — ${r.error?.slice(0, 120) ?? 'unknown'})_`;
-                    emit({
-                      stage: `batch-${bi}-chapter_done`,
-                      level: 'error',
-                      message: `[Batch ${bi + 1}] [${chapterIdx}/${totalChapters}] ${labelOf(ck)} ✗ ${r.error?.slice(0, 120) ?? 'unknown'}`,
-                      progress: batchProgress,
-                      chapter: ck,
-                      chapterIndex: chapterIdx,
-                      chapterTotal: totalChapters,
-                      chapterError: r.error,
-                    });
+                    emit({ stage: `batch-${bi}-chapter_done`, level: 'error', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} ✗ ${r.error?.slice(0, 100) ?? 'unknown'}`, progress: windowStart + 5, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
                   }
                 }
-
-                const chaptersTotalMs = Date.now() - tBatchReportStart;
                 const finalReport = chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n');
                 const allOk = perChapterFailCount === 0;
-                if (allOk) {
-                  emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 分章生成完成 · ${perChapterOkCount}/${totalChapters} 章节 · ${finalReport.length} chars · ${(chaptersTotalMs / 1000).toFixed(1)}s · ${provider}/${model}${bLitInfo.count > 0 ? ` · 附 ${bLitInfo.count} 篇文献` : ''}`, progress: batchProgress });
-                } else {
-                  emit({ stage: `batch-${bi}-llm`, level: 'warn', message: `⚠ [Batch ${bi + 1}] ${bUid} LLM 分章生成部分失败 · ${perChapterOkCount}✓ ${perChapterFailCount}✗ · ${finalReport.length} chars`, progress: batchProgress });
-                }
                 bReport = {
                   ok: allOk,
+                  content: finalReport,
                   provider,
                   model,
-                  durationMs: chaptersTotalMs,
+                  durationMs: Date.now() - tBatchReportStart,
                   contentChars: finalReport.length,
-                  fallback: false,
-                  content: finalReport,
-                  chapters: chapterContents,
-                  chaptersOk: perChapterOkCount,
-                  chaptersFailed: perChapterFailCount,
-                  error: allOk ? undefined : `${perChapterFailCount} chapter(s) failed`,
+                  perChapterOkCount,
+                  perChapterFailCount,
                 };
+                if (allOk) {
+                  emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} LLM 分章报告完成 · ${perChapterOkCount}/${chapters.length} 章 · ${finalReport.length} chars · ${((Date.now() - tBatchReportStart) / 1000).toFixed(1)}s · ${provider}/${model}`, progress: windowStart + 5 });
+                } else {
+                  emit({ stage: `batch-${bi}-llm`, level: 'warn', message: `⚠ [Batch ${bi + 1}] ${bUid} LLM 分章部分失败 · ${perChapterOkCount}✓ ${perChapterFailCount}✗ · ${finalReport.length} chars · ${provider}/${model}`, progress: windowStart + 5 });
+                }
               } catch (err: any) {
-                emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 生成失败：${err?.message}`, progress: batchProgress });
+                emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 生成失败：${err?.message}`, progress: windowStart + 5 });
               }
             } else if (bCacheHit && bCached?.report) {
               bReport = { ok: true, content: bCached.report, provider: '(cached)', model: '(cached)', durationMs: 0, contentChars: bCached.report.length, cached: true };
-              emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 使用已有 LLM 报告（缓存）· ${bReport.contentChars} chars`, progress: batchProgress });
+              emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 使用已有 LLM 报告（缓存）· ${bReport.contentChars} chars`, progress: windowStart + 5 });
             }
             try {
               const bScoresJson = JSON.stringify({ 'X-ray': { score: bScores.xray.score }, 'Cryo-EM': { score: bScores.cryoem.score }, 'NMR': { score: bScores.nmr.score }, 'Overall': { score: bScores.overall.score } });
@@ -1096,17 +1067,17 @@ ${overlapSummary}${crossLitBlock}
                 }
               }
             } catch (dbErr: any) {
-              emit({ stage: `batch-${bi}`, level: 'error', message: `[Batch ${bi + 1}] DB 写入失败：${dbErr?.message}`, progress: batchProgress });
+              emit({ stage: `batch-${bi}`, level: 'error', message: `[Batch ${bi + 1}] DB 写入失败：${dbErr?.message}`, progress: windowStart + 5 });
             }
             batchResults.push({ uniprot: bUid, uniprotInfo: bInfo, pdbDetails: bPdbDetails, scores: bScores, cached: bCacheHit, report: bReport });
-            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10${bCacheHit ? ' · 缓存' : ''}${bReport?.ok ? ` · LLM ✓ (${bReport.contentChars} chars)` : ''}`, progress: batchProgress });
+            emit({ stage: `batch-${bi}`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid}: ${bPdbDetails.length} PDB · overall=${bScores.overall.score}/10${bCacheHit ? ' · 缓存' : ''}${bReport?.ok ? ` · LLM ✓ (${bReport.contentChars} chars)` : ''}`, progress: windowStart + 5 });
           } catch (err: any) {
-            emit({ stage: `batch-${bi}`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} 失败：${err?.message}`, progress: batchProgress });
+            emit({ stage: `batch-${bi}`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} 失败：${err?.message}`, progress: windowStart + 5 });
           }
         }
 
         // ── Cross-target relationship analysis: find common PDB structures ──
-        emit({ stage: 'cross-analysis', level: 'info', message: `分析 ${batchResults.length} 个靶点的共有结构与相关性…`, progress: 96 });
+        emit({ stage: 'cross-analysis', level: 'info', message: `分析 ${batchResults.length} 个靶点的共有结构与相关性…`, progress: windowStart + 5 });
         const allPdbSets = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
         // Find PDB IDs present in ALL targets
         const commonPdbIds = allPdbSets.length > 0
@@ -1122,12 +1093,12 @@ ${overlapSummary}${crossLitBlock}
             }
           }
         }
-        emit({ stage: 'cross-analysis', level: commonPdbIds.length > 0 ? 'success' : 'info', message: `共有结构（全部靶点）：${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 5).join(', ')}…)` : ''} · 两两重叠：${Object.keys(pdbOverlap).length} 对`, progress: 96 });
+        emit({ stage: 'cross-analysis', level: commonPdbIds.length > 0 ? 'success' : 'info', message: `共有结构（全部靶点）：${commonPdbIds.length} 个${commonPdbIds.length > 0 ? ` (${commonPdbIds.slice(0, 5).join(', ')}…)` : ''} · 两两重叠：${Object.keys(pdbOverlap).length} 对`, progress: windowStart + 5 });
 
         // ── Generate cross-target relationship LLM report ──
         let crossReport: any = undefined;
         if (generateReport) {
-          emit({ stage: 'cross-llm', level: 'info', message: `生成靶点间相关性 LLM 分析报告…`, progress: 98 });
+          emit({ stage: 'cross-llm', level: 'info', message: `生成靶点间相关性 LLM 分析报告…`, progress: windowStart + 5 });
           try {
             const crossSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份靶点间相关性分析报告，使用 Markdown 格式。分析多个蛋白靶点之间的结构关联性、功能关系、以及共有的结构基础。';
             const targetSummary = batchResults.map((r, i) => {
@@ -1189,10 +1160,10 @@ ${overlapSummary}${crossLitBlock}
 （总结靶点间关系，提出后续研究建议）`;
             const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
             crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
-            if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 相关性分析报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: 98 });
-            else emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析 LLM 失败：${r.error}`, progress: 98 });
+            if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 相关性分析报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: windowStart + 5 });
+            else emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析 LLM 失败：${r.error}`, progress: windowStart + 5 });
           } catch (err: any) {
-            emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析失败：${err?.message}`, progress: 98 });
+            emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析失败：${err?.message}`, progress: windowStart + 5 });
           }
         }
 
@@ -1210,9 +1181,9 @@ ${overlapSummary}${crossLitBlock}
             try { await db.$executeRaw`UPDATE Evaluation SET batchId = ${batchId} WHERE uniprotId = ${r.uniprot}`; } catch {}
           }
           (result as any).batchId = batchId;
-          emit({ stage: 'batch-db', level: 'success', message: `✓ Batch 记录已写入 EvaluationBatch (${batchId}) · 关联 ${batchResults.length} 个靶点`, progress: 98 });
+          emit({ stage: 'batch-db', level: 'success', message: `✓ Batch 记录已写入 EvaluationBatch (${batchId}) · 关联 ${batchResults.length} 个靶点`, progress: 100 });
         } catch (err: any) {
-          emit({ stage: 'batch-db', level: 'error', message: `Batch 记录写入失败：${err?.message}`, progress: 98 });
+          emit({ stage: 'batch-db', level: 'error', message: `Batch 记录写入失败：${err?.message}`, progress: 100 });
         }
         try {
           await db.skillRunRecord.create({
@@ -1252,7 +1223,7 @@ ${overlapSummary}${crossLitBlock}
             : undefined,
         }));
         (result as any).crossAnalysis = { commonPdbIds, pdbOverlap, crossReport };
-        emit({ stage: 'batch-done', level: 'success', message: `Batch 完成 · ${batchResults.length} 靶点 (${batchResults.filter(r => r.cached).length} 缓存) · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? '相关性报告 ✓' : '相关性报告 ✗'} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 99 });
+        emit({ stage: 'batch-done', level: 'success', message: `Batch 完成 · ${batchResults.length} 靶点 (${batchResults.filter(r => r.cached).length} 缓存) · 共有结构 ${commonPdbIds.length} · ${crossReport?.ok ? '相关性报告 ✓' : '相关性报告 ✗'} · ${((Date.now() - t0) / 1000).toFixed(1)}s`, progress: 100 });
       }
 
       await sleep(150);

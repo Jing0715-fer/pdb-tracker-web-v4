@@ -1277,7 +1277,34 @@ export default function PdbTracker() {
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data?.content) {
-            const stripped = data.content
+            // Strip LLM-leaked Hermes/CLI preamble (e.g. "Write tool requires
+            // approval which isn't available in this mode. Here's the chapter
+            // content directly:\n\n---\n\n"). The naive frontmatter
+            // regex below would otherwise eat the entire executive summary +
+            // chapters 1-2 because the leaked `---` *opens* a fake frontmatter
+            // block that swallows 2-3 KB of real content.
+            //
+            // Strategy: locate the first occurrence of a *known* chapter
+            // heading ("## 执行摘要", "## 1. 蛋白", or just "##") and trim
+            // everything before it. Then apply the original frontmatter +
+            // bold-field strip. This is robust to LLM output variations.
+            let raw = data.content;
+            const chapterAnchors = [
+              /^##\s+执行摘要/m,
+              /^##\s+\d+\.\s+/m,
+              /^##\s+/m,
+            ];
+            let firstAnchor: RegExpMatchArray | null = null;
+            for (const re of chapterAnchors) {
+              const m = raw.match(re);
+              if (m && (!firstAnchor || (m.index ?? 0) < (firstAnchor.index ?? 0))) {
+                firstAnchor = m;
+              }
+            }
+            if (firstAnchor && (firstAnchor.index ?? 0) > 0) {
+              raw = raw.slice(firstAnchor.index ?? 0);
+            }
+            const stripped = raw
               .replace(/^---[\s\S]*?---\s*/m, '')
               .replace(/^#\s+.+\n/, '')
               .replace(/^\*\*[^*]+\*\*:\s*[^*]+\n/gm, '')
