@@ -2637,7 +2637,7 @@ export default function PdbTracker() {
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                   <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">
-                    Reading Progress
+                    {locale === 'zh' ? '阅读进度' : 'Reading Progress'}
                   </span>
                 </div>
                 <span className={`text-sm font-bold tabular-nums ${
@@ -2686,12 +2686,12 @@ export default function PdbTracker() {
                     onClick={() => readingProgressState.markComplete(paper.pmid)}
                   >
                     <Check className="h-3 w-3 mr-1" />
-                    Mark as Complete
+                    {locale === 'zh' ? '标记为已完成' : 'Mark as Complete'}
                   </Button>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                     <Check className="h-3 w-3" />
-                    Completed
+                    {locale === 'zh' ? '已完成' : 'Completed'}
                   </span>
                 )}
                 {readingProgressState.getProgress(paper.pmid) > 0 && readingProgressState.getProgress(paper.pmid) < 100 && (

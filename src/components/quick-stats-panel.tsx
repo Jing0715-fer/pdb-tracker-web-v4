@@ -19,8 +19,9 @@ interface QuickStatsPanelProps {
 // ─── SVG Pie Chart Slice ──────────────────────────────────────────────────────
 
 function SvgPieChart({ data }: { data: { label: string; value: number; color: string }[] }) {
+  const { locale } = useI18n();
   const total = data.reduce((s, d) => s + d.value, 0);
-  if (total === 0) return <div className="text-[10px] text-claude-text-muted py-4 text-center">No data</div>;
+  if (total === 0) return <div className="text-[10px] text-claude-text-muted py-4 text-center">{locale === 'zh' ? '暂无数据' : 'No data'}</div>;
 
   const cx = 40, cy = 40, r = 32;
   // Pre-compute cumulative values to avoid mutation in render
@@ -69,7 +70,8 @@ function SvgPieChart({ data }: { data: { label: string; value: number; color: st
 // ─── SVG Bar Chart ────────────────────────────────────────────────────────────
 
 function SvgBarChart({ data, maxBars = 6, defaultColor }: { data: { label: string; value: number; color?: string }[]; maxBars?: number; defaultColor?: string }) {
-  if (!data.length) return <div className="text-[10px] text-claude-text-muted py-4 text-center">No data</div>;
+  const { locale } = useI18n();
+  if (!data.length) return <div className="text-[10px] text-claude-text-muted py-4 text-center">{locale === 'zh' ? '暂无数据' : 'No data'}</div>;
 
   const topData = data.slice(0, maxBars);
   const maxVal = Math.max(...topData.map(d => d.value), 1);

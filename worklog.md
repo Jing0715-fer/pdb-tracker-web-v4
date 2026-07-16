@@ -3027,3 +3027,57 @@ Stage Summary:
 - Eval mode crash fixed: EvalStatCards now has its own useI18n() hook
 - All 3 modes' stat cards (quick-stats-panel) fully translated: weekly (Top Journals), eval (Coverage Overview/Top Organisms/Summary), literature (Top Journals/Summary/labels)
 - 0 English remaining across all 3 modes in Chinese mode
+
+---
+
+## Task: fix-lit-sidebar-i18n — Literature sidebar & stat card i18n cleanup
+
+**Agent:** i18n-fixer (Task ID: fix-lit-sidebar-i18n)
+**Work record:** `/agent-ctx/fix-lit-sidebar-i18n-i18n-fixer.md`
+
+### Summary
+
+Polished off the remaining English strings in the Literature mode sidebar + stat cards. All strings now switch dynamically between `zh` and `en` via the `useI18n()` hook using the project's inline `locale === 'zh' ? '中文' : 'English'` pattern.
+
+### Files touched (8)
+
+- `src/components/literature/LiteratureDateSidebar.tsx` — "Papers by Date", "All:"/"Filtered:", "All years"
+- `src/components/pdb-tracker.tsx` — inline lit detail panel: "Reading Progress", "Mark as Complete", "Completed"
+- `src/components/literature/LiteratureReadingList.tsx` — "Reading Lists", "All Papers", "Recently Added", "Average Progress", "papers in lists", "completed"; default list names ("To Read"/"Reading"/"Read") localized via id-based helper (no localStorage migration needed)
+- `src/components/literature/LiteratureReadingProgress.tsx` — "Reading Progress", segment labels "Completed"/"Reading"/"Unread", summary "papers completed (… overall progress)"
+- `src/components/literature/LiteratureStatCards.tsx` — all 5 stat card titles + subtitles + tooltips (Total Papers, Avg Impact Factor, Top Journal, Latest Update, Reading Progress, with IF data, top-tier, No data, etc.)
+- `src/components/literature/LiteratureSection.tsx` — Dashboard stat cards (Total Papers/Structures/High-IF/Avg IF) + Paper Dashboard header + folders / weeks / entries / papers / Top IF / Back to Folders / empty states
+- `src/components/ui/stat-card.tsx` — `FreshnessDot` labels Fresh/Recent/Aging → 新鲜/近期/老化 (shared by Weekly/Eval/Literature)
+- `src/components/literature/LiteratureDetailPanel.tsx` — `getReadingStatus` helper now accepts locale → "Read"/"Reading"/"Unread" → "已读"/"阅读中"/"未读"; "Reading Progress", "Mark as Read", "Completed", "Reset", "AI Summary", "Generating...", "Associated PDB Structures", "Related PDB Structures", 3D viewer tooltips
+
+### Lint
+
+`node scripts/lint.mjs` → 3 errors, all **pre-existing** in `eval-dashboard.tsx` (754:30) and `weekly-structure-compare.tsx` (70:45) — verified by `git stash` round-trip. **0 new errors / 0 new warnings** introduced.
+
+### Dev server
+
+`dev.log` shows workers ready on port 3000, no compile errors.
+
+---
+Task ID: fix-lit-sidebar-and-stats-final
+Agent: main + subagent
+Task: Fix literature sidebar and stat cards Chinese translation
+
+Work Log:
+- **Literature sidebar** (LiteratureDateSidebar.tsx): "Papers by Date" → 按日期浏览论文, "All years" → 所有年份, "All:" → 全部:, "Filtered:" → 已筛选:
+- **Reading lists** (LiteratureReadingList.tsx): "Reading Lists" → 阅读列表, "All Papers" → 全部论文, "To Read" → 待读, "Reading" → 阅读中, "Read" → 已读, "Recently Added" → 最近添加, "Average Progress" → 平均进度
+- **Reading progress** (LiteratureReadingProgress.tsx): "Reading Progress" → 阅读进度, "Completed" → 已完成, "Reading" → 阅读中, "Unread" → 未读, "papers completed (overall progress)" → locale-aware
+- **Stat cards** (LiteratureStatCards.tsx + LiteratureSection.tsx): "Total Papers" → 论文总数, "with IF data" → 有 IF 数据, "Avg Impact Factor" → 平均影响因子, "top-tier" → 顶级, "Top Journal" → 顶级期刊, "Latest Update" → 最新更新, "Reading Progress" → 阅读进度
+- **Detail panel** (LiteratureDetailPanel.tsx): "Read"/"Reading"/"Unread" badges → 已读/阅读中/未读, "Mark as Read" → 标记为已读, "Reset" → 重置, "AI Summary" → AI 摘要, "Generating..." → 生成中…, "Associated PDB Structures" → 关联 PDB 结构, "Related PDB Structures" → 相关 PDB 结构
+- **Stat card freshness** (stat-card.tsx): "Fresh"/"Recent"/"Aging" → 新鲜/近期/老化
+- **Chart empty states** (quick-stats-panel.tsx): SvgPieChart and SvgBarChart "No data" → 暂无数据
+- Lint: 3 pre-existing non-blocking React Compiler warnings
+- Build: succeeded
+- **Final verification (Chinese mode, Literature)**: 0 English found across 35+ patterns ✓
+
+Stage Summary:
+- Literature mode sidebar: fully translated (date sidebar, reading lists, reading progress)
+- Literature mode stat cards: fully translated (5 cards with titles/subtitles/tooltips)
+- Literature detail panel: fully translated (badges, buttons, AI summary, PDB sections)
+- Chart empty states: "No data" → 暂无数据
+- 0 English remaining in Literature mode Chinese mode

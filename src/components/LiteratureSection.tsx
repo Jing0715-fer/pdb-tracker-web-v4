@@ -875,8 +875,8 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
             <BookOpen className="h-5 w-5 text-claude-accent" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-claude-text">Paper Dashboard</h2>
-            <p className="text-[11px] text-claude-text-muted">Browse papers organized by weekly releases</p>
+            <h2 className="text-base font-bold text-claude-text">{locale === 'zh' ? '论文仪表盘' : 'Paper Dashboard'}</h2>
+            <p className="text-[11px] text-claude-text-muted">{locale === 'zh' ? '按每周发布浏览论文' : 'Browse papers organized by weekly releases'}</p>
           </div>
         </div>
         {dashboardStats.totalMissing > 0 && (
@@ -886,7 +886,7 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-claude-accent/8 dark:bg-claude-accent/15 text-claude-accent hover:bg-claude-accent/15 dark:hover:bg-claude-accent/25 border border-claude-accent/15 hover:border-claude-accent/30 transition-all"
           >
             {fetchingPubmed ? <RefreshCw className="h-3 w-3 animate-spin" /> : <CloudDownload className="h-3 w-3" />}
-            Fetch Metadata ({dashboardStats.totalMissing})
+            {locale === 'zh' ? `获取元数据 (${dashboardStats.totalMissing})` : `Fetch Metadata (${dashboardStats.totalMissing})`}
           </button>
         )}
       </div>
@@ -894,10 +894,10 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
       {/* Overview Stats Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {[
-          { label: 'Total Papers', value: dashboardStats.totalPapersAll, icon: BookOpen, color: 'text-teal-600 dark:text-teal-400', bg: 'from-teal-500/5 to-transparent' },
-          { label: 'Structures', value: dashboardStats.totalStructuresAll, icon: Database, color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/5 to-transparent' },
-          { label: 'High-IF (≥10)', value: dashboardStats.totalHighIf, icon: TrendingUp, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/5 to-transparent' },
-          { label: 'Avg IF', value: dashboardStats.avgIfVal > 0 ? dashboardStats.avgIfVal.toFixed(1) : '—', icon: BarChart3, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/5 to-transparent' },
+          { label: locale === 'zh' ? '论文总数' : 'Total Papers', value: dashboardStats.totalPapersAll, icon: BookOpen, color: 'text-teal-600 dark:text-teal-400', bg: 'from-teal-500/5 to-transparent' },
+          { label: locale === 'zh' ? '结构' : 'Structures', value: dashboardStats.totalStructuresAll, icon: Database, color: 'text-blue-600 dark:text-blue-400', bg: 'from-blue-500/5 to-transparent' },
+          { label: locale === 'zh' ? '高 IF (≥10)' : 'High-IF (≥10)', value: dashboardStats.totalHighIf, icon: TrendingUp, color: 'text-amber-600 dark:text-amber-400', bg: 'from-amber-500/5 to-transparent' },
+          { label: locale === 'zh' ? '平均 IF' : 'Avg IF', value: dashboardStats.avgIfVal > 0 ? dashboardStats.avgIfVal.toFixed(1) : '—', icon: BarChart3, color: 'text-purple-600 dark:text-purple-400', bg: 'from-purple-500/5 to-transparent' },
         ].map(stat => (
           <motion.div
             key={stat.label}
@@ -918,15 +918,15 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
       {/* Weekly Folders */}
       <div className="mb-3 flex items-center gap-2">
         <Folder className="h-4 w-4 text-claude-accent/60" />
-        <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">Folders by Date</h3>
-        <span className="text-[10px] text-claude-text-muted/60 ml-auto">{weekFolderData.length} weeks</span>
+        <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">{locale === 'zh' ? '按日期分文件夹' : 'Folders by Date'}</h3>
+        <span className="text-[10px] text-claude-text-muted/60 ml-auto">{weekFolderData.length} {locale === 'zh' ? '周' : 'weeks'}</span>
       </div>
 
       {weekFolderData.length === 0 ? (
         <div className="text-center py-12 text-claude-text-muted">
           <FolderOpen className="h-10 w-10 mx-auto mb-3 opacity-20" />
-          <p className="text-sm font-medium">No weekly data available</p>
-          <p className="text-[11px] mt-1 text-claude-text-muted/60">Select a week to view associated papers</p>
+          <p className="text-sm font-medium">{locale === 'zh' ? '暂无周数据' : 'No weekly data available'}</p>
+          <p className="text-[11px] mt-1 text-claude-text-muted/60">{locale === 'zh' ? '请选择一周以查看相关论文' : 'Select a week to view associated papers'}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -962,12 +962,12 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
               <div className="flex items-center gap-3 text-[10px] pl-6">
                 <span className="flex items-center gap-1 text-claude-text-secondary font-semibold">
                   <Hash className="h-2.5 w-2.5 opacity-40" />
-                  {week.totalEntries} entries
+                  {week.totalEntries} {locale === 'zh' ? '条目' : 'entries'}
                 </span>
                 {week.paperCount > 0 && (
                   <span className="flex items-center gap-1 text-claude-accent font-medium">
                     <FileText className="h-2.5 w-2.5 opacity-50" />
-                    {week.paperCount} papers
+                    {week.paperCount} {locale === 'zh' ? '篇论文' : 'papers'}
                   </span>
                 )}
               </div>
@@ -994,7 +994,7 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
                     week.maxIf >= 20 ? 'bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400' :
                     'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400'
                   }`}>
-                    Top IF {week.maxIf.toFixed(0)}
+                    {locale === 'zh' ? '顶级 IF' : 'Top IF'} {week.maxIf.toFixed(0)}
                   </span>
                 )}
               </div>
@@ -1012,7 +1012,7 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
       className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-claude-text-secondary hover:text-claude-accent hover:bg-claude-accent/5 border border-claude-border/30 hover:border-claude-accent/20 transition-all mb-3"
     >
       <ArrowLeft className="h-3.5 w-3.5" />
-      Back to Folders
+      {locale === 'zh' ? '返回文件夹' : 'Back to Folders'}
     </button>
   ) : null;
 
@@ -1040,10 +1040,10 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
         <div className="w-16 h-16 rounded-2xl bg-claude-border/20 dark:bg-[#3d3832]/20 flex items-center justify-center mb-4">
           <BookOpen className="h-8 w-8 opacity-20" />
         </div>
-        <p className="text-sm font-semibold">No literature data</p>
+        <p className="text-sm font-semibold">{locale === 'zh' ? '暂无文献数据' : 'No literature data'}</p>
         <p className="text-[11px] mt-1.5 text-claude-text-muted/60 max-w-[240px] text-center leading-relaxed">
           {entries && entries.length > 0
-            ? 'Entries found but no PubMed IDs available for this week'
+            ? (locale === 'zh' ? '找到条目但本周无 PubMed ID' : 'Entries found but no PubMed IDs available for this week')
             : locale === 'zh' ? '选择有 PDB 条目的周次以查看相关文献' : 'Select a week with PDB entries to view associated literature'}
         </p>
       </div>
@@ -1079,8 +1079,8 @@ export function LiteratureSection({ entries, pdbStructures, blastResults, onSele
               {searchQuery && sortedGroups.length === 0 && (
                 <div className="flex flex-col items-center py-8 text-claude-text-muted">
                   <Search className="h-8 w-8 mb-2 opacity-20" />
-                  <p className="text-xs font-medium">No results found</p>
-                  <p className="text-[10px] mt-1 text-claude-text-muted/60">Try a different search term</p>
+                  <p className="text-xs font-medium">{locale === 'zh' ? '未找到结果' : 'No results found'}</p>
+                  <p className="text-[10px] mt-1 text-claude-text-muted/60">{locale === 'zh' ? '尝试其他搜索词' : 'Try a different search term'}</p>
                 </div>
               )}
               <div className={`flex-1 min-h-0 overflow-y-auto thin-scrollbar space-y-2 ${fullWidth ? 'max-h-[calc(100vh-320px)]' : ''}`}>

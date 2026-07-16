@@ -39,10 +39,10 @@ function getProgressColor(progress: number): string {
 }
 
 /** Get reading status for badge */
-function getReadingStatus(progress: number): { color: string; bg: string; text: string; label: string } {
-  if (progress >= 100) return { color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/60 dark:border-emerald-800/30', text: 'border-emerald-300 dark:border-emerald-700', label: 'Read' };
-  if (progress > 0) return { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200/60 dark:border-amber-800/30', text: 'border-amber-300 dark:border-amber-700', label: 'Reading' };
-  return { color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-50 dark:bg-gray-800/50 border-gray-200/60 dark:border-gray-700/30', text: 'border-gray-300 dark:border-gray-600', label: 'Unread' };
+function getReadingStatus(progress: number, locale: 'en' | 'zh'): { color: string; bg: string; text: string; label: string } {
+  if (progress >= 100) return { color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200/60 dark:border-emerald-800/30', text: 'border-emerald-300 dark:border-emerald-700', label: locale === 'zh' ? '已读' : 'Read' };
+  if (progress > 0) return { color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200/60 dark:border-amber-800/30', text: 'border-amber-300 dark:border-amber-700', label: locale === 'zh' ? '阅读中' : 'Reading' };
+  return { color: 'text-gray-500 dark:text-gray-400', bg: 'bg-gray-50 dark:bg-gray-800/50 border-gray-200/60 dark:border-gray-700/30', text: 'border-gray-300 dark:border-gray-600', label: locale === 'zh' ? '未读' : 'Unread' };
 }
 
 /** Prestigious journals for special badge */
@@ -254,7 +254,7 @@ export function LiteratureDetailPanel({
 
   if (!isOpen || !paper) return null;
 
-  const status = getReadingStatus(readingProgress);
+  const status = getReadingStatus(readingProgress, locale);
   const prestige = getJournalPrestige(paper.journal);
   const altScore = computeAltmetricScore(paper);
 
@@ -368,7 +368,7 @@ export function LiteratureDetailPanel({
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                   <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">
-                    Reading Progress
+                    {locale === 'zh' ? '阅读进度' : 'Reading Progress'}
                   </span>
                 </div>
                 <span className={`text-sm font-bold tabular-nums ${
@@ -412,12 +412,12 @@ export function LiteratureDetailPanel({
                     onClick={() => onMarkComplete?.(paper.pmid)}
                   >
                     <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Mark as Read
+                    {locale === 'zh' ? '标记为已读' : 'Mark as Read'}
                   </Button>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                     <CheckCircle2 className="h-3 w-3" />
-                    Completed
+                    {locale === 'zh' ? '已完成' : 'Completed'}
                   </span>
                 )}
                 {readingProgress > 0 && readingProgress < 100 && (
@@ -427,7 +427,7 @@ export function LiteratureDetailPanel({
                     className="h-6 px-2 text-[10px] font-medium text-claude-text-muted hover:text-claude-text"
                     onClick={() => onProgressChange(paper.pmid, 0)}
                   >
-                    Reset
+                    {locale === 'zh' ? '重置' : 'Reset'}
                   </Button>
                 )}
               </div>
@@ -527,7 +527,7 @@ export function LiteratureDetailPanel({
               ) : (
                 <Sparkles className="h-3 w-3" />
               )}
-              {aiLoading ? 'Generating...' : 'AI Summary'}
+              {aiLoading ? '生成中...' : locale === 'zh' ? 'AI 摘要' : 'AI Summary'}
             </button>
             {aiSummary && (
               <div className="mt-2 p-3 rounded-lg bg-gradient-to-br from-claude-accent/5 to-purple-500/5 dark:from-claude-accent/10 dark:to-purple-500/10 border border-claude-accent/20 dark:border-claude-accent/30 text-xs text-claude-text-secondary leading-relaxed lit-fade-in-up">
@@ -554,7 +554,7 @@ export function LiteratureDetailPanel({
               <div className="flex items-center gap-1.5 mb-2">
                 <BookOpen className="h-3.5 w-3.5 text-claude-text-muted" />
                 <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">
-                  Associated PDB Structures ({paper.pdbs.length})
+                  {locale === 'zh' ? `关联 PDB 结构 (${paper.pdbs.length})` : `Associated PDB Structures (${paper.pdbs.length})`}
                 </span>
               </div>
               <div className="space-y-2">
@@ -605,7 +605,7 @@ export function LiteratureDetailPanel({
                               ? 'bg-claude-accent/15 text-claude-accent dark:bg-claude-accent/25 dark:text-claude-accent-hover'
                               : 'text-claude-text-muted hover:text-claude-accent dark:hover:text-claude-accent-hover hover:bg-claude-border-light/60 dark:hover:bg-[#3d3832]/40'
                           }`}
-                          title={isViewerOpen ? 'Close 3D viewer' : 'View 3D structure'}
+                          title={isViewerOpen ? (locale === 'zh' ? '关闭 3D 查看器' : 'Close 3D viewer') : (locale === 'zh' ? '查看 3D 结构' : 'View 3D structure')}
                         >
                           <Box className="h-3.5 w-3.5" />
                         </button>
@@ -627,7 +627,7 @@ export function LiteratureDetailPanel({
               <div className="flex items-center gap-1.5 mb-2">
                 <ExtLink className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                 <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">
-                  Related PDB Structures
+                  {locale === 'zh' ? '相关 PDB 结构' : 'Related PDB Structures'}
                 </span>
               </div>
               <div className="flex flex-wrap gap-1.5">
