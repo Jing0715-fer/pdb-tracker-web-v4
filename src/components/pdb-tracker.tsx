@@ -2449,7 +2449,7 @@ export default function PdbTracker() {
       {/* Desktop: inline panel with responsive width */}
       <aside
         style={{ width: 'clamp(280px, 30vw, 420px)' }}
-        className="hidden md:flex bg-white/80 dark:bg-[#1a1917]/80 backdrop-blur-md flex-col overflow-hidden flex-shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] relative animate-in slide-in-from-right-2 duration-200"
+        className="hidden md:flex bg-white/80 dark:bg-[#1a1917]/80 backdrop-blur-md flex-col overflow-hidden flex-shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] relative animate-in slide-in-from-right-2 duration-200 h-full"
       >
         {/* Left border divider line */}
         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-claude-border dark:bg-[#3d3832] z-10 rounded-r-sm" />
@@ -3324,7 +3324,7 @@ export default function PdbTracker() {
 
       // Inline Structures tab content
       const evalStructuresTab = (
-        <div className="space-y-2">
+        <div className="space-y-2 max-h-full overflow-y-auto preview-scroll pr-1">
           {(selectedEval.pdbStructures || []).length === 0 ? (
             <div className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found</div>
           ) : (
