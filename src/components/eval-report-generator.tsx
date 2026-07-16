@@ -378,30 +378,107 @@ export function EvalReportGenerator({
     let i = 0;
     while (i < lines.length) {
       const line = lines[i];
-      // Markdown table: line with |...|, followed by |---|---|...|, then rows
-      if (line.trim().startsWith('|') && i + 1 < lines.length && /^\s*\|?[\s|:-]+\|?\s*$/.test(lines[i + 1])) {
-        const headerCells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
-        i += 2; // skip header + separator
-        const rows: string[][] = [];
+      // ─── Markdown table detection ─────────────────────────────────────
+      // Four formats supported:
+      //  1. Pipe-separated with separator: | a | b | / |---| / | c | d |
+      //  2. Pipe-separated without separator (LLMs sometimes skip the
+      //     separator line): | a | b | / | c | d | — treat first row as
+      //     header, rest as body.
+      //  3. Tab-separated (LLMs frequently use tabs in batch reports):
+      //     col1\tcol2 / col3\tcol4 — uniform column count → render as table.
+      //  4. Multi-space-separated (>=2 spaces between cells) — same logic.
+      // ─────────────────────────────────────────────────────────────────
+      const trimmed = line.trim();
+      const isPipeTable = trimmed.startsWith('|');
+      const hasPipeSep = isPipeTable && i + 1 < lines.length &&
+        /^\s*\|?[\s|:-]+\|?\s*$/.test(lines[i + 1]) && /[\s|:-]---/.test(lines[i + 1]);
+      const tabCount = (line.match(/\t/g) || []).length;
+      const multiSpaceSplit = !isPipeTable && tabCount === 0 &&
+        /[^\s]\s{2,}[^\s]/.test(line) && line.split(/\s{2,}/).length >= 2;
+      const isTabTable = !isPipeTable && tabCount >= 1 &&
+        // At least 2 more lines with same column count = continuation
+        (i + 1 < lines.length && (lines[i + 1].match(/\t/g) || []).length === tabCount);
+
+      // Pipe table (with or without separator)
+      if (isPipeTable) {
+        const headerCells = trimmed.replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+        let dataRows: string[][] = [];
+        if (hasPipeSep) {
+          i += 2; // skip header + separator
+        } else {
+          i += 1; // no separator — first row is header
+        }
         while (i < lines.length && lines[i].trim().startsWith('|')) {
-          rows.push(lines[i].trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim()));
+          dataRows.push(lines[i].trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim()));
           i++;
         }
-        out.push('<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;">');
-        out.push('<thead><tr>');
-        for (const h of headerCells) {
-          out.push(`<th style="background:#f5f0ea;font-weight:600;text-align:left;padding:8px 12px;border-bottom:2px solid #e8e4dd;">${renderInline(h)}</th>`);
-        }
-        out.push('</tr></thead><tbody>');
-        for (const row of rows) {
-          out.push('<tr>');
-          for (const c of row) {
-            out.push(`<td style="padding:8px 12px;border-bottom:1px solid #f0ece6;">${renderInline(c)}</td>`);
+        if (dataRows.length === 0) {
+          // No body rows — emit as a single-row table so the data still shows
+          out.push('<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;">');
+          out.push('<thead><tr>');
+          for (const h of headerCells) {
+            out.push(`<th style="background:#f5f0ea;font-weight:600;text-align:left;padding:8px 12px;border-bottom:2px solid #e8e4dd;">${renderInline(h)}</th>`);
           }
-          out.push('</tr>');
+          out.push('</tr></thead></table>');
+        } else {
+          out.push('<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;">');
+          out.push('<thead><tr>');
+          for (const h of headerCells) {
+            out.push(`<th style="background:#f5f0ea;font-weight:600;text-align:left;padding:8px 12px;border-bottom:2px solid #e8e4dd;">${renderInline(h)}</th>`);
+          }
+          out.push('</tr></thead><tbody>');
+          for (const row of dataRows) {
+            out.push('<tr>');
+            for (const c of row) {
+              out.push(`<td style="padding:8px 12px;border-bottom:1px solid #f0ece6;">${renderInline(c)}</td>`);
+            }
+            out.push('</tr>');
+          }
+          out.push('</tbody></table>');
         }
-        out.push('</tbody></table>');
         continue;
+      }
+
+      // Tab-separated or multi-space-separated table
+      if (isTabTable || multiSpaceSplit) {
+        const split = (s: string) => isTabTable ? s.split('\t').map(c => c.trim()) : s.split(/\s{2,}/).map(c => c.trim());
+        const headerCells = split(line);
+        i++;
+        const dataRows: string[][] = [];
+        while (i < lines.length) {
+          const next = lines[i];
+          if (next.trim() === '') break;
+          const nextTabs = (next.match(/\t/g) || []).length;
+          const nextSpaces = !isTabTable && /[^\s]\s{2,}[^\s]/.test(next) ? next.split(/\s{2,}/).length - 1 : 0;
+          // Continuation: same column count as header
+          if (isTabTable && nextTabs === tabCount) {
+            dataRows.push(split(next));
+            i++;
+          } else if (!isTabTable && nextSpaces > 0 && next.split(/\s{2,}/).length === headerCells.length) {
+            dataRows.push(split(next));
+            i++;
+          } else {
+            break;
+          }
+        }
+        if (dataRows.length > 0) {
+          out.push('<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;">');
+          out.push('<thead><tr>');
+          for (const h of headerCells) {
+            out.push(`<th style="background:#f5f0ea;font-weight:600;text-align:left;padding:8px 12px;border-bottom:2px solid #e8e4dd;">${renderInline(h)}</th>`);
+          }
+          out.push('</tr></thead><tbody>');
+          for (const row of dataRows) {
+            out.push('<tr>');
+            for (const c of row) {
+              out.push(`<td style="padding:8px 12px;border-bottom:1px solid #f0ece6;">${renderInline(c)}</td>`);
+            }
+            out.push('</tr>');
+          }
+          out.push('</tbody></table>');
+          continue;
+        }
+        // Fall through to paragraph handling if no data rows
       }
       // Headings
       const h3 = line.match(/^###\s+(.*)$/);
