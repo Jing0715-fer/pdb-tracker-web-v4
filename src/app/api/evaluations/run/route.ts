@@ -224,13 +224,19 @@ export async function POST(req: Request) {
           emit({ stage: 'blast', level: 'error', message: `${prefix}BLAST pdbaa 失败：${err?.message}`, progress: 40 });
         }
 
-        // Convert BLAST hits to PDB-like details for scoring and report
-        const pdbDetails: PdbEntryDetail[] = blastHits.map((h: any) => ({
-          pdbId: h.pdbId, method: h.method || 'X-RAY DIFFRACTION', resolution: h.resolution ?? null,
-          title: h.description || h.title || '', journal: h.journal || '', journalIf: h.journalIf ?? null,
-          doi: null, pubmedId: h.pubmedId || null, organisms: h.organism || '',
-          authors: '', ligands: '', depositDate: null, releaseDate: h.releaseDate || null,
-        }));
+        // Build pdbDetails from BLAST hits. For pdbaa hits, pdbId is real.
+        // For nr hits, pdbId is empty (we never extract fake pdbIds from
+        // UniProt accessions — see parseBlastXml in src/lib/blast.ts). The
+        // real pdb list for nr-fallback path comes from UniProt → RCSB lookup
+        // below, AFTER we have the uniprotAcc.
+        let pdbDetails: PdbEntryDetail[] = blastHits
+          .filter((h: any) => h.pdbId)  // skip nr hits with empty pdbId
+          .map((h: any) => ({
+            pdbId: h.pdbId, method: h.method || 'X-RAY DIFFRACTION', resolution: h.resolution ?? null,
+            title: h.description || h.title || '', journal: h.journal || '', journalIf: h.journalIf ?? null,
+            doi: null, pubmedId: h.pubmedId || null, organisms: h.organism || '',
+            authors: '', ligands: '', depositDate: null, releaseDate: h.releaseDate || null,
+          }));
 
         // ── Fetch UniProt metadata from the top BLAST hit ──
         let uniprotInfo: any = { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length };
@@ -283,6 +289,36 @@ export async function POST(req: Request) {
               }
             } else {
               emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}未找到关联的 UniProt accession`, progress: 46 });
+            }
+
+            // ── nr-fallback path: fetch REAL PDB IDs from UniProt → RCSB ──
+            // The nr BLAST hit's pdbId is empty (parseBlastXml never extracts
+            // a fake one from a UniProt accession). To get a real PDB list
+            // for scoring + the LLM report, query RCSB by the UniProt accession
+            // we just resolved. We MERGE these with any pdbaa hits already in
+            // pdbDetails (in case some pdbaa hits survived the threshold), and
+            // dedup by pdbId. UniProt-sourced entries take priority (they carry
+            // proper RCSB metadata: method, resolution, journal, pubmedId).
+            if (usedNrFallback && uniprotAcc) {
+              emit({ stage: 'rcsb-from-uniprot', level: 'info', message: `${prefix}nr-fallback 路径: 从 UniProt ${uniprotAcc} 反查真实 PDB ID（最多 ${maxPdb}）…`, progress: 47 });
+              try {
+                const uniprotPdbIds = await fetchPdbIdsForUniprot(uniprotAcc, maxPdb);
+                if (uniprotPdbIds.length > 0) {
+                  const uniprotPdbDetails = await fetchPdbEntryDetails(uniprotPdbIds, uniprotPdbIds.length);
+                  // Dedup: prefer UniProt-sourced entries (full RCSB metadata)
+                  // over any leftover pdbaa hits that happen to share a pdbId.
+                  const seenPdbIds = new Set(uniprotPdbDetails.map(e => e.pdbId));
+                  pdbDetails = [
+                    ...uniprotPdbDetails,
+                    ...pdbDetails.filter(e => !seenPdbIds.has(e.pdbId)),
+                  ];
+                  emit({ stage: 'rcsb-from-uniprot', level: 'success', message: `${prefix}✓ UniProt ${uniprotAcc} → RCSB 反查命中 ${uniprotPdbDetails.length} 个真实 PDB（合并后 ${pdbDetails.length}）`, progress: 48 });
+                } else {
+                  emit({ stage: 'rcsb-from-uniprot', level: 'warn', message: `${prefix}UniProt ${uniprotAcc} 在 RCSB 中无关联 PDB`, progress: 48 });
+                }
+              } catch (rcsbErr: any) {
+                emit({ stage: 'rcsb-from-uniprot', level: 'warn', message: `${prefix}RCSB 反查失败: ${rcsbErr?.message}`, progress: 48 });
+              }
             }
           } catch (err: any) {
             emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}UniProt 查找失败: ${err?.message}`, progress: 46 });

@@ -98,7 +98,7 @@ export async function runBlastDb(sequence: string, maxHits = 20, database = 'pdb
     const xml = await pollRes.text();
     if (xml.includes('<BlastOutput>') || xml.includes('<BlastOutput_iterations>')) {
       onProgress?.(`BLAST 完成，解析结果…`);
-      const raw = parseBlastXml(xml);
+      const raw = parseBlastXml(xml, database as 'pdbaa' | 'nr');
       // Dedup (same PDB can appear multiple times — one entry per chain
       // / per HSP region) and classify each hit as direct homolog vs
       // structural homolog before returning. Downstream code consumes
@@ -119,7 +119,7 @@ export async function runBlast(sequence: string, maxHits = 20, onProgress?: (msg
   return runBlastDb(sequence, maxHits, 'pdbaa', onProgress);
 }
 
-function parseBlastXml(xml: string): BlastHit[] {
+function parseBlastXml(xml: string, database: 'pdbaa' | 'nr' = 'pdbaa'): BlastHit[] {
   const hits: BlastHit[] = [];
   const hitRe = /<Hit>([\s\S]*?)<\/Hit>/g;
   let m: RegExpExecArray | null;
@@ -128,8 +128,17 @@ function parseBlastXml(xml: string): BlastHit[] {
     const def = h.match(/<Hit_def>([\s\S]*?)<\/Hit_def>/)?.[1]?.trim() || '';
     const acc = h.match(/<Hit_accession>([\s\S]*?)<\/Hit_accession>/)?.[1]?.trim() || '';
     if (!acc) continue;
-    const pdbIdMatch = acc.match(/^([0-9][A-Za-z0-9]{3})([A-Za-z]?)/);
-    const pdbId = pdbIdMatch ? pdbIdMatch[1] : acc.slice(0, 4);
+    // PDB IDs are 4 chars: 1 digit + 3 alphanumeric. Only extract from pdbaa
+    // (real PDB database). For 'nr' (non-redundant protein), accession is a
+    // UniProt ref like XP_044355816 or KAF7035568.1 — extracting the first
+    // 4 chars produces FAKE pdbIds (e.g. "XP_0", "KAF7") that pollute the
+    // pdbDetails list. So we leave pdbId empty for nr hits and rely on
+    // UniProt → PDB lookup downstream.
+    let pdbId = '';
+    if (database === 'pdbaa') {
+      const pdbIdMatch = acc.match(/^([0-9][A-Za-z0-9]{3})([A-Za-z]?)/);
+      pdbId = pdbIdMatch ? pdbIdMatch[1] : acc.slice(0, 4);
+    }
     const firstHsp = /<Hsp>([\s\S]*?)<\/Hsp>/.exec(h);
     let identity = 0; let evalue = '0'; let queryCoverage = 0;
     if (firstHsp) {
