@@ -1,0 +1,111 @@
+# PDB Structure Tracker — CI/CD pipeline
+#
+# Triggers on every push to `main` and on every pull request. The pipeline:
+#   1. Installs dependencies with Bun (cached).
+#   2. Restores the Next.js build cache (`.next/cache`) + `node_modules`.
+#   3. Runs ESLint via `bun run lint` on every trigger.
+#   4. Runs `bun run build` ONLY on pushes to `main` (PRs skip the expensive
+#      production build to keep PR feedback fast — lint is enough to catch
+#      most issues; the build runs on merge).
+#
+# The build job is gated behind an `if` so it can be reused / extended later
+# (e.g. to deploy on success) without touching the lint job.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel in-flight runs for the same ref when a new commit lands. Saves CI
+# minutes on rapid push sequences.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .cache/bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run ESLint
+        run: bun run lint
+
+  build:
+    name: Build
+    # Only build on pushes to main — PRs rely on the lint job above.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Cache node_modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            node_modules
+            .cache/bun
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock', 'package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: |
+            .next/cache
+          # Bump the suffix when the build toolchain changes in a way that
+          # invalidates the cache (Next.js major, webpack config, etc.).
+          key: ${{ runner.os }}-nextcache-${{ hashFiles('bun.lock', 'package.json', 'next.config.ts') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-nextcache-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+        env:
+          # The build does not need a live database; telemetry off to keep
+          # logs clean.
+          NEXT_TELEMETRY_DISABLED: '1'
