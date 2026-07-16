@@ -1,6 +1,6 @@
 import { sseStream, sleep, type SseEvent } from '@/lib/sse';
 import { generateText } from '@/lib/llm';
-import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, type ReportChapterKey } from '@/lib/report-template';
+import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, buildChapterSystemPrompt, type ReportChapterKey } from '@/lib/report-template';
 import { fetchPdbIdsForUniprot, fetchPdbEntryDetails, fetchUniprotMeta, type PdbEntryDetail } from '@/lib/rcsb';
 import { runBlast, runBlastDb, fetchUniprotSequence } from '@/lib/blast';
 import { db } from '@/lib/db';
@@ -782,7 +782,7 @@ ${overlapSummary}${crossLitBlock}
           emit({ stage: 'chapter', level: 'info', message: `[${chapterIdx}/${totalChapters}] ${labelOf(ck)} — 开始生成`, progress: baseProgress, chapter: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
 
           const userPrompt = buildChapterPrompt({ ...reportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
-          const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
+          const sysPrompt = buildChapterSystemPrompt();
 
           const t0 = Date.now();
           const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
@@ -1054,7 +1054,7 @@ ${overlapSummary}${crossLitBlock}
                   const chapterIdx = i + 1;
                   emit({ stage: `batch-${bi}-chapter`, level: 'info', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} — 开始生成`, progress: windowStart + 5, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
                   const userPrompt = buildChapterPrompt({ ...bReportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
-                  const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
+                  const sysPrompt = buildChapterSystemPrompt();
                   const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
                   if (r.ok) {
                     perChapterOkCount++;
