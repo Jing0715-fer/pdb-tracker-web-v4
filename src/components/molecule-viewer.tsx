@@ -554,7 +554,7 @@ export function MoleculeViewer({
             setWebglNotAvailable(true);
             setError('WebGL is not available in your browser. Please try a different browser or enable hardware acceleration.');
           } else {
-            setError('Failed to initialize 3D viewer. Please refresh the page.');
+            setError(locale === 'zh' ? '3D 查看器初始化失败，请刷新页面。' : 'Failed to initialize 3D viewer. Please refresh the page.');
           }
           setLoading(false);
         }
@@ -3442,7 +3442,7 @@ export function MoleculeViewer({
                       type="color"
                       onChange={(e) => handleContextMenuColorChange(e.target.value)}
                       className="w-7 h-7 rounded-md cursor-pointer border border-claude-border bg-transparent"
-                      title="Custom color"
+                      title={locale === "zh" ? "自定义颜色" : "Custom color"}
                     />
                     <span className="text-[8px] text-claude-text-muted">Custom</span>
                   </div>

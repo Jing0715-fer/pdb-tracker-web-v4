@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -188,6 +189,7 @@ interface EvalComparisonProps {
 
 export function EvalComparison({ evaluations }: EvalComparisonProps) {
   const { theme } = useTheme();
+  const { locale } = useI18n();
   const isDark = theme === 'dark';
 
   const [leftId, setLeftId] = useState<string>(evaluations[0]?.uniprotId || '');
@@ -342,7 +344,7 @@ export function EvalComparison({ evaluations }: EvalComparisonProps) {
         {/* Overall Score Comparison */}
         {(leftScores['Overall'] || rightScores['Overall']) && (
           <ComparisonScoreBar
-            label="Overall"
+            label={locale === "zh" ? "总体" : "Overall"}
             leftScore={leftScores['Overall']?.score ?? 0}
             rightScore={rightScores['Overall']?.score ?? 0}
             maxScore={leftScores['Overall']?.max ?? rightScores['Overall']?.max ?? 10}
@@ -364,19 +366,19 @@ export function EvalComparison({ evaluations }: EvalComparisonProps) {
               rightValue={rightEval?.blastResults.length ?? 0}
             />
             <ComparisonMetricRow
-              label="Coverage %"
+              label={locale === "zh" ? "覆盖率 %" : "Coverage %"}
               leftValue={leftEval?.coverage ?? 0}
               rightValue={rightEval?.coverage ?? 0}
               formatFn={(v) => `${v.toFixed(0)}%`}
             />
             <ComparisonMetricRow
-              label="Avg Resolution"
+              label={locale === "zh" ? "平均分辨率" : "Avg Resolution"}
               leftValue={getAvgRes(leftEval)}
               rightValue={getAvgRes(rightEval)}
               formatFn={(v) => v > 0 ? `${v.toFixed(2)}Å` : '—'}
             />
             <ComparisonMetricRow
-              label="Cryo-EM Count"
+              label={locale === "zh" ? "Cryo-EM 数量" : "Cryo-EM Count"}
               leftValue={leftMethods.cryoem}
               rightValue={rightMethods.cryoem}
             />
@@ -391,7 +393,7 @@ export function EvalComparison({ evaluations }: EvalComparisonProps) {
               rightValue={rightMethods.nmr}
             />
             <ComparisonMetricRow
-              label="Sequence Length"
+              label={locale === "zh" ? "序列长度" : "Sequence Length"}
               leftValue={leftEval?.sequenceLength ?? 0}
               rightValue={rightEval?.sequenceLength ?? 0}
               formatFn={(v) => v > 0 ? `${v} aa` : '—'}

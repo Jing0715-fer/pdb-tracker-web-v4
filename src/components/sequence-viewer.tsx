@@ -229,7 +229,7 @@ export function SequenceView({
               <button
                 onClick={clearRange}
                 className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent-light transition-colors ml-1"
-                title="Clear range"
+                title={locale === "zh" ? "清除范围" : "Clear range"}
               >
                 <X className="w-2.5 h-2.5" />
               </button>
@@ -252,7 +252,7 @@ export function SequenceView({
             }).catch(() => {});
           }}
           className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent-light transition-colors text-[8px] flex items-center gap-0.5"
-          title="Copy sequence"
+          title={locale === "zh" ? "复制序列" : "Copy sequence"}
         >
           <Copy className="w-2.5 h-2.5" />
           <span>{t.copy}</span>

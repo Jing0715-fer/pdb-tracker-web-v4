@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -168,7 +169,7 @@ export function FilterPresets({ currentFilters, onApplyPreset, activePresetId }:
                 type="text"
                 value={newPresetName}
                 onChange={e => setNewPresetName(e.target.value)}
-                placeholder="Preset name..."
+                placeholder={locale === "zh" ? "预设名称…" : "Preset name..."}
                 className="glass-input flex-1 px-2 py-1 text-sm rounded-md"
                 onKeyDown={e => e.key === 'Enter' && handleSavePreset()}
                 autoFocus

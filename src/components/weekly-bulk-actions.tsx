@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import {
@@ -42,6 +43,7 @@ export function WeeklyBulkActions({
   onBatchTag,
   canCompare,
 }: WeeklyBulkActionsProps) {
+  const { locale } = useI18n();
   const [tagDialogOpen, setTagDialogOpen] = useState(false);
   const [tagInput, setTagInput] = useState('');
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -182,7 +184,7 @@ export function WeeklyBulkActions({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p>{mostBookmarked ? 'Remove bookmark from all selected' : 'Add bookmark to all selected'}</p>
+                <p>{mostBookmarked ? (locale === 'zh' ? '移除所有选中的收藏' : 'Remove bookmark from all selected') : (locale === 'zh' ? '收藏所有选中' : 'Add bookmark to all selected')}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -200,7 +202,7 @@ export function WeeklyBulkActions({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p>Add a tag to all selected entries</p>
+                <p>{locale === "zh" ? "为所有选中条目添加标签" : "Add a tag to all selected entries"}</p>
               </TooltipContent>
             </Tooltip>
 
@@ -220,7 +222,7 @@ export function WeeklyBulkActions({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="top">
-                  <p>Export selected entries as CSV or JSON</p>
+                  <p>{locale === "zh" ? "导出选中条目为 CSV 或 JSON" : "Export selected entries as CSV or JSON"}</p>
                 </TooltipContent>
               </Tooltip>
 
@@ -267,7 +269,7 @@ export function WeeklyBulkActions({
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="top">
-                <p>{canCompare ? 'Compare selected structures side by side' : 'Select 2-4 structures to compare'}</p>
+                <p>{canCompare ? (locale === 'zh' ? '并排比较选中的结构' : 'Compare selected structures side by side') : (locale === 'zh' ? '选择 2-4 个结构进行比较' : 'Select 2-4 structures to compare')}</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -289,7 +291,7 @@ export function WeeklyBulkActions({
               </Button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>Deselect all entries</p>
+              <p>{locale === "zh" ? "取消选择所有条目" : "Deselect all entries"}</p>
             </TooltipContent>
           </Tooltip>
 

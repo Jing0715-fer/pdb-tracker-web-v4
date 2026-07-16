@@ -1331,7 +1331,7 @@ export function PdbDetailPanel({
                 <button
                   onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(effectiveEntry.pdbId).then(() => toast('Copied PDB ID')).catch(() => {}); }}
                   className="inline-flex items-center justify-center h-5 w-5 rounded text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent-light/50 transition-colors"
-                  title="Copy PDB ID"
+                  title={locale === "zh" ? "复制 PDB ID" : "Copy PDB ID"}
                 >
                   <Copy className="h-3 w-3" />
                 </button>
@@ -1399,7 +1399,7 @@ export function PdbDetailPanel({
               <button
                 onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(effectiveEntry.pdbId).then(() => toast('Copied PDB ID')).catch(() => {}); }}
                 className="inline-flex items-center justify-center h-5 w-5 rounded text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent-light/50 transition-colors"
-                title="Copy PDB ID"
+                title={locale === "zh" ? "复制 PDB ID" : "Copy PDB ID"}
               >
                 <Copy className="h-3 w-3" />
               </button>

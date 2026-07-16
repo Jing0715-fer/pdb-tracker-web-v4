@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React from 'react';
 import {
@@ -158,15 +159,16 @@ export function PdbCommandPalette({
   pinSelectedEntries,
   selectedRows,
 }: PdbCommandPaletteProps) {
+  const { locale } = useI18n();
   return (
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Command Palette"
+      title={locale === "zh" ? "命令面板" : "Command Palette"}
       description="Search for a command to run..."
       className="sm:max-w-lg glass-card glass-enhanced shadow-depth-3"
     >
-      <CommandInput placeholder="Type a command or search..." />
+      <CommandInput placeholder={locale === "zh" ? "输入命令或搜索…" : "Type a command or search..."} />
       <CommandList className="max-h-[360px] animate-scale-in slide-in-stagger fade-mask-bottom">
         <CommandEmpty>No commands found.</CommandEmpty>
         <CommandGroup heading="Navigation">

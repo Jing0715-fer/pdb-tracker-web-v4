@@ -271,7 +271,7 @@ export function KeyboardShortcutsPanel({ open, onOpenChange }: KeyboardShortcuts
             {locale === 'zh' ? (
               <>在搜索或输入框中输入时快捷键将被禁用 · 按 <Kbd>?</Kbd> 重新打开此面板</>
             ) : (
-              <>Shortcuts are disabled when typing in search or input fields · Press <Kbd>?</Kbd> to reopen this panel</>
+              <>{locale === 'zh' ? '在搜索或输入框中输入时快捷键已禁用 · 按 ' : 'Shortcuts are disabled when typing in search or input fields · Press '}<Kbd>?</Kbd>{locale === 'zh' ? ' 重新打开此面板' : ' to reopen this panel'}</>
             )}
           </p>
         </div>

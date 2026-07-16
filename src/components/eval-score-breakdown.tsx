@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import {
@@ -475,6 +476,7 @@ export function EvalScoreBreakdown({
   evaluation,
   allEvaluations,
 }: EvalScoreBreakdownProps) {
+  const { locale } = useI18n();
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
 
@@ -611,9 +613,9 @@ export function EvalScoreBreakdown({
       <div className="grid grid-cols-2 gap-3">
         <MetricCard
           icon={Shield}
-          label="Coverage"
+          label={locale === "zh" ? "覆盖率" : "Coverage"}
           value={`${Math.round(metrics.coverage)}%`}
-          sublabel="Structure coverage"
+          sublabel={locale === "zh" ? "结构覆盖度" : "Structure coverage"}
           progress={metrics.coverage}
           progressColor={getProgressColor(metrics.coverage)}
           delay={100}
@@ -642,9 +644,9 @@ export function EvalScoreBreakdown({
         />
         <MetricCard
           icon={CheckCircle2}
-          label="Completeness"
+          label={locale === "zh" ? "完整度" : "Completeness"}
           value={`${metrics.completeness}%`}
-          sublabel="Fields populated"
+          sublabel={locale === "zh" ? "已填充字段" : "Fields populated"}
           progress={metrics.completeness}
           progressColor={getProgressColor(metrics.completeness)}
           delay={400}

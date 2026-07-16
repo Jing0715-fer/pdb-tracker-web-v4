@@ -4541,7 +4541,7 @@ export default function PdbTracker() {
             <button
               onClick={() => setFetchError(null)}
               className="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
-              aria-label="Dismiss banner"
+              aria-label={locale === "zh" ? "关闭横幅" : "Dismiss banner"}
             >
               <X className="h-3.5 w-3.5" />
             </button>

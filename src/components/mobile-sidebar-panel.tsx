@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -40,7 +41,7 @@ export default function MobileSidebarPanel({ open, onClose, sidebarProps }: Mobi
               <button
                 onClick={onClose}
                 className="h-7 w-7 flex items-center justify-center rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border transition-colors duration-150 btn-press-subtle"
-                aria-label="Close navigation menu"
+                aria-label={locale === "zh" ? "关闭导航菜单" : "Close navigation menu"}
               >
                 <X className="h-4 w-4 text-claude-text-muted" />
               </button>

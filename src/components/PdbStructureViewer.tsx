@@ -947,7 +947,7 @@ export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }
             setWebglNotAvailable(true);
             setError('WebGL is not available. Please try a different browser.');
           } else {
-            setError('Failed to initialize 3D viewer. Please refresh the page.');
+            setError(locale === 'zh' ? '3D 查看器初始化失败，请刷新页面。' : 'Failed to initialize 3D viewer. Please refresh the page.');
           }
           setLoading(false);
         }

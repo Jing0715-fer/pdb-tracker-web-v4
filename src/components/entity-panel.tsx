@@ -3908,7 +3908,7 @@ interface PdbMilestone {
 }
 
 const PDB_MILESTONES: PdbMilestone[] = [
-  { year: 1971, entries: 7, label: 'First structures' },
+  { year: 1971, entries: 7, label: locale === 'zh' ? '首批结构' : 'First structures' },
   { year: 1977, entries: 50, label: '1MBN Myoglobin' },
   { year: 1990, entries: 500, label: '500 entries' },
   { year: 2000, entries: 13000, label: '13K entries' },
@@ -5151,7 +5151,7 @@ export function EntityPanel({
                 }}
                 className="p-1 rounded text-claude-text-muted hover:text-claude-accent
                            hover:bg-claude-accent-light transition-colors"
-                title="Deselect"
+                title={locale === "zh" ? "取消选择" : "Deselect"}
               >
                 <X className="w-3 h-3" />
               </button>

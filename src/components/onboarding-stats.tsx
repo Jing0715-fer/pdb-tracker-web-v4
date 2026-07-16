@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -63,6 +64,7 @@ export function OnboardingStats({
   onDismiss,
   onExplore,
 }: OnboardingStatsProps) {
+  const { locale } = useI18n();
   const stats = [
     {
       icon: Database,
@@ -121,7 +123,7 @@ export function OnboardingStats({
           <button
             onClick={onDismiss}
             className="h-7 w-7 flex items-center justify-center rounded-md text-claude-text-muted hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors flex-shrink-0 mt-0.5"
-            aria-label="Dismiss"
+            aria-label={locale === "zh" ? "关闭" : "Dismiss"}
           >
             <X className="h-4 w-4" />
           </button>

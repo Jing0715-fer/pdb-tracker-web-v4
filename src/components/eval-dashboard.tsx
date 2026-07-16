@@ -829,7 +829,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 [grid-auto-rows:1fr]">
           {/* Total Evaluations */}
           <EnhancedStatCard
-            title="Total Evaluations"
+            title={locale === "zh" ? "评估总数" : "Total Evaluations"}
             value={stats.total}
             icon={<Activity className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#2d8f8f] to-[#1a6b6b]"
@@ -849,7 +849,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
           {/* Avg Coverage */}
           <EnhancedStatCard
-            title="Avg Coverage"
+            title={locale === "zh" ? "平均覆盖率" : "Avg Coverage"}
             value={stats.avgCoverage}
             suffix="%"
             decimals={1}
@@ -868,7 +868,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
           {/* Top Score */}
           <EnhancedStatCard
-            title="Top Score"
+            title={locale === "zh" ? "最高评分" : "Top Score"}
             value={stats.topScore * 100}
             suffix="%"
             decimals={0}
@@ -893,7 +893,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
           {/* Completion Rate */}
           <EnhancedStatCard
-            title="Completion Rate"
+            title={locale === "zh" ? "完成率" : "Completion Rate"}
             value={stats.completionRate}
             suffix="%"
             decimals={0}

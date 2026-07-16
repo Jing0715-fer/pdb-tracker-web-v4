@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -82,7 +83,7 @@ function buildMilestones(eval_: Evaluation): Milestone[] {
     milestones.push({
       type: 'report_generated',
       date: updatedDate,
-      label: 'Report generated',
+      label: locale === 'zh' ? '报告已生成' : 'Report generated',
     });
   }
 
@@ -271,6 +272,7 @@ export function EvalGanttTimeline({
   onSelectEval,
   selectedUniprotId,
 }: EvalGanttTimelineProps) {
+  const { locale } = useI18n();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 

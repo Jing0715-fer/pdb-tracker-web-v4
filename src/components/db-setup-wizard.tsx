@@ -191,7 +191,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       const data = await safeJson(res)
       setDbList(data.databases || [])
     } catch (err: any) {
-      setDbListError(err?.message || 'Failed to load list')
+      setDbListError(err?.message || (locale === 'zh' ? '加载列表失败' : 'Failed to load list'))
       setDbList([])
     } finally {
       setDbListLoading(false)

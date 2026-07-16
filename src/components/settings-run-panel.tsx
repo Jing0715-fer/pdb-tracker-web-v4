@@ -1187,10 +1187,10 @@ export function SettingsRunPanel({
         // newly-active database — keeps the dashboard in sync.
         onDbChanged?.();
       } else {
-        setDbPathStatus(`✗ ${data.error || 'Save failed'}`);
+        setDbPathStatus(`✗ ${data.error || (locale === 'zh' ? '保存失败' : 'Save failed')}`);
       }
     } catch (err: any) {
-      setDbPathStatus(`✗ ${err?.message || 'Network error'}`);
+      setDbPathStatus(`✗ ${err?.message || (locale === 'zh' ? '网络错误' : 'Network error')}`);
     } finally {
       setDbPathSaving(false);
     }
@@ -1418,7 +1418,7 @@ export function SettingsRunPanel({
       const res = await fetch('/api/literature/daily/reports');
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        setLitViewingDigest({ date, content: '', loading: false, error: 'Server not responding' });
+        setLitViewingDigest({ date, content: '', loading: false, error: (locale === 'zh' ? '服务器无响应' : 'Server not responding') });
         return;
       }
       const data = await res.json();
@@ -1431,7 +1431,7 @@ export function SettingsRunPanel({
         setLitViewingDigest({ date, content: '', loading: false, error: `No LLM digest archived for ${date}. Run a literature search to generate a digest first.` });
       }
     } catch (err: any) {
-      setLitViewingDigest({ date, content: '', loading: false, error: err?.message || 'Network error' });
+      setLitViewingDigest({ date, content: '', loading: false, error: err?.message || (locale === 'zh' ? '网络错误' : 'Network error') });
     }
   }, []);
 
@@ -1736,7 +1736,7 @@ export function SettingsRunPanel({
                     ? 'border-primary/50 bg-primary/10 text-foreground font-medium shadow-sm'
                     : 'border-border/60 text-muted-foreground hover:text-foreground hover:border-border'
                 }`}
-                title="Let server auto-select in CLI → SDK order"
+                title={locale === 'zh' ? '让服务器按 CLI → SDK 顺序自动选择' : 'Let server auto-select in CLI → SDK order'}
               >
                 <Sparkles className="h-2 w-2" />
                 <span>auto</span>
@@ -1823,7 +1823,7 @@ export function SettingsRunPanel({
 
           <div className="mt-1.5 text-xs text-muted-foreground/60">
             {chosenProvider === AUTO_PROVIDER
-              ? 'Auto mode: server auto-selects in CLI → SDK order. Locked provider shows 🔒'
+              ? (locale === 'zh' ? '自动模式：服务器按 CLI → SDK 顺序自动选，锁定的 provider 显示 🔒' : 'Auto mode: server auto-selects in CLI → SDK order. Locked provider shows 🔒')
               : `Locked to ${chosenProvider}. Click auto or another provider to switch.`}
           </div>
 
@@ -2066,7 +2066,7 @@ export function SettingsRunPanel({
                         placeholder={evalSeqType === 'dna'
                           ? (locale === 'zh'
                               ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nATGGCGAGC...\n\nATGTTACGT...'
-                              : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...')
+                              : locale === 'zh' ? '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nATGGCGAGC...\n\nATGTTACGT...' : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...')
                           : (locale === 'zh'
                               ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nMAGSCKLP...\n\nMKLTVFGV...'
                               : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nMAGSCKLP...\n\nMKLTVFGV...')}
