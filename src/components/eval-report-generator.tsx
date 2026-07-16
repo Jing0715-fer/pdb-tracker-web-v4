@@ -85,6 +85,7 @@ export function EvalReportGenerator({
   ]);
 
   const [showPreview, setShowPreview] = useState(false);
+  const [view, setView] = useState<'data' | 'llm'>('data');
 
   const toggleSection = useCallback((id: string) => {
     setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -339,6 +340,135 @@ export function EvalReportGenerator({
     return html;
   }, [evaluation, reportTitle, enabledSections, includeCharts, coverage, overallScore, scoreEntries]);
 
+  // ─── LLM Report (markdown → HTML) ────────────────────────────────────────
+  // The LLM chapter-mode generates full markdown with §N.M sub-sections, tables,
+  // bold/italic, code spans, lists. We render it as a self-contained HTML page
+  // (same shape as reportHtml) and toggle the iframe via `view` state.
+  // No new dependency — small inline converter handles headings, tables, code,
+  // lists, bold/italic. Tables are critical because Fix 1+3 (chapter template)
+  // includes the "## 4.1 评估维度对比" markdown table.
+  const escapeHtml = (s: string): string =>
+    s.replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+
+  const renderInline = (text: string): string => {
+    // Order matters: escape first, then apply inline markdown on the safe string
+    let s = escapeHtml(text);
+    // Inline code: `code`
+    s = s.replace(/`([^`]+)`/g, '<code style="background:#f5f0ea;padding:1px 4px;border-radius:3px;font-family:monospace;font-size:0.9em;color:#c96442;">$1</code>');
+    // Bold: **text**
+    s = s.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // Italic: *text* (not part of **)
+    s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+    // Auto-link http(s) URLs
+    s = s.replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer" style="color:#c96442;text-decoration:underline;">$1</a>');
+    return s;
+  };
+
+  const llmReportHtml = useMemo(() => {
+    if (!evaluation.report) {
+      return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:40px;color:#6b6560;text-align:center;"><p>该评估尚无 LLM 报告。先在 Run Center 重新生成报告。</p></body></html>`;
+    }
+    const md = evaluation.report;
+    const lines = md.split('\n');
+    const out: string[] = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      // Markdown table: line with |...|, followed by |---|---|...|, then rows
+      if (line.trim().startsWith('|') && i + 1 < lines.length && /^\s*\|?[\s|:-]+\|?\s*$/.test(lines[i + 1])) {
+        const headerCells = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+        i += 2; // skip header + separator
+        const rows: string[][] = [];
+        while (i < lines.length && lines[i].trim().startsWith('|')) {
+          rows.push(lines[i].trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim()));
+          i++;
+        }
+        out.push('<table style="width:100%;border-collapse:collapse;margin:14px 0;font-size:13px;">');
+        out.push('<thead><tr>');
+        for (const h of headerCells) {
+          out.push(`<th style="background:#f5f0ea;font-weight:600;text-align:left;padding:8px 12px;border-bottom:2px solid #e8e4dd;">${renderInline(h)}</th>`);
+        }
+        out.push('</tr></thead><tbody>');
+        for (const row of rows) {
+          out.push('<tr>');
+          for (const c of row) {
+            out.push(`<td style="padding:8px 12px;border-bottom:1px solid #f0ece6;">${renderInline(c)}</td>`);
+          }
+          out.push('</tr>');
+        }
+        out.push('</tbody></table>');
+        continue;
+      }
+      // Headings
+      const h3 = line.match(/^###\s+(.*)$/);
+      if (h3) { out.push(`<h3 style="font-size:14px;font-weight:600;color:#4a4a4a;margin:18px 0 8px;">${renderInline(h3[1])}</h3>`); i++; continue; }
+      const h2 = line.match(/^##\s+(.*)$/);
+      if (h2) { out.push(`<h2 style="font-size:17px;font-weight:600;color:#c96442;margin:28px 0 14px;padding-bottom:6px;border-bottom:2px solid #e8e4dd;">${renderInline(h2[1])}</h2>`); i++; continue; }
+      const h1 = line.match(/^#\s+(.*)$/);
+      if (h1) { out.push(`<h1 style="font-size:22px;font-weight:700;color:#1a1a1a;margin:0 0 12px;">${renderInline(h1[1])}</h1>`); i++; continue; }
+      // Horizontal rule
+      if (/^---+\s*$/.test(line)) { out.push('<hr style="border:0;border-top:1px solid #e8e4dd;margin:20px 0;"/>'); i++; continue; }
+      // Unordered list
+      const ul = line.match(/^(\s*)[-*]\s+(.*)$/);
+      if (ul) {
+        out.push('<ul style="margin:8px 0 12px 24px;font-size:14px;">');
+        while (i < lines.length) {
+          const m = lines[i].match(/^(\s*)[-*]\s+(.*)$/);
+          if (!m) break;
+          out.push(`<li style="margin-bottom:4px;">${renderInline(m[2])}</li>`);
+          i++;
+        }
+        out.push('</ul>');
+        continue;
+      }
+      // Ordered list
+      const ol = line.match(/^(\s*)\d+\.\s+(.*)$/);
+      if (ol) {
+        out.push('<ol style="margin:8px 0 12px 24px;font-size:14px;">');
+        while (i < lines.length) {
+          const m = lines[i].match(/^(\s*)\d+\.\s+(.*)$/);
+          if (!m) break;
+          out.push(`<li style="margin-bottom:4px;">${renderInline(m[2])}</li>`);
+          i++;
+        }
+        out.push('</ol>');
+        continue;
+      }
+      // Empty line
+      if (line.trim() === '') { out.push('<div style="height:6px;"></div>'); i++; continue; }
+      // Plain paragraph: collect consecutive non-empty, non-block-starter lines
+      const paraLines: string[] = [line];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '' && !/^(\s*)[#\-|*]|\d+\.\s/.test(lines[i])) {
+        paraLines.push(lines[i]);
+        i++;
+      }
+      out.push(`<p style="margin:8px 0 12px;font-size:14px;line-height:1.65;">${renderInline(paraLines.join(' '))}</p>`);
+    }
+
+    return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>LLM Report · ${escapeHtml(evaluation.uniprotId)}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif; color: #2d2d2d; line-height: 1.7; max-width: 820px; margin: 0 auto; padding: 32px 28px; background: #fff; }
+    a { color: #c96442; }
+    .footer { margin-top: 48px; padding-top: 16px; border-top: 1px solid #e8e4dd; font-size: 11px; color: #9b9590; text-align: center; }
+  </style>
+</head>
+<body>
+  ${out.join('\n')}
+  <div class="footer">LLM 详细分析报告 · PDB Structure Tracker · ${escapeHtml(evaluation.uniprotId)}</div>
+</body>
+</html>`;
+  }, [evaluation.report, evaluation.uniprotId]);
+
   // ─── Export as HTML ─────────────────────────────────────────────────────
 
   const handleExportHtml = useCallback(() => {
@@ -507,6 +637,30 @@ export function EvalReportGenerator({
                 <div className={`flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 ${
                   isDark ? 'border-[#3d3832]' : 'border-claude-border'
                 }`}>
+                  {/* View toggle: Data Report (static HTML from fields) vs LLM Report (markdown from chapter-mode generation) */}
+                  <div className="flex items-center gap-0.5 rounded-md border border-claude-border dark:border-[#3d3832] overflow-hidden">
+                    <button
+                      onClick={() => setView('data')}
+                      className={`h-7 px-2.5 text-[11px] transition-colors ${
+                        view === 'data'
+                          ? 'bg-claude-accent/10 text-claude-accent font-medium'
+                          : isDark ? 'text-[#9b9590] hover:text-claude-text' : 'text-claude-text-muted hover:text-claude-text'
+                      }`}
+                    >
+                      {locale === 'zh' ? '数据报告' : 'Data Report'}
+                    </button>
+                    <button
+                      onClick={() => setView('llm')}
+                      className={`h-7 px-2.5 text-[11px] transition-colors ${
+                        view === 'llm'
+                          ? 'bg-claude-accent/10 text-claude-accent font-medium'
+                          : isDark ? 'text-[#9b9590] hover:text-claude-text' : 'text-claude-text-muted hover:text-claude-text'
+                      }`}
+                    >
+                      {locale === 'zh' ? 'LLM 分析' : 'LLM Analysis'}
+                    </button>
+                  </div>
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -549,10 +703,10 @@ export function EvalReportGenerator({
                   {showPreview ? (
                     <div ref={previewRef} className="p-4">
                       <iframe
-                        srcDoc={reportHtml}
+                        srcDoc={view === 'llm' ? llmReportHtml : reportHtml}
                         className="w-full border-0 bg-white"
                         style={{ height: '600px', borderRadius: '8px' }}
-                        title={locale === "zh" ? "报告预览" : "Report Preview"}
+                        title={view === 'llm' ? (locale === 'zh' ? 'LLM 报告预览' : 'LLM Report Preview') : (locale === "zh" ? "报告预览" : "Report Preview")}
                         sandbox="allow-same-origin"
                       />
                     </div>
