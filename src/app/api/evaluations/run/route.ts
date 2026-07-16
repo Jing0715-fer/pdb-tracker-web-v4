@@ -896,6 +896,13 @@ ${overlapSummary}${crossLitBlock}
         emit({ stage: 'write-db', level: 'error', message: `✗ 数据库写入失败：${err?.message}`, progress: 99 });
       }
 
+      // P0-2: Free memory after DB write — large arrays no longer needed
+      pdbDetails.length = 0;
+      blastHits.length = 0;
+      if (typeof global.gc === 'function') {
+        try { global.gc(); } catch { /* ignore */ }
+      }
+
       const result = {
         uniprot,
         uniprotInfo,
