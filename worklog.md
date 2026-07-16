@@ -3081,3 +3081,102 @@ Stage Summary:
 - Literature detail panel: fully translated (badges, buttons, AI summary, PDB sections)
 - Chart empty states: "No data" → 暂无数据
 - 0 English remaining in Literature mode Chinese mode
+
+---
+Task ID: p4-devops
+Agent: main
+Task: Create P4 DevOps files (CI/CD, health endpoint, logger, DB backup, API docs) — new files only, no modification of existing source.
+
+Work Log:
+- **`.github/workflows/ci.yml`** — GitHub Actions pipeline. Triggers on push to `main` + all PRs. Two jobs: `lint` (always) + `build` (gated `if: push && ref==main`). Uses `oven-sh/setup-bun@v2` + Node 20. Caches `node_modules` (keyed on `bun.lock`+`package.json`) and `.next/cache` (keyed on lockfile + `next.config.ts`). `concurrency` cancels superseded runs. `bun install --frozen-lockfile` → `bun run lint` → `bun run build`.
+- **`src/app/api/health/route.ts`** — `GET /api/health`. `runtime=nodejs`, `dynamic=force-dynamic`. Imports `db` from `@/lib/db`, runs `db.$queryRaw\`SELECT 1\``. Returns `{status, timestamp, uptime, memory{rss,heapUsed,heapTotal,external}(MB), db:"connected"|"error", version:"1.0.0"}`. 200 ok / 503 degraded. Uses new `createLogger('api/health')` on failure.
+- **`src/lib/logger.ts`** — Structured JSON logger. `LogLevel`/`LogEntry` types as spec'd. `createLogger(module)` → `{debug,info,warn,error,module}`. Each method emits one JSON line via `console.log(JSON.stringify(entry))`. `error(message, error?, data?)` serializes Error/string/object (name+message+stack). Level gating via `LOG_LEVEL` env / `NODE_ENV`. Default `app` logger + named `createLogger` export.
+- **`scripts/backup-db.sh`** — Bash, `set -euo pipefail`. Copies `db/pdb-tracker.db` → `db/backups/pdb-tracker-YYYYMMDD-HHMMSS.db` (UTC). Atomic write (`cp -a` to `.tmp` → `mv`). Prunes to last 7 via `ls -1t`. Logs each line (ISO-UTC) to `db/backups/backup.log` + stdout. Missing source → SKIP + exit 0. Cron-ready: `0 2 * * * /home/z/my-project/scripts/backup-db.sh`. **Verified**: ran once → 163840-byte backup created, log written.
+- **`src/app/api/docs/route.ts`** — `GET /api/docs`. Returns OpenAPI 3.0.3 doc as `application/json; charset=utf-8`, `Cache-Control: no-store`. Info block (title/version/description). All 9 paths documented with summary + parameters + requestBody + typed responses: `GET /api/snapshots`, `GET /api/entries`, `GET /api/evaluations`, `POST /api/evaluations/run`, `DELETE /api/evaluations/{uniprotId}`, `GET|POST /api/db-config`, `GET /api/health`, `POST /api/literature/daily/run`, `POST /api/pdb-weekly/run`. `components.schemas` defines reusable `Error`/`Snapshot`/`PdbEntry`/`Evaluation`/`EvaluationsResponse`/`DbConfig` shapes (cross-referenced against actual route responses).
+
+Verification:
+- `node scripts/lint.mjs` → **0 errors / 0 warnings in the 3 new TS files**. The 3 reported errors are pre-existing in untouched files (`eval-dashboard.tsx:754`, `weekly-structure-compare.tsx:70`) — confirmed by worklog line 3055.
+- Backup script runtime test: produced valid timestamped backup (size matches source) + log entry.
+- No existing source files modified.
+
+Stage Summary:
+- 5 new DevOps files created (CI/CD, health, logger, backup, docs).
+- Lint clean for all new files.
+- Backup script verified end-to-end.
+- Detailed record: `agent-ctx/p4-devops-main.md`.
+
+---
+
+## 2026-07-16 — P3 Advanced Features (plugins + collaboration + citations)
+
+**Agent:** main (task ID: `p3-advanced-features`).
+**Scope:** Create 7 new files only — do NOT modify existing source.
+**Detailed record:** `agent-ctx/p3-advanced-features-main.md`.
+
+### Files created
+
+| # | Path | Purpose |
+|---|------|---------|
+| 1 | `src/lib/plugin-system.ts` | `LLMProviderPlugin` interface + `PluginRegistry` class + process-wide `pluginRegistry` singleton + `callWithPlugin()` fall-through helper |
+| 2 | `src/lib/plugins/sample-provider.ts` | Two mock providers (`sample:echo`, `sample:reverse`) demonstrating the plugin contract + `registerAllSampleProviders()` helper |
+| 3 | `src/lib/eval-plugin.ts` | `EvalModulePlugin` interface (`preEvaluate`/`postScore`/`customScore`) + `EvalPluginRegistry` + singleton `evalPluginRegistry` + safe orchestrators |
+| 4 | `src/app/api/comments/route.ts` | `GET / POST / DELETE /api/comments` — lazy `CREATE TABLE IF NOT EXISTS Comments` + parameterised raw SQL |
+| 5 | `src/app/api/share/route.ts` | `POST /api/share` (snapshot + UUID token) + `GET /api/share` (list) — lazy `Shares` table |
+| 6 | `src/app/api/share/[shareId]/route.ts` | `GET /api/share/{shareId}` — fetch + expiry (404 if missing/expired) |
+| 7 | `src/app/api/citations/route.ts` | `GET /api/citations?pmids=...` — builds `{ nodes, edges }` citation network from PubMed/PDB data |
+
+File 6 is not in the original task list but is required by the spec
+("GET `/api/share/{shareId}`") — Next.js App Router requires a separate
+`[shareId]/route.ts` file for path-parameter routes. Per the constraint
+"only create new files — do NOT modify existing source", creating this
+additional new file is permitted.
+
+### Key design decisions
+
+- **Plugin registries** use `globalThis.__pdb_*` keys (same pattern as
+  `src/lib/db.ts`) so Next.js hot-reload does not duplicate state.
+  `register()` validates required fields and throws `TypeError` on bad
+  input; `listAvailable()` swallows probe failures so a broken plugin
+  never crashes the caller.
+- **Comments / Shares tables** are NOT in the Prisma schema (collaboration
+  feature added after the schema freeze) — both are created lazily with
+  `CREATE TABLE IF NOT EXISTS` on first access via `db.$executeRawUnsafe`.
+  All access uses `?` placeholders → SQL-injection-safe.
+- **Share endpoint** snapshots the full Evaluation (row + PDBs + BLAST)
+  as JSON in `snapshotJson` at share-creation time → shared view is
+  **immutable** (later re-runs don't change what was shared). URL
+  returned is relative (`/api/share/{shareId}`) so the browser resolves
+  origin — works behind the sandbox gateway.
+- **Citation network** builds three edge types: `shared_pdb` (same PDB
+  ID, sourced from both `PdbStructure.pubmedId` AND
+  `EvaluationBlastResult.pubmedId` so citing papers count too),
+  `shared_method` (normalised method: `X-RAY DIFFRACTION` → `x-ray`),
+  `shared_keyword` (tokenised title+abstract, stopword-filtered, ≥4
+  chars). Edge weight = count of shared items. O(N²) with N ≤ 200 →
+  ≤19,900 comparisons — fast enough for a single API call.
+- **Eval plugin orchestrators** (`runPreEvaluate` / `runPostScore` /
+  `runCustomScores`) never throw on a plugin error — failures are
+  `console.error`'d and skipped, so a broken plugin cannot poison the
+  main evaluation pipeline.
+
+### Verification
+
+- `node scripts/lint.mjs` → **324 files scanned, 3 errors, 0 warnings**.
+  The 3 errors are PRE-EXISTING in `eval-dashboard.tsx:754` and
+  `weekly-structure-compare.tsx:70` (same as documented at worklog line
+  3055 and the p4-devops agent-ctx). **0 errors / 0 warnings in any of
+  the 7 new files** — verified by grepping the lint output for all 7
+  file paths (no matches).
+- `npx tsc --noEmit` (project-wide) → 113 TS errors, all pre-existing in
+  untouched files. Grep for the 7 new file paths → ZERO matches.
+- Smoke test (`bun /tmp/smoke.mjs`) imported all 3 plugin-system modules
+  and exercised every public method — register/unregister/list/
+  listAvailable/callWithPlugin (echo + reverse), registerAllSampleProviders,
+  eval runPreEvaluate/runCustomScores/runPostScore. All produced the
+  expected output and printed `SMOKE PASS`.
+
+### Stage summary
+- 7 new files created (5 listed + 2 supporting).
+- Lint clean for all new files.
+- Plugin modules verified end-to-end via direct bun smoke test.
+- No existing source files modified.
