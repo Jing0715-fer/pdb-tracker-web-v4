@@ -1091,7 +1091,6 @@ function computeCliTimeoutMs(adapter: CliAdapter, prompt: string): number {
 function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string | undefined): Promise<string> {
   const rawArgs = adapter.callArgs(prompt, model);
   const timeoutMs = computeCliTimeoutMs(adapter, prompt);
-
   // If the adapter declares an `outputFile`, the CLI writes its final
   // response to a file we control. Pre-create a unique temp file and
   // substitute the literal `$OUTPUT_FILE` token in args with its path.
