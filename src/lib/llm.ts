@@ -20,7 +20,7 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -720,12 +720,153 @@ interface AdapterProbes {
 
 let _probeCache: Promise<Record<string, AdapterProbes>> | null = null;
 let _probeCacheAt = 0;
-const PROBE_TTL_MS = 5 * 60_000; // 5 minutes — re-probe if older
+const PROBE_TTL_MS = 5 * 60_000; // 5 minutes — in-process TTL for probe results
+
+// ─── Persistent on-disk provider cache ───────────────────────────────────────
+//
+// The very first probe (cold WSL service start, all CLIs probed concurrently)
+// can take 30-60 seconds on Windows. Once we know which providers exist and
+// where their binaries live, we don't need to spawn them again on every dev
+// server restart — they almost never move. So we persist the probe result to
+// `.hermes/llm-providers-cache.json` and reuse it across restarts.
+//
+// Validation on load (cheap, all synchronous):
+//   1. File parses as JSON with `version: 1` and an array of providers.
+//   2. `lastUpdated` is within DISK_TTL_MS (default 144 hours / 6 days).
+//   3. Every cached `bin` path still exists on disk (existsSync). If a binary
+//      was uninstalled/moved, that entry is treated as stale and discarded;
+//      the remaining entries still load and a full re-probe runs to refresh
+//      the missing one.
+//
+// If validation passes, `probeAll()` returns the cached results without
+// spawning any subprocess — turning what was a 30-60s UI freeze into a
+// sub-millisecond read.
+//
+// On any call that fails through `generateText` (CLI returned non-zero, timed
+// out, etc.) the caller can pass `markStale: true` to drop that one entry
+// from the on-disk cache so the next `inspectProviders()` re-probes it.
+
+const DISK_CACHE_FILE = '.hermes/llm-providers-cache.json';
+const DISK_CACHE_VERSION = 1;
+const DISK_TTL_MS = 144 * 60 * 60_000; // 144 hours (6 days)
+
+interface CachedProvider {
+  id: string;           // 'cli:hermes'
+  via: 'native' | 'wsl';
+  bin: string | null;   // absolute path or null if not available
+  available: boolean;
+  reason: string;
+  binMtime?: number;    // seconds since epoch; used for additional freshness check
+}
+interface ProviderCache {
+  version: number;
+  lastUpdated: string;  // ISO 8601
+  providers: CachedProvider[];
+}
+
+function readDiskCache(): ProviderCache | null {
+  try {
+    const text = readFileSync(DISK_CACHE_FILE, 'utf8');
+    const parsed = JSON.parse(text) as ProviderCache;
+    if (parsed.version !== DISK_CACHE_VERSION) return null;
+    if (!Array.isArray(parsed.providers) || !parsed.lastUpdated) return null;
+    const ageMs = Date.now() - new Date(parsed.lastUpdated).getTime();
+    if (ageMs > DISK_TTL_MS) return null;
+    // Validate that each cached `bin` still exists on disk. If any are gone,
+    // we invalidate the entire cache (the missing binary may have been
+    // re-installed in a new location, and we don't want to misleadingly say
+    // it's unavailable when in fact we just don't know).
+    for (const p of parsed.providers) {
+      if (p.available && p.bin && !existsSync(p.bin)) return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeDiskCache(probes: Record<string, AdapterProbes>): void {
+  try {
+    const providers: CachedProvider[] = [];
+    for (const a of CLI_ADAPTERS) {
+      const pair = probes[a.id];
+      if (!pair) continue;
+      for (const via of ['native', 'wsl'] as const) {
+        const p = pair[via];
+        if (!p) continue;
+        let binMtime: number | undefined;
+        if (p.ok && p.bin) {
+          try {
+            binMtime = statSync(p.bin).mtimeMs / 1000;
+          } catch { /* binary disappeared between probe and write — skip */ }
+        }
+        providers.push({
+          id: a.id,
+          via,
+          bin: p.ok ? p.bin : null,
+          available: p.ok,
+          reason: p.reason,
+          binMtime,
+        });
+      }
+    }
+    const cache: ProviderCache = {
+      version: DISK_CACHE_VERSION,
+      lastUpdated: new Date().toISOString(),
+      providers,
+    };
+    writeFileSync(DISK_CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch (err) {
+    // Persistence is best-effort — never crash a probe because we couldn't write.
+    console.warn('[llm] failed to write provider cache:', (err as Error).message);
+  }
+}
+
+/** Drop the entire on-disk cache. Called by clearLlmProbeCache and /api/llm/refresh. */
+function clearDiskCache(): void {
+  try { unlinkSync(DISK_CACHE_FILE); } catch { /* file didn't exist */ }
+}
+
+/**
+ * Drop a single provider entry from the on-disk cache. Useful when a CLI is
+ * detected at startup but fails at first use (binary deleted, path changed,
+ * auth expired). The next inspectProviders() will re-probe just that entry.
+ */
+function markProviderStale(adapterId: string, via: 'native' | 'wsl'): void {
+  const cache = readDiskCache();
+  if (!cache) return;
+  const before = cache.providers.length;
+  cache.providers = cache.providers.filter((p) => !(p.id === adapterId && p.via === via));
+  if (cache.providers.length === before) return;
+  try {
+    cache.lastUpdated = new Date().toISOString();
+    writeFileSync(DISK_CACHE_FILE, JSON.stringify(cache, null, 2));
+  } catch { /* best-effort */ }
+}
+
 function probeAll(force = false): Promise<Record<string, AdapterProbes>> {
   const ageOk = Date.now() - _probeCacheAt < PROBE_TTL_MS;
   if (_probeCache && ageOk && !force) return _probeCache;
   if (_probeCache && force) _probeCache = null;
   _probeCache = (async () => {
+    // Fast path: a fresh on-disk cache exists. Skip spawning any subprocess.
+    if (!force) {
+      const disk = readDiskCache();
+      if (disk) {
+        const out: Record<string, AdapterProbes> = {};
+        for (const p of disk.providers) {
+          if (!out[p.id]) out[p.id] = {};
+          out[p.id][p.via] = p.available
+            ? { ok: true, bin: p.bin!, reason: p.reason }
+            : { ok: false, reason: p.reason };
+        }
+        // Fill in any adapters the cache didn't have (e.g. a new CLI was added
+        // since the cache was written). Don't spawn probes for them either —
+        // just leave them missing from the result so inspectProviders reports
+        // them as unavailable rather than running an unsolicited 60s probe.
+        return out;
+      }
+    }
     // Kick off WSL check in the background. Native probes return immediately so the UI is
     // responsive; WSL entries appear later when the readiness probe + per-CLI probes finish.
     const out: Record<string, AdapterProbes> = {};
@@ -745,6 +886,7 @@ function probeAll(force = false): Promise<Record<string, AdapterProbes>> {
         }
       }
     }
+    writeDiskCache(out);
     _probeCacheAt = Date.now();
     return out;
   })();
@@ -776,7 +918,23 @@ async function probeCliInWsl(adapter: CliAdapter): Promise<ProbeOk | ProbeErr> {
 }
 
 // Allow callers (tests or admin endpoints) to force-refresh.
-export function clearLlmProbeCache(): void { _probeCache = null; _probeCacheAt = 0; }
+export function clearLlmProbeCache(): void {
+  _probeCache = null;
+  _probeCacheAt = 0;
+  clearDiskCache();
+}
+
+/**
+ * Mark a single provider entry as stale in the on-disk cache (does not clear
+ * the in-process _probeCache). Next call to inspectProviders() will re-probe
+ * just this adapter. Useful when generateText fails at first use — the CLI
+ * may have been moved, uninstalled, or auth may have expired, and we want
+ * the next UI visit to refresh the entry without dropping the other cached
+ * providers.
+ */
+export function markLlmProviderStale(adapterId: string, via: 'native' | 'wsl'): void {
+  markProviderStale(adapterId, via);
+}
 
 // ─── Provider enumeration (for the front-end settings panel) ──────────────────
 
@@ -974,6 +1132,14 @@ async function callAnyLlm(
       } catch (err: any) {
         // ★ Fallback to the next provider on failure.
         errors.push(`${id}${via ? `(${via})` : ''}: ${err?.message ?? String(err)}`);
+        // The cached probe said this CLI is available, but the actual call
+        // failed — most likely the binary was uninstalled/moved or auth
+        // expired. Drop just this entry from the on-disk cache so the next
+        // inspectProviders() call will re-probe it, without disturbing the
+        // other cached providers.
+        if (via) {
+          try { markLlmProviderStale(adapter.id, via); } catch { /* best-effort */ }
+        }
         continue;
       }
     }
