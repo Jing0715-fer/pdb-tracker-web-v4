@@ -110,6 +110,7 @@ const TOOLTIP_WIDTH = 340;       // px — card width
 const TOOLTIP_GAP = 16;          // px — gap between spotlight and tooltip
 const VIEWPORT_MARGIN = 16;      // px — min distance from viewport edge
 const SPOTLIGHT_PADDING = 6;     // px — padding around target inside the border frame
+const RUN_CENTER_PADDING = 16;  // px — larger padding for Run Center dialog to frame it fully
 const MASK_OPACITY = 0.55;       // dark mask opacity
 
 // ─── Tooltip position computation ────────────────────────────────────────────
@@ -215,6 +216,9 @@ export function TourOverlay({
   const stepConfig = steps[tourStep];
   const isFirstStep = tourStep === 0;
   const isCentered = isFirstStep || isLastStep;
+  // Step 3 (Run Center) uses larger padding to frame the full dialog
+  const isRunCenterStep = tourStep === 3;
+  const activePadding = isRunCenterStep ? RUN_CENTER_PADDING : SPOTLIGHT_PADDING;
 
   const updatePosition = useCallback(() => {
     // Centered steps (first & last) never have a spotlight.
@@ -333,10 +337,10 @@ export function TourOverlay({
             <div
               className="absolute pointer-events-none rounded-[8px]"
               style={{
-                top: spotlightRect.top,
-                left: spotlightRect.left,
-                width: spotlightRect.width,
-                height: spotlightRect.height,
+                top: spotlightRect.top - activePadding,
+                left: spotlightRect.left - activePadding,
+                width: spotlightRect.width + activePadding * 2,
+                height: spotlightRect.height + activePadding * 2,
                 boxShadow: `0 0 0 9999px rgba(0,0,0,${MASK_OPACITY})`,
               }}
             />
@@ -344,10 +348,10 @@ export function TourOverlay({
             <div
               className="absolute rounded-[10px] ring-2 ring-claude-accent pointer-events-none"
               style={{
-                top: spotlightRect.top - SPOTLIGHT_PADDING,
-                left: spotlightRect.left - SPOTLIGHT_PADDING,
-                width: spotlightRect.width + SPOTLIGHT_PADDING * 2,
-                height: spotlightRect.height + SPOTLIGHT_PADDING * 2,
+                top: spotlightRect.top - activePadding,
+                left: spotlightRect.left - activePadding,
+                width: spotlightRect.width + activePadding * 2,
+                height: spotlightRect.height + activePadding * 2,
               }}
             />
           </>
