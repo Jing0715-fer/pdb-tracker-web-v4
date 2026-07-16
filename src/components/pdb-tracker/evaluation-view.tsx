@@ -1565,7 +1565,7 @@ export function EvaluationView({
 
   // Default: individual evaluation page with overview → separator → action bar pattern
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Overview stat cards — same pattern as Weekly & Literature */}
       <EvalStatCards evaluations={allEvaluations} evalBatches={evalBatches} evalLoading={evalLoading} />
 
@@ -1643,36 +1643,39 @@ export function EvaluationView({
           }}
         />
       ) : (
-        <EvaluationPage
-          evaluation={selectedEval}
-          loading={evalLoading}
-          selectedPdbId={selectedEvalStructure?.pdbId ?? null}
-          onSelectPdb={(pdbId) => {
-            if (!selectedEval) return;
-            // Find the matching EvalRow from pdbStructures or blastResults
-            const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
-            if (structRow) {
-              onSetSelectedEvalStructure({ ...structRow, _type: 'structure' });
-              return;
-            }
-            const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
-            if (blastRow) {
-              onSetSelectedEvalStructure({
-                ...blastRow,
-                _type: 'blast',
-                ifTier: blastRow.ifTier || '',
-                journalIf: blastRow.journalIf ?? null,
-                title: blastRow.title || blastRow.description || null,
-                releaseDate: blastRow.releaseDate || null,
-                pubmedId: blastRow.pubmedId || null,
-                pubmedTitle: blastRow.pubmedTitle || null,
-                pubmedAuthors: blastRow.pubmedAuthors || null,
-                pubmedAbstract: blastRow.pubmedAbstract || null,
-              });
-            }
-          }}
-        />
+        <div className="flex-1 min-h-0">
+          <EvaluationPage
+            evaluation={selectedEval}
+            loading={evalLoading}
+            selectedPdbId={selectedEvalStructure?.pdbId ?? null}
+            onSelectPdb={(pdbId) => {
+              if (!selectedEval) return;
+              // Find the matching EvalRow from pdbStructures or blastResults
+              const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
+              if (structRow) {
+                onSetSelectedEvalStructure({ ...structRow, _type: 'structure' });
+                return;
+              }
+              const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
+              if (blastRow) {
+                onSetSelectedEvalStructure({
+                  ...blastRow,
+                  _type: 'blast',
+                  ifTier: blastRow.ifTier || '',
+                  journalIf: blastRow.journalIf ?? null,
+                  title: blastRow.title || blastRow.description || null,
+                  releaseDate: blastRow.releaseDate || null,
+                  pubmedId: blastRow.pubmedId || null,
+                  pubmedTitle: blastRow.pubmedTitle || null,
+                  pubmedAuthors: blastRow.pubmedAuthors || null,
+                  pubmedAbstract: blastRow.pubmedAbstract || null,
+                });
+                setDetailPanelOpen(true);
+              }
+            }}
+          />
+        </div>
       )}
-    </>
+    </div>
   );
 }
