@@ -4388,7 +4388,7 @@ export default function PdbTracker() {
                   {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p>{isDark ? 'Light Mode' : 'Dark Mode'}</p></TooltipContent>
+              <TooltipContent side="bottom"><p>{isDark ? (locale === 'zh' ? '浅色模式' : 'Light Mode') : (locale === 'zh' ? '深色模式' : 'Dark Mode')}</p></TooltipContent>
             </Tooltip>
           )}
         </div>

@@ -88,7 +88,7 @@ function renderCustomizedLabel({ cx, cy, midAngle, outerRadius, percent, name }:
 
 // ─── Empty State ───────────────────────────────────────────────────────────────
 
-function ChartEmpty({ message = 'No data available' }: { message?: string }) {
+function ChartEmpty({ message }: { message?: string }) {
   return (
     <div className="flex items-center justify-center h-[200px] text-[11px] text-claude-text-muted">
       {message}
@@ -124,7 +124,7 @@ function MethodDistributionChart({ entries }: MethodDistributionChartProps) {
     };
   }, [entries]);
 
-  if (data.total === 0) return <ChartEmpty message="No method data" />;
+  if (data.total === 0) return <ChartEmpty message={locale === "zh" ? "暂无方法数据" : "No method data"} />;
 
   return (
     <div className="relative">
@@ -204,7 +204,7 @@ function ResolutionHistogramChart({ entries }: ResolutionHistogramChartProps) {
   }, [entries]);
 
   const hasData = data.some(d => d.count > 0);
-  if (!hasData) return <ChartEmpty message="No resolution data" />;
+  if (!hasData) return <ChartEmpty message={locale === "zh" ? "暂无分辨率数据" : "No resolution data"} />;
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -265,7 +265,7 @@ function WeeklyTrendChart({ snapshots }: WeeklyTrendChartProps) {
     }));
   }, [snapshots]);
 
-  if (data.length === 0) return <ChartEmpty message="No snapshot data" />;
+  if (data.length === 0) return <ChartEmpty message={locale === "zh" ? "暂无快照数据" : "No snapshot data"} />;
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -390,7 +390,7 @@ function JournalImpactChart({ entries }: JournalImpactChartProps) {
       .slice(0, 6);
   }, [entries]);
 
-  if (data.length === 0) return <ChartEmpty message="No journal data" />;
+  if (data.length === 0) return <ChartEmpty message={locale === "zh" ? "暂无期刊数据" : "No journal data"} />;
 
   return (
     <ResponsiveContainer width="100%" height={200}>

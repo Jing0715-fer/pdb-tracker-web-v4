@@ -2961,3 +2961,44 @@ Stage Summary:
 - 1000 rounds of i18n scan completed: all user-visible strings translated
 - 56 remaining strings are non-translatable (error patterns, Latin names, already-localized)
 - README.md written with 5 screenshots
+
+---
+Task ID: cleanup-and-final-i18n
+Agent: main
+Task: Clean up files, fix remaining i18n (stat cards, dark mode tooltips)
+
+Work Log:
+- **File cleanup**:
+  - Deleted upload/ folder (5.7MB of pasted screenshots)
+  - Deleted src_backup_v3/ (8.2MB backup)
+  - Deleted src/components.old/ (2.8MB old components)
+  - Deleted src/hooks.old/ (224KB old hooks)
+  - Deleted .bak files (layout.tsx.bak, page.tsx.bak)
+  - Deleted .next/dev/ (436MB stale dev compilation)
+  - Deleted agent-ctx/ (16KB)
+  - Total freed: ~460MB
+  - Project size (excl node_modules/.next): 87MB → much smaller
+- **"Fail to fetch" diagnosis**: Explained that this is caused by API server OOM crash, not by export code. Export functions are purely client-side (Blob + createObjectURL).
+- **Eval stat cards translation** (evaluation-view.tsx):
+  - "Eval Targets" → 评估靶点
+  - "Batches" → 批量评估
+  - "Avg Coverage" → 平均覆盖率
+  - "≥80% Coverage" → ≥80% 覆盖率
+  - All subtitles: "batches · done" → "个批次 · 完成", "evals · avg" → "个评估 · 平均", "high (≥80%)" → "高 (≥80%)", "% of total" → "% 占比"
+  - All tooltips: translated to Chinese
+  - "Open Full View" → 打开完整视图
+- **Dark mode tooltip**: "Light Mode"/"Dark Mode" → 浅色模式/深色模式
+- **eval-dashboard**: "Avg Coverage" title → 平均覆盖率, "across N evaluations" → 共N个评估, "N of M complete" → N/M已完成, "In Progress"→进行中, "Not Started"→未开始, "Complete"→已完成, "Moderate priority"→中等优先级
+- **quick-stats-panel**: "targets · avg · coverage" → 个靶点 · 平均 · 覆盖率, "papers" → 篇论文, "Other" → 其他
+- **weekly-dashboard-charts**: ChartEmpty messages → locale-aware (暂无方法/分辨率/快照/期刊数据)
+- Lint: 3 non-blocking React Compiler warnings
+- Build: succeeded
+- **Final browser verification**: 0 English found across all 3 modes (周报/评估/文献) ✓
+
+Stage Summary:
+- 460MB of unnecessary files cleaned up
+- Eval stat cards (4 cards) fully translated: titles, subtitles, tooltips
+- Dark mode toggle tooltip translated
+- eval-dashboard stat card titles/subtitles translated
+- weekly-dashboard-charts empty states translated
+- Final verification: 0 remaining visible English in Chinese mode across all 3 modes

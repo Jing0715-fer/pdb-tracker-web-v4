@@ -504,11 +504,11 @@ function BatchSummaryCard({ batch, subTargets, evaluations, onView, index }: Bat
                   status === 'in-progress' ? '#c9872e' :
                   '#6b7280',
               }}
-              title={status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In Progress' : 'Not Started'}
+              title={status === 'complete' ? (locale === 'zh' ? '已完成' : 'Complete') : status === 'in-progress' ? (locale === 'zh' ? '进行中' : 'In Progress') : (locale === 'zh' ? '未开始' : 'Not Started')}
             />
           ))}
           <span className="text-[9px] text-claude-text-muted ml-1">
-            {dots.filter(d => d === 'complete').length}/{dots.length} complete
+            {dots.filter(d => d === 'complete').length}/{dots.length} {locale === 'zh' ? '完成' : 'complete'}
           </span>
         </div>
       )}
@@ -768,7 +768,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         } else if (diseaseRelevance > 0.9 && structuralCoverage < 0.5) {
           reason = locale === 'zh' ? '疾病相关性高，结构数据有限' : 'High disease relevance, limited structural data';
         } else {
-          reason = 'Moderate priority for further study';
+          reason = locale === 'zh' ? '中等优先级，建议进一步研究' : 'Moderate priority for further study';
         }
 
         return { evaluation: e, needsAttention, reason };
@@ -856,7 +856,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
             icon={<Target className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#7c5cbf] to-[#5a3d99]"
             glowColor="#7c5cbf"
-            subtitle={`across ${stats.total} evaluations`}
+            subtitle={locale === 'zh' ? `共 ${stats.total} 个评估` : `across ${stats.total} evaluations`}
             delay={80}
             borderColor="#7c5cbf"
             sparklineData={evalSparklines.coverage}
@@ -907,7 +907,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
               stats.completionRate >= 75 ? '#16a34a' :
               stats.completionRate >= 50 ? '#c9872e' : '#dc2626'
             }
-            subtitle={`${stats.completedCount ?? 0} of ${stats.total} complete`}
+            subtitle={locale === 'zh' ? `${stats.completedCount ?? 0} / ${stats.total} 已完成` : `${stats.completedCount ?? 0} of ${stats.total} complete`}
             delay={240}
             borderColor={
               stats.completionRate >= 75 ? '#16a34a' :

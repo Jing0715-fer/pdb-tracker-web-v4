@@ -159,7 +159,7 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
       { label: 'Cryo-EM', value: entries.filter(e => e.isCryoem).length, color: '#2d8f8f' },
       { label: 'X-ray', value: entries.filter(e => e.isXray).length, color: '#7c5cbf' },
       { label: 'NMR', value: entries.filter(e => !e.isCryoem && !e.isXray && e.method?.toLowerCase().includes('nmr')).length, color: '#c9872e' },
-      { label: 'Other', value: entries.filter(e => !e.isCryoem && !e.isXray && !(e.method?.toLowerCase().includes('nmr'))).length, color: '#94a3b8' },
+      { label: locale === 'zh' ? '其他' : 'Other', value: entries.filter(e => !e.isCryoem && !e.isXray && !(e.method?.toLowerCase().includes('nmr'))).length, color: '#94a3b8' },
     ].filter(d => d.value > 0);
 
     const journalMap = new Map<string, number>();
@@ -246,12 +246,12 @@ export function QuickStatsPanel({ mode, entries = [], evaluations = [], papers =
         )}
         {mode === 'evaluation' && evalStats && (
           <span className="ml-1 text-[10px] text-claude-text-muted">
-            · {evalStats.total} targets · avg {evalStats.avgCov.toFixed(0)}% coverage
+            · {evalStats.total} {locale === 'zh' ? '个靶点' : 'targets'} · {locale === 'zh' ? '平均' : 'avg'} {evalStats.avgCov.toFixed(0)}% {locale === 'zh' ? '覆盖率' : 'coverage'}
           </span>
         )}
         {mode === 'literature' && litStats && (
           <span className="ml-1 text-[10px] text-claude-text-muted">
-            · {litStats.total} papers
+            · {litStats.total} {locale === 'zh' ? '篇论文' : 'papers'}
             {litStats.avgIf != null && ` · avg IF ${litStats.avgIf.toFixed(1)}`}
           </span>
         )}

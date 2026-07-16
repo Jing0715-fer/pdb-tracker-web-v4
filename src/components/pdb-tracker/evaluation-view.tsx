@@ -84,66 +84,66 @@ function EvalStatCards({ evaluations, evalBatches, evalLoading }: {
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-2 sm:p-3 [grid-auto-rows:1fr] min-w-0 stagger-list">
       {/* Eval Targets — completion rate ring */}
       <StatCard
-        title="Eval Targets"
+        title={locale === 'zh' ? '评估靶点' : 'Eval Targets'}
         value={totalEvals}
         icon={<FlaskConical className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#2d8f8f] to-[#1a6b6b]"
         glowColor="#2d8f8f"
-        subtitle={`${totalBatches} batch${totalBatches !== 1 ? 'es' : ''} · ${completionRate.toFixed(0)}% done`}
+        subtitle={locale === 'zh' ? `${totalBatches} 个批次 · ${completionRate.toFixed(0)}% 完成` : `${totalBatches} batch${totalBatches !== 1 ? 'es' : ''} · ${completionRate.toFixed(0)}% done`}
         loading={evalLoading}
         delay={0}
         borderColor="#2d8f8f"
-        tooltip={`Eval Targets: ${totalEvals} (${completionRate.toFixed(0)}% complete, ${totalBatches} batches)`}
+        tooltip={locale === 'zh' ? `评估靶点: ${totalEvals} (${completionRate.toFixed(0)}% 完成, ${totalBatches} 个批次)` : `Eval Targets: ${totalEvals} (${completionRate.toFixed(0)}% complete, ${totalBatches} batches)`}
       >
         <CircularProgress value={completionRate} max={100} color="#2d8f8f" size={28} />
       </StatCard>
 
       {/* Batches — mini bar showing batch density */}
       <StatCard
-        title="Batches"
+        title={locale === 'zh' ? '批量评估' : 'Batches'}
         value={totalBatches}
         icon={<Database className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#c9872e] to-[#a06b1a]"
         glowColor="#c9872e"
-        subtitle={`${totalEvals} evals · ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} avg`}
+        subtitle={locale === 'zh' ? `${totalEvals} 个评估 · 平均 ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)}` : `${totalEvals} evals · ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} avg`}
         loading={evalLoading}
         delay={80}
         borderColor="#c9872e"
-        tooltip={`Batches: ${totalBatches} (${totalEvals} evaluations, avg ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} evals/batch)`}
+        tooltip={locale === 'zh' ? `批次: ${totalBatches} (${totalEvals} 个评估, 平均 ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} 评估/批次)` : `Batches: ${totalBatches} (${totalEvals} evaluations, avg ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} evals/batch)`}
       >
         <MiniBar value={totalBatches > 0 ? Math.min((totalBatches / Math.max(totalEvals, 1)) * 100 * 3, 100) : 0} max={100} color="#c9872e" width={40} height={5} />
       </StatCard>
 
       {/* Avg Coverage — coverage ring */}
       <StatCard
-        title="Avg Coverage"
+        title={locale === 'zh' ? '平均覆盖率' : 'Avg Coverage'}
         value={avgCoverage}
         suffix="%"
         decimals={0}
         icon={<Target className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#7c5cbf] to-[#5a3d99]"
         glowColor="#7c5cbf"
-        subtitle={`${highCoverageCount} high (≥80%)`}
+        subtitle={locale === 'zh' ? `${highCoverageCount} 高 (≥80%)` : `${highCoverageCount} high (≥80%)`}
         loading={evalLoading}
         delay={160}
         borderColor="#7c5cbf"
-        tooltip={`Avg Coverage: ${avgCoverage.toFixed(1)}% (${highCoverageCount} high ≥80%)`}
+        tooltip={locale === 'zh' ? `平均覆盖率: ${avgCoverage.toFixed(1)}% (${highCoverageCount} 高 ≥80%)` : `Avg Coverage: ${avgCoverage.toFixed(1)}% (${highCoverageCount} high ≥80%)`}
       >
         <CircularProgress value={avgCoverage} max={100} color="#7c5cbf" size={28} />
       </StatCard>
 
       {/* ≥80% Coverage — mini bar */}
       <StatCard
-        title="≥80% Coverage"
+        title={locale === 'zh' ? '≥80% 覆盖率' : '≥80% Coverage'}
         value={highCoverageCount}
         icon={<CheckCircle2 className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#16a34a] to-[#0d7a35]"
         glowColor="#16a34a"
-        subtitle={totalEvals > 0 ? `${((highCoverageCount / totalEvals) * 100).toFixed(0)}% of total` : 'No data'}
+        subtitle={totalEvals > 0 ? (locale === 'zh' ? `${((highCoverageCount / totalEvals) * 100).toFixed(0)}% 占比` : `${((highCoverageCount / totalEvals) * 100).toFixed(0)}% of total`) : (locale === 'zh' ? '暂无数据' : 'No data')}
         loading={evalLoading}
         delay={240}
         borderColor="#16a34a"
-        tooltip={`High Coverage: ${highCoverageCount} targets ≥80% (${totalEvals > 0 ? ((highCoverageCount / totalEvals) * 100).toFixed(0) : 0}%)`}
+        tooltip={locale === 'zh' ? `高覆盖: ${highCoverageCount} 个靶点 ≥80% (${totalEvals > 0 ? ((highCoverageCount / totalEvals) * 100).toFixed(0) : 0}%)` : `High Coverage: ${highCoverageCount} targets ≥80% (${totalEvals > 0 ? ((highCoverageCount / totalEvals) * 100).toFixed(0) : 0}%)`}
       >
         <MiniBar value={highCoveragePct} max={100} color="#16a34a" width={40} height={5} />
       </StatCard>
@@ -1369,7 +1369,7 @@ function BatchDetailView({
                         size="sm"
                         onClick={() => onSelectSubTarget(selectedSubTarget)}
                         className="h-7 px-2.5 text-[11px] border-claude-accent/30 text-claude-accent hover:bg-claude-accent/10 flex-shrink-0"
-                        title="Open this evaluation in the full individual-eval view"
+                        title={locale === 'zh' ? '在完整单独评估视图中打开此评估' : 'Open this evaluation in the full individual-eval view'}
                       >
                         Open Full View <ArrowUpRight className="h-3 w-3 ml-1" />
                       </Button>
