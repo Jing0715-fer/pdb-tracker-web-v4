@@ -305,7 +305,7 @@ export function buildChapterPrompt(
 
 ## 完整 PDB 数据表（共 ${d.pdbCount ?? d.directPdbCount} 条，按分辨率/IF 排序）
 
-| # | PDB | 方法 | 分辨率(Å) | 期刊 (IF) | 配体 | 标题 |
+| # | PDB | 方法 | 分辨率(Å) | Identity (BLAST/direct) | 期刊 (IF) | 配体 | 标题 |
 |---|------|------|-----------|----------|------|------|
 ${d.pdbTable}
 
@@ -466,11 +466,15 @@ export function buildDetailedPdbTable(
   rows: Array<{
     pdbId: string; method?: string | null; resolution?: number | null;
     journal?: string | null; journalIf?: number | null; ligands?: string | null;
-    title?: string | null;
+    title?: string | null; blastIdentity?: number | null;  // Fix 2: BLAST-derived rows carry identity% here
   }>,
   maxRows = 80,
 ): string {
   const sorted = [...rows].sort((a, b) => {
+    // BLAST-derived rows sort to the bottom of each resolution tier (they're homologs, not direct structures)
+    const aBlast = a.blastIdentity != null ? 1 : 0;
+    const bBlast = b.blastIdentity != null ? 1 : 0;
+    if (aBlast !== bBlast) return aBlast - bBlast;
     const aRes = a.resolution ?? 999;
     const bRes = b.resolution ?? 999;
     if (aRes !== bRes) return aRes - bRes;
@@ -486,7 +490,10 @@ export function buildDetailedPdbTable(
     const ifStr = e.journalIf != null ? e.journalIf.toFixed(1) : '-';
     const lig = (e.ligands || '-').replace(/\|+/g, ' ').slice(0, 20);
     const title = (e.title || '-').replace(/\|+/g, ' ').replace(/\n+/g, ' ').slice(0, 60);
-    return `| ${i + 1} | ${e.pdbId} | ${method} | ${res} | ${j} (${ifStr}) | ${lig} | ${title} |`;
+    // Fix 2: show Identity% with "BLAST" tag for BLAST-derived rows so the LLM
+    // and the human reader can immediately distinguish "direct PDB" from "BLAST homolog".
+    const ident = e.blastIdentity != null ? `BLAST ${e.blastIdentity.toFixed(1)}%` : 'direct';
+    return `| ${i + 1} | ${e.pdbId} | ${method} | ${res} | ${ident} | ${j} (${ifStr}) | ${lig} | ${title} |`;
   }).join('\n');
 }
 

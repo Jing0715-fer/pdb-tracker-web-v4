@@ -693,6 +693,43 @@ ${overlapSummary}${crossLitBlock}
         }
       }
 
+      // ── Fix 2: Enrich BLAST hits with RCSB structural metadata ──────────
+      // BLAST XML only gives pdbId + identity + description. The downstream
+      // buildLiteratureInfo() needs pubmedId/method/resolution/journal, and
+      // the LLM report needs the full structural table. So we call RCSB for
+      // each unique BLAST pdbId (chunked, concurrent via fetchPdbEntryDetails).
+      // Result: pdbDetails now contains BOTH direct SIFTS PDBs AND enriched
+      // BLAST hits (deduped by pdbId). BLAST-derived entries are tagged with
+      // `via: 'blast'` so the UI / report can distinguish them.
+      if (blastHits.length > 0) {
+        const directPdbIds = new Set(pdbDetails.map((d) => d.pdbId));
+        const blastPdbIds = Array.from(new Set(blastHits.map((h: any) => h.pdbId).filter((id: string) => id && !directPdbIds.has(id))));
+        if (blastPdbIds.length > 0) {
+          emit({ stage: 'blast-enrich', level: 'info', message: `从 RCSB 反查 ${blastPdbIds.length} 个 BLAST PDB 的结构元数据（并发 · 5/批）…`, progress: 53 });
+          try {
+            const enriched = await fetchPdbEntryDetails(blastPdbIds, blastPdbIds.length);
+            // Tag each enriched entry with via:'blast' and a back-reference to its BLAST row
+            // (so the LLM report can cite both identity% and the structural fields).
+            const identityByPdb = new Map<string, number>();
+            for (const h of blastHits as any[]) {
+              const cur = identityByPdb.get(h.pdbId) ?? 0;
+              if ((h.identity ?? 0) > cur) identityByPdb.set(h.pdbId, h.identity);
+            }
+            const tagged: PdbEntryDetail[] = enriched.map((e) => ({
+              ...e,
+              // Stash identity on a loose field so buildDetailedPdbTable can render it
+              ...({ blastIdentity: identityByPdb.get(e.pdbId) ?? null } as any),
+            }));
+            pdbDetails = [...pdbDetails, ...tagged];
+            emit({ stage: 'blast-enrich', level: 'success', message: `✓ RCSB enrich 命中 ${enriched.length}/${blastPdbIds.length}（${blastPdbIds.length - enriched.length} 个 PDB id 在 RCSB 中找不到）`, progress: 54 });
+          } catch (err: any) {
+            emit({ stage: 'blast-enrich', level: 'warn', message: `⚠ RCSB enrich 失败：${err?.message}（BLAST hit 仍以 bare 形式进报告）`, progress: 54 });
+          }
+        } else {
+          emit({ stage: 'blast-enrich', level: 'info', message: '所有 BLAST PDB id 已在 direct PDB 集合中，无需 enrich', progress: 54 });
+        }
+      }
+
       emit({ stage: 'score', level: 'info', message: '综合可成药性评分', progress: 56 });
       await sleep(300);
       const scoreRating = (s: number) => s >= 8 ? '优' : s >= 6 ? '良' : s >= 4 ? '中' : '差';
