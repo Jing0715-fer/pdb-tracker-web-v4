@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
+import { useI18n } from '@/lib/i18n';
 import type { Evaluation } from '@/lib/pdb-types';
 
 interface EvaluationToolbarProps {
@@ -42,6 +43,7 @@ export function EvaluationToolbar({
   filterType,
   onFilterTypeChange,
 }: EvaluationToolbarProps) {
+  const { t, locale } = useI18n();
   const [filterOpen, setFilterOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -134,7 +136,7 @@ export function EvaluationToolbar({
         <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
         <Input
           type="text"
-          placeholder="Filter table..."
+          placeholder={t.filterTable}
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
           className="h-7 w-40 pl-8 pr-3 text-xs bg-claude-surface dark:bg-[#1a1917] border-claude-border dark:border-[#3d3832] focus:ring-claude-accent/30 input-focus-glow"

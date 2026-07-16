@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import { Lightbulb, Snowflake, BarChart3, Microscope, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronUp } from 'lucide-react';
@@ -29,6 +30,7 @@ function getResolutionQuality(avgRes: number | null): { label: string; colorClas
 }
 
 export function WeeklyQuickInsights({ entries, snapshot, snapshots, loading }: QuickInsightsProps) {
+  const { locale } = useI18n();
   const [collapsed, setCollapsed] = React.useState(false);
 
   const insights = useMemo<InsightChipData[]>(() => {
@@ -127,7 +129,7 @@ export function WeeklyQuickInsights({ entries, snapshot, snapshots, loading }: Q
         icon: weekChangeIcon,
         label: 'Week Change',
         value: weekChangeStr,
-        sublabel: weekChange !== 0 ? `${snapshot?.totalStructures ?? 0} total` : 'Same as last week',
+        sublabel: weekChange !== 0 ? `${snapshot?.totalStructures ?? 0} total` : (locale === 'zh' ? '与上周相同' : 'Same as last week'),
         colorClass: weekChangeColor,
         borderColor: weekChange > 0 ? 'border-green-500/30' : weekChange < 0 ? 'border-red-500/30' : 'border-claude-border',
       },
@@ -145,7 +147,7 @@ export function WeeklyQuickInsights({ entries, snapshot, snapshots, loading }: Q
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="h-5 w-5 flex items-center justify-center rounded hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-colors"
-            aria-label={collapsed ? 'Expand insights' : 'Collapse insights'}
+            aria-label={collapsed ? (locale === 'zh' ? '展开洞察' : 'Expand insights') : (locale === 'zh' ? '收起洞察' : 'Collapse insights')}
           >
             {collapsed ? (
               <ChevronDown className="h-3 w-3 text-claude-text-muted" />

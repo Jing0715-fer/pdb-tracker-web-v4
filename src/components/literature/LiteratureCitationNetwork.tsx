@@ -4,6 +4,7 @@ import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import { ZoomIn, ZoomOut, RotateCcw, X, ExternalLink, Network as NetIcon, Maximize2, Lightbulb } from 'lucide-react';
 import type { LitPaper } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -562,6 +563,7 @@ function runForceLayout(
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: LiteratureCitationNetworkProps) {
+  const { locale } = useI18n();
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const svgRef = useRef<SVGSVGElement>(null);
@@ -761,7 +763,7 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
       <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <NetIcon className="h-3.5 w-3.5 text-claude-text-secondary flex-shrink-0" />
-          <span className="text-sm font-semibold text-claude-text">Citation Network</span>
+          <span className="text-sm font-semibold text-claude-text">{locale === 'zh' ? '引文网络' : 'Citation Network'}</span>
           <span className="text-[10px] text-claude-text-muted truncate">
             {showOverview
               ? `${clusters.length} clusters · ${paperNodes.length} papers · ${stats.pdb} pdb · ${stats.structure} sub-topic · ${stats.method} method`
@@ -775,7 +777,7 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
               onClick={() => { setActiveCluster(null); setZoom(1); setPan({x:0,y:0}); }}
               data-no-pan
               className="px-2 py-0.5 text-[10px] rounded hover:bg-claude-border-light dark:hover:bg-[#2b2926] text-claude-text-secondary hover:text-claude-text transition-colors"
-              title="Back to overview"
+              title={locale === "zh" ? "返回概览" : "Back to overview"}
             >
               ← Overview
             </button>
@@ -801,7 +803,7 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
       {/* Hint */}
       <div className="px-4 py-1.5 text-[10px] text-claude-text-muted border-b border-claude-border-light dark:border-[#2b2926] bg-claude-bg-secondary/40 dark:bg-[#0f0e0d]/50">
         <Lightbulb className="h-3 w-3 inline mr-1" /> {showOverview
-          ? 'Click a cluster to explore its paper relationships. Drag to pan, scroll to zoom.'
+          ? (locale === 'zh' ? '点击集群探索论文关系。拖拽平移，滚轮缩放。' : 'Click a cluster to explore its paper relationships. Drag to pan, scroll to zoom.')
           : 'Edges show shared PDB IDs (teal), sub-topic keywords (orange), or methods (purple). Click a paper for details.'}
       </div>
 
@@ -998,7 +1000,7 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
                       <div className="text-claude-text-muted mt-1">
                         {node.count} paper{node.count !== 1 ? 's' : ''} · avg IF {node.IF?.toFixed(1)}
                       </div>
-                      <div className="text-claude-text-secondary mt-1 italic">Click to explore →</div>
+                      <div className="text-claude-text-secondary mt-1 italic">{locale === 'zh' ? '点击探索 →' : 'Click to explore →'}</div>
                     </div>
                   );
                 }
@@ -1049,10 +1051,10 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
                 </button>
               </div>
               <div className="space-y-1 text-claude-text-secondary">
-                <div><span className="text-claude-text-muted">Journal:</span> {selectedPaper.journal}</div>
-                <div><span className="text-claude-text-muted">Year:</span> {getYear(selectedPaper.pubdate)}</div>
+                <div><span className="text-claude-text-muted">{locale === 'zh' ? '期刊：' : 'Journal:'}</span> {selectedPaper.journal}</div>
+                <div><span className="text-claude-text-muted">{locale === 'zh' ? '年份：' : 'Year:'}</span> {getYear(selectedPaper.pubdate)}</div>
                 {selectedPaper.IF != null && <div><span className="text-claude-text-muted">IF:</span> {selectedPaper.IF.toFixed(1)}</div>}
-                <div><span className="text-claude-text-muted">PDB:</span> {selectedPaper.pdbs.length}</div>
+                <div><span className="text-claude-text-muted">{locale === 'zh' ? 'PDB：' : 'PDB:'}</span> {selectedPaper.pdbs.length}</div>
               </div>
 
               {/* Connection details */}

@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import { useTheme } from 'next-themes';
@@ -28,6 +29,7 @@ export function ComplexEvalSummary({
   openReport,
   onSelectEval,
 }: ComplexEvalSummaryProps) {
+  const { locale } = useI18n();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
 
@@ -324,7 +326,7 @@ export function ComplexEvalSummary({
       {/* ── Method Distribution ── */}
       {pieData.length > 0 && (
         <div className="rounded-[10px] border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-3 space-y-2">
-          <h4 className="text-xs font-semibold text-claude-text">Method Distribution</h4>
+          <h4 className="text-xs font-semibold text-claude-text">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</h4>
           <div className="flex items-center gap-3">
             <div className="w-24 h-24">
               <ResponsiveContainer width="100%" height="100%">

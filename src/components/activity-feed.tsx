@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Check, Trash2, X, Bookmark, FolderOpen, Upload, ArrowRightLeft, Search, SlidersHorizontal, Pin } from 'lucide-react';
 import type { ActivityItem } from '@/hooks/use-activity-feed';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,7 @@ export function ActivityFeed({
   clearActivities,
   onItemClick,
 }: ActivityFeedProps) {
+  const { t, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -144,16 +146,16 @@ export function ActivityFeed({
                   <button
                     onClick={markAllRead}
                     className="p-1 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border/50 transition-colors"
-                    title="Mark all read"
-                    aria-label="Mark all read"
+                    title={t.markAllRead}
+                    aria-label={t.markAllRead}
                   >
                     <Check className="h-3.5 w-3.5 text-claude-text-muted" />
                   </button>
                   <button
                     onClick={clearActivities}
                     className="p-1 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title="Clear all"
-                    aria-label="Clear all activities"
+                    title={t.clearAll}
+                    aria-label={t.clearAllActivities}
                   >
                     <Trash2 className="h-3.5 w-3.5 text-claude-text-muted hover:text-red-500" />
                   </button>
@@ -162,7 +164,7 @@ export function ActivityFeed({
               <button
                 onClick={() => setOpen(false)}
                 className="p-1 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border/50 transition-colors"
-                aria-label="Close"
+                aria-label={t.closeBtn}
               >
                 <X className="h-3.5 w-3.5 text-claude-text-muted" />
               </button>

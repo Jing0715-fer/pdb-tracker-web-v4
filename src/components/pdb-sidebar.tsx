@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/lib/i18n';
 import {
   Search,
   ChevronDown,
@@ -389,6 +390,7 @@ function NotificationHistorySection() {
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
+  const { t, locale } = useI18n();
   const {
     mode,
     setMode,
@@ -638,7 +640,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                 <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline underline-grow">
                   <span className="flex items-center gap-1.5">
                     <Bookmark className="h-3 w-3 text-claude-accent" />
-                    Bookmarks
+                    {t.filterBookmarks}
                     <span className="counter-badge text-[9px]">{bookmarks.size}</span>
                   </span>
                   <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${bookmarksExpanded ? 'rotate-0' : '-rotate-90'}`} />
@@ -676,8 +678,8 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               </Collapsible>
             ) : (
               <EnhancedEmptyState
-                title="No bookmarks yet"
-                description="Click the bookmark icon on any structure to save it here."
+                title={t.noBookmarksTitle}
+                description={t.noBookmarksDesc}
                 className="py-6 px-2"
               />
             )}
@@ -690,7 +692,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                 <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline underline-grow">
                   <span className="flex items-center gap-1.5">
                     <Layers className="h-3 w-3 text-claude-accent" />
-                    Collections
+                    {t.collections}
                     <span className="counter-badge text-[9px]">{Object.keys(collections).length}</span>
                   </span>
                   <ChevronDown className={`h-3 w-3 transition-transform duration-200 ${collectionsExpanded ? 'rotate-0' : '-rotate-90'}`} />
@@ -765,7 +767,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                             <button
                               onClick={() => setActiveCollection(null)}
                               className="flex-shrink-0 p-0.5 rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
-                              title="Clear filter"
+                              title={locale === "zh" ? "清除筛选" : "Clear filter"}
                             >
                               <X className="h-3 w-3 text-claude-accent" />
                             </button>
@@ -773,7 +775,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                           <button
                             onClick={() => deleteCollection(name)}
                             className="flex-shrink-0 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            title="Delete collection"
+                            title={locale === "zh" ? "删除集合" : "Delete collection"}
                           >
                             <Trash2 className="h-3 w-3 text-claude-text-muted hover:text-red-500" />
                           </button>
@@ -819,8 +821,8 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               </Collapsible>
             ) : (
               <EnhancedEmptyState
-                title="No collections"
-                description="Right-click a table row to add structures to a collection."
+                title={t.noCollectionsTitle}
+                description={t.noCollectionsDesc}
                 className="py-6 px-2"
               />
             )}
@@ -830,7 +832,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline">
                 <span className="flex items-center gap-1.5">
                   <BookmarkPlus className="h-3 w-3 text-claude-accent" />
-                  Filter Presets
+                  {locale === 'zh' ? '筛选预设' : 'Filter Presets'}
                   {Object.keys(filterPresets).length > 0 && (
                     <span className="counter-badge text-[9px]">{Object.keys(filterPresets).length}</span>
                   )}
@@ -845,7 +847,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-dashed border-claude-border dark:border-[#3d3832] hover:bg-claude-accent-light dark:hover:bg-[#3d2a22] hover:border-claude-accent/40 transition-colors duration-150 group"
                   >
                     <BookmarkPlus className="h-3 w-3 text-claude-text-muted group-hover:text-claude-accent transition-colors" />
-                    <span className="text-[10px] font-medium text-claude-text-muted group-hover:text-claude-accent transition-colors">Save Current Filters</span>
+                    <span className="text-[10px] font-medium text-claude-text-muted group-hover:text-claude-accent transition-colors">{locale === 'zh' ? '保存当前筛选' : 'Save Current Filters'}</span>
                   </button>
                   {/* Preset List */}
                   {Object.values(filterPresets)
@@ -861,27 +863,27 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                           <button
                             onClick={() => loadFilterPreset(preset.id)}
                             className="flex-1 text-left min-w-0"
-                            title={`Load preset: ${preset.name}`}
+                            title={locale === 'zh' ? `加载预设：${preset.name}` : `Load preset: ${preset.name}`}
                           >
                             <span className="text-[10px] font-medium text-claude-text truncate block">{preset.name}</span>
                           </button>
                           <span className="text-[9px] text-claude-text-muted font-mono flex-shrink-0 bg-claude-bg dark:bg-[#1a1917] px-1.5 py-0.5 rounded-full">
-                            {activeCount} filter{activeCount !== 1 ? 's' : ''}
+                            {activeCount} {locale === 'zh' ? '项筛选' : `filter${activeCount !== 1 ? 's' : ''}`}
                           </span>
                           <button
                             onClick={() => {
-                              const newName = prompt('Rename preset:', preset.name);
+                              const newName = prompt(locale === 'zh' ? '重命名预设：' : 'Rename preset:', preset.name);
                               if (newName !== null && newName.trim()) renameFilterPreset(preset.id, newName);
                             }}
                             className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-all"
-                            title="Rename preset"
+                            title={locale === 'zh' ? '重命名预设' : 'Rename preset'}
                           >
                             <Settings className="h-2.5 w-2.5 text-claude-text-muted hover:text-claude-accent" />
                           </button>
                           <button
                             onClick={() => deleteFilterPreset(preset.id)}
                             className="flex-shrink-0 p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
-                            title="Delete preset"
+                            title={locale === 'zh' ? '删除预设' : 'Delete preset'}
                           >
                             <Trash2 className="h-2.5 w-2.5 text-claude-text-muted hover:text-red-500" />
                           </button>
@@ -890,7 +892,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     })}
                   {Object.keys(filterPresets).length === 0 && (
                     <div className="px-3 py-2 text-[9px] text-claude-text-muted italic text-center">
-                      No presets saved yet
+                      {locale === 'zh' ? '尚未保存预设' : 'No presets saved yet'}
                     </div>
                   )}
                 </div>
@@ -902,7 +904,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               <CollapsibleTrigger className="w-full flex items-center justify-between py-1.5 px-1 text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider hover:text-claude-text-secondary transition-colors duration-150 animated-underline">
                 <span className="flex items-center gap-1.5">
                   <Activity className="h-3 w-3 text-claude-accent" />
-                  Recent Activity
+                  {t.recentActivity}
                   {activityFeed.length > 0 && (
                     <span className="counter-badge text-[9px]">{activityFeed.length}</span>
                   )}
@@ -913,7 +915,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                 <div className="px-1 pb-2 mt-1 mb-1 space-y-0.5 max-h-[200px] overflow-y-auto thin-scrollbar">
                   {activityFeed.length === 0 ? (
                     <p className="text-[10px] text-claude-text-muted/60 dark:text-[#9b9590]/60 px-2 py-2 italic text-center">
-                      No activity yet
+                      {locale === 'zh' ? '暂无活动' : 'No activity yet'}
                     </p>
                   ) : (
                     activityFeed.slice(0, 10).map((item) => (
@@ -957,7 +959,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     {/* Total & This Week with trend arrow */}
                     <div className="grid grid-cols-2 gap-2">
                       <div className="text-center">
-                        <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mb-0.5">Total Structures</div>
+                        <div className="text-[10px] text-claude-text-muted dark:text-[#6b6560] mb-0.5">{t.totalStructures}</div>
                         <div className="text-lg font-bold font-mono text-claude-text dark:text-[#e8e4dd] leading-tight">
                           {snapshots.reduce((sum, s) => sum + (s.totalStructures || 0), 0).toLocaleString()}
                         </div>
@@ -1086,7 +1088,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                     </div>
                     {/* Method Distribution Mini Bar */}
                     <div>
-                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">Method Distribution</div>
+                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</div>
                       <div className="flex h-2 rounded-full overflow-hidden bg-claude-border-light dark:bg-[#3d3832]">
                         {(() => {
                           const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -1167,9 +1169,9 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                         </div>
                       )}
                     </div>
-                    {/* Resolution Distribution */}
+                    {/* {locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'} */}
                     <div>
-                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">Resolution Distribution</div>
+                      <div className="text-[9px] text-claude-text-muted dark:text-[#6b6560] mb-1.5 uppercase tracking-wider">{locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'}</div>
                       {(() => {
                         const sorted = [...snapshots].sort((a, b) => a.weekStart.localeCompare(b.weekStart));
                         const latest = sorted[sorted.length - 1];
@@ -1260,7 +1262,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                         <button
                           onClick={generateInsight}
                           className="absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-claude-accent/10 transition-all"
-                          title="Regenerate insight"
+                          title={locale === "zh" ? "重新生成洞察" : "Regenerate insight"}
                         >
                           <RefreshCw className="h-3 w-3 text-claude-text-muted hover:text-claude-accent" />
                         </button>
@@ -1493,7 +1495,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
 
                         {/* Mini method distribution bars */}
                         <div>
-                          <div className="text-[10px] text-claude-text-muted mb-1">Method Distribution</div>
+                          <div className="text-[10px] text-claude-text-muted mb-1">{locale === 'zh' ? '方法分布' : 'Method Distribution'}</div>
                           <div className="flex items-center gap-1">
                             {snap.cryoemCount > 0 && (
                               <div className="h-1.5 rounded-full bg-claude-cryoem" style={{ width: `${Math.max(8, cryoemPct)}%` }} title={`Cryo-EM: ${snap.cryoemCount}`} />
@@ -1518,7 +1520,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                         {/* Average resolution with quality indicator */}
                         {avgRes != null && (
                           <div className="flex justify-between text-[10px]">
-                            <span className="text-claude-text-muted">Avg Resolution</span>
+                            <span className="text-claude-text-muted">{t.avgResolution}</span>
                             <span className="font-mono font-medium">
                               <span style={{ color: resQualityColor || undefined }}>{avgRes.toFixed(2)}Å</span>
                               {resQualityLabel && (
@@ -1567,7 +1569,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
               <input
                 type="text"
-                placeholder="Search proteins..."
+                placeholder={locale === "zh" ? "搜索蛋白…" : "Search proteins..."}
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setSearchDropdownOpen(true); setSearchHighlightIndex(-1); }}
                 onFocus={() => setSearchDropdownOpen(true)}

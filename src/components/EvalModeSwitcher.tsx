@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useI18n } from '@/lib/i18n';
 import {
   Search,
   ChevronDown,
@@ -82,6 +83,7 @@ export function EvalModeSwitcher({
   showComplexDialog,
   onOpenComplexDialog,
 }: EvalModeSwitcherProps) {
+  const { t, locale } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [individualOpen, setIndividualOpen] = useState(true);
   const [batchOpen, setBatchOpen] = useState(true);
@@ -144,14 +146,14 @@ export function EvalModeSwitcher({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
           <Input
             type="text"
-            placeholder="Search proteins, genes..."
+            placeholder={t.searchProteins}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="h-7 pl-8 pr-3 text-xs bg-claude-bg dark:bg-[#1a1917] border-claude-border dark:border-[#3d3832] focus:ring-claude-accent/30 input-focus-glow"
           />
         </div>
         <p className="text-[10px] text-claude-text-muted mt-1.5">
-          {evaluations.length} proteins · {batches.length} batches
+          {evaluations.length} {locale === 'zh' ? '个蛋白' : 'proteins'} · {batches.length} {locale === 'zh' ? '个批次' : 'batches'}
         </p>
       </div>
 
@@ -182,7 +184,7 @@ export function EvalModeSwitcher({
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <Dna className="h-3 w-3" />
-                    <span>Individual Evaluations</span>
+                    <span>{t.individualEvalsFull}</span>
                     <Badge
                       variant="secondary"
                       className="ml-auto h-4 px-1.5 text-[9px] bg-claude-border-light dark:bg-[#2b2926] text-claude-text-muted border-0"
@@ -191,14 +193,14 @@ export function EvalModeSwitcher({
                     </Badge>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right"><p>{individualOpen ? 'Collapse' : 'Expand'} individual evaluations</p></TooltipContent>
+                <TooltipContent side="right"><p>{individualOpen ? (locale === 'zh' ? '收起' : 'Collapse') : (locale === 'zh' ? '展开' : 'Expand')} {locale === 'zh' ? '单独评估' : 'individual evaluations'}</p></TooltipContent>
               </Tooltip>
 
               <div className={individualOpen ? 'eval-section-expand' : 'eval-section-collapse'}>
                 <div className="space-y-1 px-1 pt-1">
                   {filteredEvaluations.length === 0 ? (
                     <p className="text-[11px] text-claude-text-muted px-2 py-3 text-center">
-                      {searchQuery ? 'No matching evaluations' : 'No individual evaluations'}
+                      {searchQuery ? (locale === 'zh' ? '未找到匹配的评估' : 'No matching evaluations') : (locale === 'zh' ? '暂无单独评估' : 'No individual evaluations')}
                     </p>
                   ) : (
                     filteredEvaluations.map((evalItem) => {
@@ -303,7 +305,7 @@ export function EvalModeSwitcher({
                       <ChevronRight className="h-3 w-3" />
                     )}
                     <Layers className="h-3 w-3" />
-                    <span>Evaluation Batches</span>
+                    <span>{t.evalBatchesFull}</span>
                     <Badge
                       variant="secondary"
                       className="ml-auto h-4 px-1.5 text-[9px] bg-claude-border-light dark:bg-[#2b2926] text-claude-text-muted border-0"
@@ -312,7 +314,7 @@ export function EvalModeSwitcher({
                     </Badge>
                   </button>
                 </TooltipTrigger>
-                <TooltipContent side="right"><p>{batchOpen ? 'Collapse' : 'Expand'} evaluation batches</p></TooltipContent>
+                <TooltipContent side="right"><p>{batchOpen ? (locale === 'zh' ? '收起' : 'Collapse') : (locale === 'zh' ? '展开' : 'Expand')} {locale === 'zh' ? '批量评估' : 'evaluation batches'}</p></TooltipContent>
               </Tooltip>
 
               {batchOpen && (
@@ -320,7 +322,7 @@ export function EvalModeSwitcher({
                 <div className="space-y-1 px-1 pt-1">
                   {filteredBatches.length === 0 ? (
                     <p className="text-[11px] text-claude-text-muted px-2 py-3 text-center">
-                      {searchQuery ? 'No matching batches' : 'No evaluation batches'}
+                      {searchQuery ? (locale === 'zh' ? '未找到匹配的批次' : 'No matching batches') : (locale === 'zh' ? '暂无批量评估' : 'No evaluation batches')}
                     </p>
                   ) : (
                     filteredBatches.map((batch) => {

@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import {
@@ -87,7 +88,7 @@ function renderCustomizedLabel({ cx, cy, midAngle, outerRadius, percent, name }:
 
 // ─── Empty State ───────────────────────────────────────────────────────────────
 
-function ChartEmpty({ message = 'No data available' }: { message?: string }) {
+function ChartEmpty({ message }: { message?: string }) {
   return (
     <div className="flex items-center justify-center h-[200px] text-[11px] text-claude-text-muted">
       {message}
@@ -123,7 +124,7 @@ function MethodDistributionChart({ entries }: MethodDistributionChartProps) {
     };
   }, [entries]);
 
-  if (data.total === 0) return <ChartEmpty message="No method data" />;
+  if (data.total === 0) return <ChartEmpty message={locale === "zh" ? "暂无方法数据" : "No method data"} />;
 
   return (
     <div className="relative">
@@ -203,7 +204,7 @@ function ResolutionHistogramChart({ entries }: ResolutionHistogramChartProps) {
   }, [entries]);
 
   const hasData = data.some(d => d.count > 0);
-  if (!hasData) return <ChartEmpty message="No resolution data" />;
+  if (!hasData) return <ChartEmpty message={locale === "zh" ? "暂无分辨率数据" : "No resolution data"} />;
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -264,7 +265,7 @@ function WeeklyTrendChart({ snapshots }: WeeklyTrendChartProps) {
     }));
   }, [snapshots]);
 
-  if (data.length === 0) return <ChartEmpty message="No snapshot data" />;
+  if (data.length === 0) return <ChartEmpty message={locale === "zh" ? "暂无快照数据" : "No snapshot data"} />;
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -389,7 +390,7 @@ function JournalImpactChart({ entries }: JournalImpactChartProps) {
       .slice(0, 6);
   }, [entries]);
 
-  if (data.length === 0) return <ChartEmpty message="No journal data" />;
+  if (data.length === 0) return <ChartEmpty message={locale === "zh" ? "暂无期刊数据" : "No journal data"} />;
 
   return (
     <ResponsiveContainer width="100%" height={200}>
@@ -464,23 +465,24 @@ interface WeeklyDashboardChartsProps {
 }
 
 export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardChartsProps) {
+  const { t, locale } = useI18n();
   const hasEntries = entries.length > 0;
   const hasSnapshots = snapshots.length > 0;
 
   if (!hasEntries && !hasSnapshots) {
     return (
       <div className="p-4 text-center text-[11px] text-claude-text-muted">
-        No data available for dashboard charts
+        {locale === 'zh' ? '仪表盘图表暂无数据' : 'No data available for dashboard charts'}
       </div>
     );
   }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
-      {/* Method Distribution */}
+      {/* {locale === 'zh' ? '方法分布' : 'Method Distribution'} */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Method Distribution
+          {locale === 'zh' ? '方法分布' : 'Method Distribution'}
         </div>
         <MethodDistributionChart entries={entries} />
       </div>
@@ -488,15 +490,15 @@ export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardCha
       {/* Resolution Histogram */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Resolution Distribution
+          {locale === 'zh' ? '分辨率分布' : 'Resolution Distribution'}
         </div>
         <ResolutionHistogramChart entries={entries} />
       </div>
 
-      {/* Weekly Trend */}
+      {/* {locale === 'zh' ? '周趋势' : 'Weekly Trend'} */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Weekly Trend
+          {locale === 'zh' ? '周趋势' : 'Weekly Trend'}
         </div>
         <WeeklyTrendChart snapshots={snapshots} />
         {/* Legend */}
@@ -519,7 +521,7 @@ export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardCha
       {/* Journal Impact */}
       <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220]">
         <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider mb-3">
-          Top Journals by Impact Factor
+          {locale === 'zh' ? '高影响因子期刊' : 'Top Journals by Impact Factor'}
         </div>
         <JournalImpactChart entries={entries} />
         {/* IF Tier Legend */}

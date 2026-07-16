@@ -2,11 +2,14 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
+import { I18nProvider } from "@/lib/i18n";
 
-// Disable static prerender caching so the HTML shell always references the
-// latest JS chunk hashes (prevents stale cached HTML after rebuilds).
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+// Use static generation for the HTML shell — the page is client-rendered
+// (PdbTracker uses ssr:false dynamic import). force-dynamic caused OOM on
+// the standalone server under concurrent requests because every request
+// re-rendered the shell server-side.
+export const dynamic = 'force-static';
+export const revalidate = false;
 
 // Fonts: CSS variable stubs (no Google Fonts - network unavailable)
 const geistSans = { variable: "--font-geist-sans" };
@@ -31,8 +34,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-          {children}
-          <Toaster position="bottom-right" />
+          <I18nProvider>
+            {children}
+            <Toaster position="bottom-right" />
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -4,6 +4,7 @@ import React, { useState, useMemo } from 'react';
 import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import type { LitPaper, LitReport } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 interface LiteratureDateSidebarProps {
   reports?: LitReport[];
@@ -28,6 +29,7 @@ export function LiteratureDateSidebar({
   filteredPapers,
   onClearFilter,
 }: LiteratureDateSidebarProps) {
+  const { locale } = useI18n();
   // ── Data source: use filteredPapers when available, else allPapers ───
   const dataSource = filteredPapers !== undefined ? filteredPapers : allPapers;
   const isFiltered = filteredPapers !== undefined && filteredPapers.length !== allPapers.length;
@@ -149,12 +151,14 @@ export function LiteratureDateSidebar({
       {/* Fixed Header */}
       <div className="px-3 py-3 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220]">
         <div className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider mb-2">
-          Papers by Date
+          {locale === 'zh' ? '按日期浏览论文' : 'Papers by Date'}
         </div>
         {/* Filter status indicator */}
         <div className="flex items-center gap-1 mb-1.5 px-2 py-1 rounded-md bg-claude-accent/10 border border-claude-accent/20">
           <span className="text-[10px] text-claude-accent font-medium">
-            {isFiltered ? `Filtered: ${dataSource.length} / ${allPapers.length}` : `All: ${allPapers.length}`}
+            {isFiltered
+              ? (locale === 'zh' ? `已筛选: ${dataSource.length} / ${allPapers.length}` : `Filtered: ${dataSource.length} / ${allPapers.length}`)
+              : (locale === 'zh' ? `全部: ${allPapers.length}` : `All: ${allPapers.length}`)}
           </span>
           {onClearFilter && (
             <button
@@ -174,7 +178,7 @@ export function LiteratureDateSidebar({
               level === 'years' ? 'text-claude-accent' : 'hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#2b2926]'
             )}
           >
-            All years
+            {locale === 'zh' ? '所有年份' : 'All years'}
           </button>
           {level !== 'years' && (
             <>

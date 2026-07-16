@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/command';
 import type { PdbEntry, Evaluation, LitPaper } from '@/lib/pdb-types';
 import { getMethodLabel } from '@/components/pdb-helpers';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Search Result Types ──────────────────────────────────────────────────────
 
@@ -261,6 +262,7 @@ export function CommandPalette({
   onApplyQuickFilter,
   onSetSearchQuery,
 }: CommandPaletteProps) {
+  const { t, locale } = useI18n();
   const [searchValue, setSearchValue] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResults>({ entries: [], evaluations: [], papers: [] });
   // Track the query that produced the current results, to derive loading state
@@ -467,7 +469,7 @@ export function CommandPalette({
     {
       id: 'cryo-em',
       label: 'Cryo-EM structures',
-      description: 'Filter to Cryo-EM method only',
+      description: locale === 'zh' ? '仅筛选 Cryo-EM 方法' : 'Filter to Cryo-EM method only',
       icon: <Microscope className="h-4 w-4 text-claude-cryoem" />,
       action: () => {
         onApplyQuickFilter?.('cryo-em');
@@ -476,8 +478,8 @@ export function CommandPalette({
     },
     {
       id: 'recent-evaluations',
-      label: 'Recent evaluations',
-      description: 'Switch to evaluation view',
+      label: locale === 'zh' ? '最近的评估' : 'Recent evaluations',
+      description: locale === 'zh' ? '切换到评估视图' : 'Switch to evaluation view',
       icon: <FlaskConical className="h-4 w-4 text-claude-xray" />,
       action: () => {
         onSwitchMode('evaluation');
@@ -486,8 +488,8 @@ export function CommandPalette({
     },
     {
       id: 'top-journals',
-      label: 'Top journals',
-      description: 'Switch to literature view',
+      label: locale === 'zh' ? '顶级期刊' : 'Top journals',
+      description: locale === 'zh' ? '切换到文献视图' : 'Switch to literature view',
       icon: <BookOpen className="h-4 w-4 text-claude-nmr" />,
       action: () => {
         onSwitchMode('literature');
@@ -496,15 +498,15 @@ export function CommandPalette({
     },
     {
       id: 'this-week',
-      label: 'Structures this week',
-      description: 'Switch to weekly with latest week',
+      label: locale === 'zh' ? '本周结构' : 'Structures this week',
+      description: locale === 'zh' ? '切换到周报（最新周）' : 'Switch to weekly with latest week',
       icon: <Calendar className="h-4 w-4 text-claude-accent" />,
       action: () => {
         onApplyQuickFilter?.('this-week');
         onOpenChange(false);
       },
     },
-  ], [onApplyQuickFilter, onSwitchMode, onOpenChange]);
+  ], [onApplyQuickFilter, onSwitchMode, onOpenChange, locale]);
 
   // Total results count
   const totalResults = searchResults.entries.length + searchResults.evaluations.length + searchResults.papers.length;
@@ -530,7 +532,7 @@ export function CommandPalette({
             <div className="flex items-center border-b border-claude-border dark:border-[#3d3832] px-3">
               <Search className="h-4 w-4 shrink-0 text-claude-text-muted" />
               <CommandInput
-                placeholder="Search PDB structures, evaluations, papers..."
+                placeholder={t.searchAll}
                 className="flex h-11 w-full bg-transparent py-3 text-sm text-claude-text placeholder:text-claude-text-muted outline-none"
                 value={searchValue}
                 onValueChange={setSearchValue}
@@ -685,7 +687,7 @@ export function CommandPalette({
                         <Moon className="h-4 w-4 text-indigo-400" />
                       )}
                       <span className="flex-1 text-sm">
-                        {isDark ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+                        {isDark ? (locale === 'zh' ? '切换到浅色模式' : 'Switch to Light Mode') : (locale === 'zh' ? '切换到深色模式' : 'Switch to Dark Mode')}
                       </span>
                     </CommandItem>
 

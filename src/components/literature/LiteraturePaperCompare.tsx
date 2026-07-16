@@ -7,6 +7,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip
 import type { LitPaper } from '@/lib/pdb-types';
 import { getMethodLabel } from '@/components/pdb-helpers';
 import type { ReadingProgressMap } from '@/hooks/use-reading-progress';
+import { useI18n } from '@/lib/i18n';
 
 interface LiteraturePaperCompareProps {
   papers: LitPaper[];
@@ -112,6 +113,7 @@ export function LiteraturePaperCompare({
   onClose,
   onSelectPaper,
 }: LiteraturePaperCompareProps) {
+  const { t, locale } = useI18n();
   const readingStatusField: ComparisonField = {
     label: 'Reading Status',
     icon: <BookOpen className="h-3 w-3" />,
@@ -212,7 +214,7 @@ export function LiteraturePaperCompare({
                 <X className="h-4 w-4" />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Close</TooltipContent>
+            <TooltipContent>{t.closeBtn}</TooltipContent>
           </Tooltip>
         </div>
 

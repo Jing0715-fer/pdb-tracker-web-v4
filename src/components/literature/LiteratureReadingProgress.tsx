@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { BookOpen, ChevronDown, ChevronUp, Circle, CheckCircle2, Loader2 } from 'lucide-react';
 import type { LitPaper } from '@/lib/pdb-types';
 import type { ReadingProgressMap } from '@/hooks/use-reading-progress';
+import { useI18n } from '@/lib/i18n';
 
 interface LiteratureReadingProgressProps {
   papers: LitPaper[];
@@ -19,6 +20,7 @@ export function LiteratureReadingProgress({
   totalPapersCount,
   defaultCollapsed = false,
 }: LiteratureReadingProgressProps) {
+  const { locale } = useI18n();
   const [collapsed, setCollapsed] = React.useState(defaultCollapsed);
 
   const stats = useMemo(() => {
@@ -51,9 +53,9 @@ export function LiteratureReadingProgress({
   const unreadArc = (unreadCount / totalPapers) * circumference;
 
   const segmentData = [
-    { arc: completedArc, color: '#10b981', label: 'Completed', count: completedCount },
-    { arc: readingArc, color: '#f59e0b', label: 'Reading', count: readingCount },
-    { arc: unreadArc, color: '#9b9590', label: 'Unread', count: unreadCount },
+    { arc: completedArc, color: '#10b981', label: locale === 'zh' ? '已完成' : 'Completed', count: completedCount },
+    { arc: readingArc, color: '#f59e0b', label: locale === 'zh' ? '阅读中' : 'Reading', count: readingCount },
+    { arc: unreadArc, color: '#9b9590', label: locale === 'zh' ? '未读' : 'Unread', count: unreadCount },
   ];
 
   let currentOffset = 0;
@@ -74,7 +76,7 @@ export function LiteratureReadingProgress({
           <div className="flex items-center gap-2">
             <BookOpen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
             <span className="text-[11px] font-semibold text-claude-text uppercase tracking-wider">
-              Reading Progress
+              {locale === 'zh' ? '阅读进度' : 'Reading Progress'}
             </span>
             <span className="text-[11px] font-bold text-teal-600 dark:text-teal-400 tabular-nums">
               {progressPercentage}%
@@ -159,7 +161,7 @@ export function LiteratureReadingProgress({
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider flex-1">
-                    Completed
+                    {locale === 'zh' ? '已完成' : 'Completed'}
                   </span>
                   <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
                     {completedCount}
@@ -175,7 +177,7 @@ export function LiteratureReadingProgress({
                 <div className="flex items-center gap-2">
                   <Loader2 className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider flex-1">
-                    Reading
+                    {locale === 'zh' ? '阅读中' : 'Reading'}
                   </span>
                   <span className="text-xs font-bold text-amber-600 dark:text-amber-400 tabular-nums">
                     {readingCount}
@@ -191,7 +193,7 @@ export function LiteratureReadingProgress({
                 <div className="flex items-center gap-2">
                   <Circle className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
                   <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider flex-1">
-                    Unread
+                    {locale === 'zh' ? '未读' : 'Unread'}
                   </span>
                   <span className="text-xs font-bold text-gray-500 dark:text-gray-400 tabular-nums">
                     {unreadCount}
@@ -208,7 +210,9 @@ export function LiteratureReadingProgress({
 
             {/* Summary text */}
             <div className="text-[10px] text-claude-text-muted">
-              {completedCount} of {totalPapers} papers completed ({progressPercentage}% overall progress)
+              {locale === 'zh'
+                ? `${completedCount} / ${totalPapers} 篇论文已完成 (${progressPercentage}% 总体进度)`
+                : `${completedCount} of ${totalPapers} papers completed (${progressPercentage}% overall progress)`}
             </div>
           </div>
         )}

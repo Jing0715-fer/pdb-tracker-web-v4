@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { generateBatchBibTeX, generateBatchRIS, generateCSV, downloadFile } from '@/lib/citation-utils';
 import type { LitPaper } from '@/lib/pdb-types';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n';
 
 export type ViewMode = 'cards' | 'list' | 'table';
 export type SortField = 'IF' | 'date' | 'title' | 'journal' | 'pmid';
@@ -52,25 +53,25 @@ interface LiteratureToolbarProps {
   onToggleJournalMap?: () => void;
 }
 
-const DATE_FILTERS: { value: DateFilter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'week', label: 'This Week' },
-  { value: 'month', label: 'This Month' },
-  { value: '3months', label: '3 Months' },
+const buildDateFilters = (locale: 'en' | 'zh'): { value: DateFilter; label: string }[] => [
+  { value: 'all', label: locale === 'zh' ? '全部' : 'All' },
+  { value: 'week', label: locale === 'zh' ? '本周' : 'This Week' },
+  { value: 'month', label: locale === 'zh' ? '本月' : 'This Month' },
+  { value: '3months', label: locale === 'zh' ? '近3个月' : '3 Months' },
 ];
 
-const IF_FILTERS: { value: IfFilter; label: string }[] = [
-  { value: 'all', label: 'All IF' },
+const buildIfFilters = (locale: 'en' | 'zh'): { value: IfFilter; label: string }[] => [
+  { value: 'all', label: locale === 'zh' ? '全部 IF' : 'All IF' },
   { value: '5', label: '≥5' },
   { value: '10', label: '≥10' },
   { value: '20', label: '≥20' },
 ];
 
-const SORT_OPTIONS: { value: SortField; label: string }[] = [
-  { value: 'date', label: 'Date' },
-  { value: 'IF', label: 'Impact Factor' },
-  { value: 'title', label: 'Title' },
-  { value: 'journal', label: 'Journal' },
+const buildSortOptions = (locale: 'en' | 'zh'): { value: SortField; label: string }[] => [
+  { value: 'date', label: locale === 'zh' ? '日期' : 'Date' },
+  { value: 'IF', label: locale === 'zh' ? '影响因子' : 'Impact Factor' },
+  { value: 'title', label: locale === 'zh' ? '标题' : 'Title' },
+  { value: 'journal', label: locale === 'zh' ? '期刊' : 'Journal' },
   { value: 'pmid', label: 'PMID' },
 ];
 
@@ -99,6 +100,8 @@ export function LiteratureToolbarMain({
   filteredPapers = [],
   dailyPapersCount = 0,
 }: LiteratureToolbarProps) {
+  const { locale } = useI18n();
+  const SORT_OPTIONS = buildSortOptions(locale);
   const [localSearch, setLocalSearch] = useState(search);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
@@ -129,7 +132,7 @@ export function LiteratureToolbarMain({
           type="text"
           value={localSearch}
           onChange={(e) => handleSearchInput(e.target.value)}
-          placeholder="Search papers by title, author, journal..."
+          placeholder={locale === 'zh' ? '按标题、作者、期刊搜索论文…' : 'Search papers by title, author, journal...'}
           className="w-full h-7 pl-8 pr-8 text-[11px] rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] text-claude-text placeholder:text-claude-text-muted focus:outline-none focus:ring-2 focus:ring-claude-accent/30 input-focus-glow transition-shadow"
         />
         {localSearch && (
@@ -149,7 +152,7 @@ export function LiteratureToolbarMain({
           className="h-7 px-2.5 text-[11px] font-medium rounded-lg border border-claude-border dark:border-[#3d3832] bg-white dark:bg-[#1a1917] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#2b2926] transition-colors flex items-center gap-1.5 claude-focus-ring"
         >
           <SlidersHorizontal className="h-3 w-3" />
-          {SORT_OPTIONS.find(o => o.value === sort)?.label ?? 'Sort'}
+          {SORT_OPTIONS.find(o => o.value === sort)?.label ?? (locale === 'zh' ? '排序' : 'Sort')}
           <span
             role="button"
             tabIndex={0}
@@ -195,7 +198,7 @@ export function LiteratureToolbarMain({
             }`}
           >
             <Filter className="h-3 w-3" />
-            Filters
+            {locale === 'zh' ? '筛选' : 'Filters'}
             {advancedFilterCount > 0 && (
               <span className="inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-white/20 text-[9px] font-bold">
                 {advancedFilterCount}
@@ -232,7 +235,7 @@ export function LiteratureToolbarMain({
         }`}
       >
         <BookOpen className="h-3 w-3" />
-        Has PDB
+        {locale === 'zh' ? '含 PDB' : 'Has PDB'}
       </Button>
 
       {/* Source filter (日报) toggle */}
@@ -246,10 +249,10 @@ export function LiteratureToolbarMain({
               ? 'bg-claude-accent hover:bg-claude-accent-hover text-white'
               : 'border-claude-border dark:border-[#3d3832] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#2b2926]'
           }`}
-          title="Filter to Daily papers"
+          title={locale === 'zh' ? '仅显示日报论文' : 'Filter to Daily papers'}
         >
           <BookOpen className="h-3 w-3" />
-          Daily{sourceFilter === 'daily' && dailyCount > 0 ? ` (${dailyCount})` : ''}
+          {locale === 'zh' ? '日报' : 'Daily'}{sourceFilter === 'daily' && dailyCount > 0 ? ` (${dailyCount})` : ''}
         </Button>
       )}
 
@@ -260,15 +263,15 @@ export function LiteratureToolbarMain({
         onClick={onExpandAllToggle}
         className="h-7 px-2.5 text-[11px] gap-1.5 border-claude-border dark:border-[#3d3832] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#2b2926]"
       >
-        {expandAll ? 'Collapse' : 'Expand'}
+        {expandAll ? (locale === 'zh' ? '折叠' : 'Collapse') : (locale === 'zh' ? '展开' : 'Expand')}
       </Button>
 
       {/* View mode toggle */}
       <div className="flex rounded-lg border border-claude-border dark:border-[#3d3832] overflow-hidden">
         {([
-          { mode: 'cards' as ViewMode, icon: LayoutGrid, label: 'Cards' },
-          { mode: 'list' as ViewMode, icon: List, label: 'List' },
-          { mode: 'table' as ViewMode, icon: Table, label: 'Table' },
+          { mode: 'cards' as ViewMode, icon: LayoutGrid, label: locale === 'zh' ? '卡片' : 'Cards' },
+          { mode: 'list' as ViewMode, icon: List, label: locale === 'zh' ? '列表' : 'List' },
+          { mode: 'table' as ViewMode, icon: Table, label: locale === 'zh' ? '表格' : 'Table' },
         ]).map(({ mode, icon: Icon, label }) => (
           <button
             key={mode}
@@ -295,7 +298,7 @@ export function LiteratureToolbarMain({
               className="h-7 px-2.5 text-[11px] gap-1.5 border-claude-border dark:border-[#3d3832] text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#2b2926]"
             >
               <Download className="h-3.5 w-3.5" />
-              Export
+              {locale === 'zh' ? '导出' : 'Export'}
               <ChevronDown className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
@@ -304,21 +307,21 @@ export function LiteratureToolbarMain({
               onClick={() => {
                 const content = generateBatchBibTeX(filteredPapers);
                 downloadFile(content, 'citations.bib', 'application/x-bibtex');
-                toast.success(`Exported ${filteredPapers.length} papers as BibTeX`);
+                toast.success(locale === 'zh' ? `已导出 ${filteredPapers.length} 篇为 BibTeX` : `Exported ${filteredPapers.length} papers as BibTeX`);
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-2" />
-              Export All as BibTeX (.bib)
+              {locale === 'zh' ? '全部导出为 BibTeX (.bib)' : 'Export All as BibTeX (.bib)'}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 const content = generateBatchRIS(filteredPapers);
                 downloadFile(content, 'citations.ris', 'application/x-research-info-systems');
-                toast.success(`Exported ${filteredPapers.length} papers as RIS`);
+                toast.success(locale === 'zh' ? `已导出 ${filteredPapers.length} 篇为 RIS` : `Exported ${filteredPapers.length} papers as RIS`);
               }}
             >
               <FileText className="h-3.5 w-3.5 mr-2" />
-              Export All as RIS (.ris)
+              {locale === 'zh' ? '全部导出为 RIS (.ris)' : 'Export All as RIS (.ris)'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -329,22 +332,22 @@ export function LiteratureToolbarMain({
                   return `${authors} (${year}). ${p.title}. ${p.journal}${p.doi ? `. https://doi.org/${p.doi}` : ''}. PMID: ${p.pmid}.`;
                 }).join('\n\n');
                 await navigator.clipboard.writeText(apaCitations);
-                toast.success(`Copied ${filteredPapers.length} APA citations to clipboard`);
+                toast.success(locale === 'zh' ? `已复制 ${filteredPapers.length} 条 APA 引用到剪贴板` : `Copied ${filteredPapers.length} APA citations to clipboard`);
               }}
             >
               <Copy className="h-3.5 w-3.5 mr-2" />
-              Copy All APA Citations
+              {locale === 'zh' ? '复制全部 APA 引用' : 'Copy All APA Citations'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => {
                 const content = generateCSV(filteredPapers);
                 downloadFile(content, 'citations.csv', 'text/csv');
-                toast.success(`Exported ${filteredPapers.length} papers as CSV`);
+                toast.success(locale === 'zh' ? `已导出 ${filteredPapers.length} 篇为 CSV` : `Exported ${filteredPapers.length} papers as CSV`);
               }}
             >
               <Download className="h-3.5 w-3.5 mr-2" />
-              Export All as CSV
+              {locale === 'zh' ? '全部导出为 CSV' : 'Export All as CSV'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -372,6 +375,9 @@ export function LiteratureToolbarChips({
   search,
   advancedFilterCount = 0,
 }: LiteratureToolbarProps) {
+  const { locale } = useI18n();
+  const DATE_FILTERS = buildDateFilters(locale);
+  const IF_FILTERS = buildIfFilters(locale);
   const hasActiveFilters = dateFilter !== 'all' || ifFilter !== 'all' || hasPdbOnly || search !== '' || advancedFilterCount > 0;
 
   return (
@@ -427,7 +433,7 @@ export function LiteratureToolbarChips({
           }`}
         >
           <Network className="h-3 w-3 mr-1" />
-          {showCitationNetwork ? 'Hide Network' : 'Network'}
+          {showCitationNetwork ? (locale === 'zh' ? '隐藏网络' : 'Hide Network') : (locale === 'zh' ? '网络' : 'Network')}
         </Button>
       )}
       {/* Charts button */}
@@ -443,7 +449,7 @@ export function LiteratureToolbarChips({
           }`}
         >
           <BarChart3 className="h-3 w-3 mr-1" />
-          {showCharts ? 'Hide Charts' : 'Charts'}
+          {showCharts ? (locale === 'zh' ? '隐藏图表' : 'Hide Charts') : (locale === 'zh' ? '图表' : 'Charts')}
         </Button>
       )}
       {/* Journal Map button */}
@@ -459,13 +465,13 @@ export function LiteratureToolbarChips({
           }`}
         >
           <Map className="h-3 w-3 mr-1" />
-          {showJournalMap ? 'Hide Map' : 'Journal Map'}
+          {showJournalMap ? (locale === 'zh' ? '隐藏地图' : 'Hide Map') : (locale === 'zh' ? '期刊地图' : 'Journal Map')}
         </Button>
       )}
 
       {hasActiveFilters && (
         <span className="ml-auto text-[11px] text-claude-text-muted">
-          {resultCount} result{resultCount !== 1 ? 's' : ''}
+          {locale === 'zh' ? `${resultCount} 条结果` : `${resultCount} result${resultCount !== 1 ? 's' : ''}`}
         </span>
       )}
     </div>

@@ -70,6 +70,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
 import { escapeHtml } from '@/lib/pdb-utils';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ───────────────────────────────────────────────────────────────
 
@@ -924,6 +925,7 @@ function ChainRow({
   const isEntityVisible = entityVisibility ? entityVisibility[entityKey] !== false : true;
   const isEntitySoloMode = soloEntity === entityKey;
   const colorDotRef = useRef<HTMLButtonElement>(null);
+  const { t, locale } = useI18n();
 
   return (
     <div
@@ -968,7 +970,7 @@ function ChainRow({
                    shadow-sm hover:scale-125 transition-transform focus:outline-none
                    focus:ring-2 focus:ring-claude-accent/40"
         style={{ backgroundColor: color }}
-        aria-label="Change color" title="Change color"
+        aria-label="Change color" title={locale === 'zh' ? '更改颜色' : 'Change color'}
       >
         <Palette className="w-2 h-2 text-white/70 mx-auto opacity-0 hover:opacity-100 transition-opacity" />
       </button>
@@ -1021,7 +1023,7 @@ function ChainRow({
                            ? 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30'
                            : 'text-claude-text-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                          }`}
-              title={isEntitySoloMode ? 'Exit solo mode' : 'Solo: show only this chain'}
+              title={isEntitySoloMode ? (locale === 'zh' ? '退出单独模式' : 'Exit solo mode') : (locale === 'zh' ? '单独模式：仅显示此链' : 'Solo: show only this chain')}
             >
               <Maximize2 className="w-3 h-3" />
             </button>
@@ -1045,7 +1047,7 @@ function ChainRow({
                          ? 'text-claude-text-secondary hover:text-claude-accent'
                          : 'text-claude-text-muted'
                      }`}
-          title={isEntityVisible ? 'Hide chain' : 'Show chain'}
+          title={isEntityVisible ? (locale === 'zh' ? '隐藏链' : 'Hide chain') : (locale === 'zh' ? '显示链' : 'Show chain')}
         >
           {isEntityVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
         </button>
@@ -1119,6 +1121,7 @@ function LigandRow({
   const isPeptideInhibitor = code.startsWith('PEP_');
   const isSoloMode = soloLigand === code;
   const colorDotRef = useRef<HTMLButtonElement>(null);
+  const { t, locale } = useI18n();
 
   return (
     /* Outer wrapper positions the color picker popup outside the HoverCard trigger
@@ -1167,7 +1170,7 @@ function LigandRow({
                        shadow-sm hover:scale-125 transition-transform focus:outline-none
                        focus:ring-2 focus:ring-claude-accent/40"
             style={{ backgroundColor: color }}
-            aria-label="Change color" title="Change color"
+            aria-label="Change color" title={locale === 'zh' ? '更改颜色' : 'Change color'}
           />
 
           {/* Peptide inhibitor icon for PEP_ ligands */}
@@ -1242,7 +1245,7 @@ function LigandRow({
                   }}
                   className="p-0.5 rounded text-claude-text-muted hover:text-purple-600 dark:hover:text-purple-400
                              hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors flex-shrink-0"
-                  title="Show in Sequence"
+                  title={locale === 'zh' ? '在序列中显示' : 'Show in Sequence'}
                 >
                   <AlignLeft className="w-3 h-3" />
                 </button>
@@ -1264,7 +1267,7 @@ function LigandRow({
                   }}
                   className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent
                              hover:bg-claude-accent-light transition-colors flex-shrink-0 btn-click-ripple"
-                  title="Focus in viewer"
+                  title={locale === 'zh' ? '在查看器中聚焦' : 'Focus in viewer'}
                 >
                   <Crosshair className="w-3 h-3" />
                 </button>
@@ -1289,7 +1292,7 @@ function LigandRow({
                                ? 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30'
                                : 'text-claude-text-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                              }`}
-                  title={isSoloMode ? 'Exit solo mode' : 'Solo: show only this ligand + surroundings'}
+                  title={isSoloMode ? (locale === 'zh' ? '退出单独模式' : 'Exit solo mode') : (locale === 'zh' ? '单独模式：仅显示此配体及周围' : 'Solo: show only this ligand + surroundings')}
                 >
                   <Maximize2 className="w-3 h-3" />
                 </button>
@@ -1312,7 +1315,7 @@ function LigandRow({
                            ? 'text-claude-text-secondary hover:text-claude-accent'
                            : 'text-claude-text-muted'
                        }`}
-            title={isVisible ? 'Hide ligand' : 'Show ligand'}
+            title={isVisible ? (locale === 'zh' ? '隐藏配体' : 'Hide ligand') : (locale === 'zh' ? '显示配体' : 'Show ligand')}
           >
             {isVisible ? (
               <Eye className="w-3 h-3" />
@@ -2422,6 +2425,7 @@ function ContactNetworkGraph({
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [hoveredEdge, setHoveredEdge] = useState<string | null>(null);
   const [graphExpanded, setGraphExpanded] = useState(false);
+  const { t, locale } = useI18n();
 
   // Build nodes from contacts data + entity/ligand info
   const nodes = useMemo(() => {
@@ -2585,7 +2589,7 @@ function ContactNetworkGraph({
                    bg-claude-surface/60 backdrop-blur-sm border border-claude-border-light
                    text-claude-text-muted hover:text-claude-text hover:border-claude-accent/30
                    transition-all"
-        title={graphExpanded ? 'Collapse graph' : 'Expand graph'}
+        title={graphExpanded ? (locale === 'zh' ? '收起图表' : 'Collapse graph') : (locale === 'zh' ? '展开图表' : 'Expand graph')}
       >
         {graphExpanded ? <Minimize2 className="w-2.5 h-2.5" /> : <Maximize2 className="w-2.5 h-2.5" />}
       </button>
@@ -3284,6 +3288,7 @@ export function SimilaritySection({
   const { data, loading } = useSimilarityData(pdbId);
   const [expanded, setExpanded] = useState(true);
   const [selectedIdentity, setSelectedIdentity] = useState<number>(90);
+  const { t, locale } = useI18n();
 
   const identityLevels = [30, 50, 70, 90];
 
@@ -3430,7 +3435,7 @@ export function SimilaritySection({
                               onClick={(e) => e.stopPropagation()}
                               className="opacity-0 group-hover:opacity-100 transition-opacity text-claude-text-muted
                                          hover:text-claude-accent"
-                            title="View on RCSB"
+                            title={locale === 'zh' ? '在 RCSB 查看' : 'View on RCSB'}
                             >
                               <ExternalLink className="w-2.5 h-2.5" />
                             </a>
@@ -3903,7 +3908,7 @@ interface PdbMilestone {
 }
 
 const PDB_MILESTONES: PdbMilestone[] = [
-  { year: 1971, entries: 7, label: 'First structures' },
+  { year: 1971, entries: 7, label: locale === 'zh' ? '首批结构' : 'First structures' },
   { year: 1977, entries: 50, label: '1MBN Myoglobin' },
   { year: 1990, entries: 500, label: '500 entries' },
   { year: 2000, entries: 13000, label: '13K entries' },
@@ -4516,6 +4521,7 @@ function QuickActionsToolbar({
 }) {
   const allLigandsVisible = ligandCodes.every(c => ligandVisibility[c] !== false);
   const allExpanded = displayEntities.every(e => expandedEntities.has(e.entity_id));
+  const { t, locale } = useI18n();
 
   const handleResetColors = useCallback(() => {
     // Reset entity colors for ALL chains (not just those already in entityColors)
@@ -4557,7 +4563,7 @@ function QuickActionsToolbar({
             onClick={handleResetColors}
             className="p-1.5 rounded text-claude-text-muted hover:text-claude-accent
                        hover:bg-claude-accent-light transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
-            title="Reset all colors"
+            title={locale === 'zh' ? '重置所有颜色' : 'Reset all colors'}
           >
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
@@ -4574,13 +4580,13 @@ function QuickActionsToolbar({
             onClick={handleToggleAllLigands}
             className="p-1.5 rounded text-claude-text-muted hover:text-claude-accent
                        hover:bg-claude-accent-light transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
-            title={allLigandsVisible ? 'Hide all ligands' : 'Show all ligands'}
+            title={allLigandsVisible ? (locale === 'zh' ? '隐藏所有配体' : 'Hide all ligands') : (locale === 'zh' ? '显示所有配体' : 'Show all ligands')}
           >
             {allLigandsVisible ? <Layers className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg text-[9px]">
-          {allLigandsVisible ? 'Hide all ligands' : 'Show all ligands'}
+          {allLigandsVisible ? (locale === 'zh' ? '隐藏所有配体' : 'Hide all ligands') : (locale === 'zh' ? '显示所有配体' : 'Show all ligands')}
         </TooltipContent>
       </Tooltip>
 
@@ -4591,13 +4597,13 @@ function QuickActionsToolbar({
             onClick={handleToggleAllExpanded}
             className="p-1.5 rounded text-claude-text-muted hover:text-claude-accent
                        hover:bg-claude-accent-light transition-colors min-w-[28px] min-h-[28px] flex items-center justify-center"
-            title={allExpanded ? 'Collapse all sections' : 'Expand all sections'}
+            title={allExpanded ? (locale === 'zh' ? '收起所有部分' : 'Collapse all sections') : (locale === 'zh' ? '展开所有部分' : 'Expand all sections')}
           >
             {allExpanded ? <FoldVertical className="w-3.5 h-3.5" /> : <UnfoldVertical className="w-3.5 h-3.5" />}
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="bg-claude-surface text-claude-text border border-claude-border shadow-lg text-[9px]">
-          {allExpanded ? 'Collapse all sections' : 'Expand all sections'}
+          {allExpanded ? (locale === 'zh' ? '收起所有部分' : 'Collapse all sections') : (locale === 'zh' ? '展开所有部分' : 'Expand all sections')}
         </TooltipContent>
       </Tooltip>
     </div>
@@ -4754,6 +4760,7 @@ export function EntityPanel({
     key: string;
   } | null>(null);
   const [entitySearchQuery, setEntitySearchQuery] = useState('');
+  const { t, locale } = useI18n();
 
   // Count polymer entities (exclude ligands and water)
   const polymerEntities = entities.filter((e) => {
@@ -5003,7 +5010,7 @@ export function EntityPanel({
                    bg-claude-surface border border-claude-border border-r-0 rounded-l-md
                    text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent-light
                    transition-colors"
-        title={collapsed ? 'Expand panel' : 'Collapse panel'}
+        title={collapsed ? (locale === 'zh' ? '展开面板' : 'Expand panel') : (locale === 'zh' ? '收起面板' : 'Collapse panel')}
       >
         {collapsed ? (
           <ChevronLeft className="w-3.5 h-3.5" />
@@ -5032,7 +5039,7 @@ export function EntityPanel({
               type="text"
               value={entitySearchQuery}
               onChange={(e) => setEntitySearchQuery(e.target.value)}
-              placeholder="Filter entities by name, chain, organism..."
+              placeholder={locale === 'zh' ? '按名称、链、物种筛选实体…' : 'Filter entities by name, chain, organism...'}
               className="w-full pl-7 pr-6 py-1.5 text-[10px] rounded-md border border-claude-border-light
                          bg-claude-bg text-claude-text placeholder:text-claude-text-muted
                          focus:outline-none focus:ring-1 focus:ring-claude-accent/40 focus:border-claude-accent
@@ -5099,7 +5106,7 @@ export function EntityPanel({
                 }}
                 className="p-1 rounded text-claude-text-muted hover:text-claude-accent
                            hover:bg-claude-accent-light transition-colors"
-                title="Focus in 3D"
+                title={locale === 'zh' ? '在 3D 中聚焦' : 'Focus in 3D'}
               >
                 <Crosshair className="w-3 h-3" />
               </button>
@@ -5121,7 +5128,7 @@ export function EntityPanel({
                 }}
                 className="p-1 rounded text-claude-text-muted hover:text-claude-accent
                            hover:bg-claude-accent-light transition-colors"
-                aria-label="Change color" title="Change color"
+                aria-label="Change color" title={locale === 'zh' ? '更改颜色' : 'Change color'}
               >
                 <Palette className="w-3 h-3" />
               </button>
@@ -5144,7 +5151,7 @@ export function EntityPanel({
                 }}
                 className="p-1 rounded text-claude-text-muted hover:text-claude-accent
                            hover:bg-claude-accent-light transition-colors"
-                title="Deselect"
+                title={locale === "zh" ? "取消选择" : "Deselect"}
               >
                 <X className="w-3 h-3" />
               </button>
@@ -5390,7 +5397,7 @@ export function EntityPanel({
                         onClick={onResetView}
                         className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent
                                    hover:bg-claude-accent-light transition-colors btn-click-ripple"
-                        title="Reset view: show all ligands and chains"
+                        title={locale === 'zh' ? '重置视图：显示所有配体和链' : 'Reset view: show all ligands and chains'}
                       >
                         <RotateCcw className="w-3 h-3" />
                       </button>
@@ -5407,7 +5414,7 @@ export function EntityPanel({
                         onClick={onExportLigands}
                         className="p-0.5 rounded text-claude-text-muted hover:text-claude-accent
                                    hover:bg-claude-accent-light transition-colors btn-click-ripple"
-                        title="Export ligand data as CSV"
+                        title={locale === 'zh' ? '导出配体数据为 CSV' : 'Export ligand data as CSV'}
                       >
                         <Download className="w-3 h-3" />
                       </button>
@@ -5499,7 +5506,7 @@ export function EntityPanel({
                 onClick={() => setCollapsedState(false)}
                 className="w-9 h-9 rounded-lg bg-claude-accent-light flex items-center justify-center
                            hover:bg-claude-accent hover:text-white transition-colors group"
-                title="Expand panel"
+                title={locale === 'zh' ? '展开面板' : 'Expand panel'}
               >
                 <span className="text-[8px] font-mono font-bold text-claude-accent group-hover:text-white leading-none">
                   {pdbId.toUpperCase()}
@@ -5637,7 +5644,7 @@ export function EntityPanel({
                 className="w-9 h-7 rounded-md flex items-center justify-center
                            text-claude-text-muted hover:bg-claude-accent-light
                            hover:text-claude-accent transition-colors"
-                title="Expand panel"
+                title={locale === 'zh' ? '展开面板' : 'Expand panel'}
               >
                 <ChevronRight className="w-4 h-4" />
               </button>

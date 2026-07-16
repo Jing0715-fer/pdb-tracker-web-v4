@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { X, GitCompare, ShieldCheck, Beaker, Ruler, Dna, FlaskConical } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 interface CompareStructure {
   pdbId: string;
@@ -79,6 +80,7 @@ function MetricRow({
 }
 
 export default function ComparisonPanel({ base, target, onClose }: ComparisonPanelProps) {
+  const { t, locale } = useI18n();
   return (
     <div className="flex-shrink-0 border-b border-claude-border bg-claude-surface/50 backdrop-blur-sm comparison-panel-border">
       {/* Header */}
@@ -111,7 +113,7 @@ export default function ComparisonPanel({ base, target, onClose }: ComparisonPan
       {/* Metrics */}
       <div className="px-3 py-1">
         <MetricRow
-          label="Resolution"
+          label={t.resolutionLabel}
           baseValue={base.resolution}
           targetValue={target.resolution}
           unit=" Å"
@@ -119,34 +121,34 @@ export default function ComparisonPanel({ base, target, onClose }: ComparisonPan
           icon={Ruler}
         />
         <MetricRow
-          label="MolProbity Score"
+          label={t.molprobityScore}
           baseValue={base.quality?.molprobity_score ?? null}
           targetValue={target.quality?.molprobity_score ?? null}
           lowerIsBetter
           icon={ShieldCheck}
         />
         <MetricRow
-          label="Clash Score"
+          label={t.clashScore}
           baseValue={base.quality?.clash_score ?? null}
           targetValue={target.quality?.clash_score ?? null}
           lowerIsBetter
           icon={Beaker}
         />
         <MetricRow
-          label="Rama Favored %"
+          label={t.ramaFavored}
           baseValue={base.quality?.ramachandran_favored ?? null}
           targetValue={target.quality?.ramachandran_favored ?? null}
           unit="%"
           icon={Dna}
         />
         <MetricRow
-          label="Entities"
+          label={t.entities}
           baseValue={base.entities}
           targetValue={target.entities}
           icon={FlaskConical}
         />
         <MetricRow
-          label="Ligands"
+          label={t.ligands}
           baseValue={base.ligands}
           targetValue={target.ligands}
           icon={FlaskConical}

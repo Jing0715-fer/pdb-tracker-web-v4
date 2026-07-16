@@ -47,6 +47,7 @@ import {
   CollapsibleContent,
 } from '@/components/ui/collapsible';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -568,6 +569,7 @@ function ChainRowItem({
   onSoloEntity: (entityKey: string | null) => void;
   onFocusOnTarget: (target: string, type: 'entity' | 'ligand') => void;
 }) {
+  const { t, locale } = useI18n();
   const chainKey = `${pdbId}.${chain.chain}`;
   const color = entityColors[chainKey] || '#718096';
   const isVisible = soloEntity ? soloEntity === chainKey : entityVisibility[chainKey] !== false;
@@ -584,8 +586,8 @@ function ChainRowItem({
         onClick={(e) => onColorDotClick(e, 'entity', chainKey)}
         className="w-3 h-3 rounded-full flex-shrink-0 border border-white/30 dark:border-gray-500/50 shadow-sm hover:scale-125 transition-transform focus:outline-none"
         style={{ backgroundColor: color }}
-        aria-label="Change color"
-        title="Change color"
+        aria-label={t.changeColor}
+        title={t.changeColor}
       />
 
       {/* Chain ID badge */}
@@ -623,7 +625,7 @@ function ChainRowItem({
                 ? 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30'
                 : 'text-claude-text-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
             }`}
-            title={isSolo ? 'Exit solo mode' : 'Solo: show only this chain'}
+            title={isSolo ? (locale === 'zh' ? '退出单独模式' : 'Exit solo mode') : (locale === 'zh' ? '单独模式：仅显示此链' : 'Solo: show only this chain')}
           >
             <Maximize2 className="w-3 h-3" />
           </button>
@@ -637,7 +639,7 @@ function ChainRowItem({
       <button
         onClick={(e) => { e.stopPropagation(); onEntityVisibilityChange(chainKey, !isVisible); }}
         className={`p-0.5 rounded transition-colors flex-shrink-0 ${isVisible ? 'text-claude-text-secondary hover:text-claude-accent' : 'text-claude-text-muted'}`}
-        title={isVisible ? 'Hide chain' : 'Show chain'}
+        title={isVisible ? (locale === 'zh' ? '隐藏链' : 'Hide chain') : (locale === 'zh' ? '显示链' : 'Show chain')}
       >
         {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
       </button>
@@ -666,6 +668,7 @@ function LigandRowItem({
   onSoloLigand: (ligandCode: string | null) => void;
   onFocusOnTarget: (target: string, type: 'entity' | 'ligand') => void;
 }) {
+  const { t, locale } = useI18n();
   const color = ligandColors[code] || '#d69e2e';
   const isVisible = soloLigand ? soloLigand === code : ligandVisibility[code] !== false;
   const isSolo = soloLigand === code;
@@ -683,8 +686,8 @@ function LigandRowItem({
             onClick={(e) => onColorDotClick(e, 'ligand', code)}
             className="w-3 h-3 rounded-full flex-shrink-0 border border-white/30 dark:border-gray-500/50 shadow-sm hover:scale-125 transition-transform focus:outline-none"
             style={{ backgroundColor: color }}
-            aria-label="Change ligand color"
-            title="Change color"
+            aria-label={t.changeLigandColor}
+            title={locale === 'zh' ? '更改颜色' : 'Change color'}
           />
 
           {/* Ligand code badge */}
@@ -717,7 +720,7 @@ function LigandRowItem({
                     ? 'text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-900/30'
                     : 'text-claude-text-muted hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20'
                 }`}
-                title={isSolo ? 'Exit solo mode' : 'Solo: show only this ligand'}
+                title={isSolo ? (locale === 'zh' ? '退出单独模式' : 'Exit solo mode') : (locale === 'zh' ? '单独模式：仅显示此配体' : 'Solo: show only this ligand')}
               >
                 <Maximize2 className="w-3 h-3" />
               </button>
@@ -731,7 +734,7 @@ function LigandRowItem({
           <button
             onClick={(e) => { e.stopPropagation(); onLigandVisibilityChange(code, !isVisible); }}
             className={`p-0.5 rounded transition-colors flex-shrink-0 ${isVisible ? 'text-claude-text-secondary hover:text-claude-accent' : 'text-claude-text-muted'}`}
-            title={isVisible ? 'Hide ligand' : 'Show ligand'}
+            title={isVisible ? (locale === 'zh' ? '隐藏配体' : 'Hide ligand') : (locale === 'zh' ? '显示配体' : 'Show ligand')}
           >
             {isVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
           </button>
@@ -944,7 +947,7 @@ export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }
             setWebglNotAvailable(true);
             setError('WebGL is not available. Please try a different browser.');
           } else {
-            setError('Failed to initialize 3D viewer. Please refresh the page.');
+            setError(locale === 'zh' ? '3D 查看器初始化失败，请刷新页面。' : 'Failed to initialize 3D viewer. Please refresh the page.');
           }
           setLoading(false);
         }
@@ -2133,7 +2136,7 @@ export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }
           <CollapsibleTrigger asChild>
             <button className="flex items-center gap-1.5 w-full px-2.5 py-1.5 hover:bg-claude-border-light/40 dark:hover:bg-[#2b2926]/40 transition-colors">
               <ChevronDown className={`w-3 h-3 text-claude-text-muted transition-transform ${entitiesExpanded ? '' : '-rotate-90'}`} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Entities</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">{locale === 'zh' ? '实体' : 'Entities'}</span>
               <span className="text-[9px] text-claude-text-muted ml-1">({entities.length})</span>
             </button>
           </CollapsibleTrigger>
@@ -2208,7 +2211,7 @@ export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }
           <CollapsibleTrigger asChild>
             <button className="flex items-center gap-1.5 w-full px-2.5 py-1.5 hover:bg-claude-border-light/40 dark:hover:bg-[#2b2926]/40 transition-colors border-t border-claude-border-light/40 dark:border-[#3d3832]/30">
               <ChevronDown className={`w-3 h-3 text-claude-text-muted transition-transform ${ligandsExpanded ? '' : '-rotate-90'}`} />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">Ligands</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-claude-text-muted">{locale === 'zh' ? '配体' : 'Ligands'}</span>
               <span className="text-[9px] text-claude-text-muted ml-1">({ligandCodes.length})</span>
             </button>
           </CollapsibleTrigger>
@@ -2405,22 +2408,22 @@ export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }
                 {loading ? (
                   <>
                     <Loader2 className="h-4 w-4 text-claude-accent animate-spin" />
-                    <span className="text-[10px] text-claude-text-muted">Loading entities...</span>
+                    <span className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '实体加载中…' : 'Loading entities...'}</span>
                   </>
                 ) : structureLoaded ? (
                   <>
                     <Layers className="h-4 w-4 text-claude-border" />
-                    <span className="text-[10px] text-claude-text-muted text-center">No entity data available</span>
+                    <span className="text-[10px] text-claude-text-muted text-center">{locale === 'zh' ? '无实体数据' : 'No entity data available'}</span>
                   </>
                 ) : error ? (
                   <>
                     <AlertCircle className="h-4 w-4 text-amber-500" />
-                    <span className="text-[10px] text-claude-text-muted text-center">Failed to load</span>
+                    <span className="text-[10px] text-claude-text-muted text-center">{locale === 'zh' ? '加载失败' : 'Failed to load'}</span>
                   </>
                 ) : (
                   <>
                     <Layers className="h-4 w-4 text-claude-border" />
-                    <span className="text-[10px] text-claude-text-muted">Waiting...</span>
+                    <span className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '等待中…' : 'Waiting...'}</span>
                   </>
                 )}
               </div>
@@ -2792,6 +2795,7 @@ function PdbStructureViewerFullscreen({
 // ─── Lazy-Loading Wrapper ───────────────────────────────────────────────────
 
 export function PdbStructureViewerLazy({ pdbId, className = '', layout = 'stacked' }: PdbStructureViewerProps) {
+  const { locale } = useI18n();
   const [shouldLoad, setShouldLoad] = useState(false);
 
   if (!shouldLoad) {
@@ -2801,7 +2805,7 @@ export function PdbStructureViewerLazy({ pdbId, className = '', layout = 'stacke
         className={`flex items-center justify-center gap-2 w-full h-[80px] rounded-lg border border-dashed border-claude-border/60 dark:border-[#3d3832]/60 bg-claude-border-light/20 dark:bg-[#2b2926]/20 hover:bg-claude-border-light/40 dark:hover:bg-[#2b2926]/40 transition-colors cursor-pointer ${className}`}
       >
         <Box className="h-5 w-5 text-claude-accent/60" />
-        <span className="text-xs font-medium text-claude-text-muted">Load 3D Viewer</span>
+        <span className="text-xs font-medium text-claude-text-muted">{locale === 'zh' ? '加载 3D 查看器' : 'Load 3D Viewer'}</span>
       </button>
     );
   }

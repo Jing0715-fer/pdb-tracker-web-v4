@@ -22,7 +22,7 @@
  * ① / ② and flows into ③ via the same `llm` body field.
  */
 
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,6 +37,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip';
 import { useRunStream, type StreamEvent } from '@/lib/use-run-stream';
+import { useI18n } from '@/lib/i18n';
 import {
   Dialog,
   DialogContent,
@@ -249,7 +250,7 @@ function StreamFeed({
       {/* header */}
       <div className="flex items-center justify-between gap-2 px-3 py-1.5 border-b border-border/60 bg-muted/40">
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">实时进度</span>
+          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Live Progress</span>
           <span className="text-xs text-muted-foreground/70">({events.length} events)</span>
           {running && startTime && (
             <span className="text-xs font-mono text-sky-600 dark:text-sky-300 tabular-nums flex items-center gap-0.5">
@@ -262,7 +263,7 @@ function StreamFeed({
             type="button"
             onClick={() => setAutoScroll(a => !a)}
             className={`text-xs font-medium px-2 h-5 gap-1 rounded-md border transition-colors inline-flex items-center ${autoScroll ? 'border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/10' : 'border-border/60 text-muted-foreground hover:text-foreground bg-muted/40'}`}
-            title={autoScroll ? '自动滚动中，点击暂停' : '已暂停，点击恢复'}
+            title={autoScroll ? 'Auto-scrolling, click to pause' : 'Paused, click to resume'}
           >
             {autoScroll ? 'auto' : 'paused'}
           </button>
@@ -450,23 +451,23 @@ function LLMPreview({
           {/* LLM status badge — clearly shows real success vs failure */}
           {ok === true && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-              <CheckCircle2 className="h-2 w-2" /> LLM 真实生成
+              <CheckCircle2 className="h-2 w-2" /> LLM Generated
             </Badge>
           )}
           {isFailure && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
-              <XCircle className="h-2 w-2" /> LLM 调用失败
+              <XCircle className="h-2 w-2" /> LLM Failed
             </Badge>
           )}
           {/* DB persistence badge */}
           {dbSaved === true && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
-              <Database className="h-2.5 w-2.5" /> 已入库
+              <Database className="h-2.5 w-2.5" /> Saved
             </Badge>
           )}
           {dbSaved === false && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
-              <Database className="h-2.5 w-2.5" /> 入库失败
+              <Database className="h-2.5 w-2.5" /> Save Failed
             </Badge>
           )}
           {!isFailure && (
@@ -478,7 +479,7 @@ function LLMPreview({
           {durationMs != null && <span className="text-3xs text-muted-foreground/60 font-mono shrink-0 hidden sm:inline">{(durationMs / 1000).toFixed(1)}s</span>}
         </button>
         <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={copy} title="复制原文">
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={copy} title="Copy original text">
             {copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
           </Button>
           <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setExpanded(e => !e)}>
@@ -502,12 +503,12 @@ function LLMPreview({
                 <div className="flex items-start gap-2">
                   <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0 mt-0.5" />
                   <div className="min-w-0">
-                    <div className="text-xs font-semibold text-rose-600 dark:text-rose-300 mb-1">LLM 调用失败</div>
+                    <div className="text-xs font-semibold text-rose-600 dark:text-rose-300 mb-1">LLM Call Failed</div>
                     <div className="text-sm text-muted-foreground font-mono break-all">
-                      {error || '未知错误'}
+                      {error || (locale === 'zh' ? '未知错误' : 'Unknown error')}
                     </div>
                     <div className="text-xs text-muted-foreground/70 mt-2">
-                      本次运行未生成报告文本（已跳过 fallback，不伪造内容）。请检查 hermes / claude / codex CLI 是否在 PATH 上，或设置 ANTHROPIC_API_KEY / OPENAI_API_KEY 后重试。
+                      No report text was generated for this run (fallback skipped, no fabricated content). Please verify that hermes / claude / codex CLI is on PATH, or set ANTHROPIC_API_KEY / OPENAI_API_KEY and retry.
                     </div>
                   </div>
                 </div>
@@ -577,7 +578,7 @@ function RunHistoryPanel({
     return (
       <div className="px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground/60 border-t border-border/40 bg-background/30">
         <Loader2 className="h-2.5 w-2.5 animate-spin" />
-        加载运行历史…
+        Loading run history…
       </div>
     );
   }
@@ -602,7 +603,7 @@ function RunHistoryPanel({
       <div className="flex items-center gap-2 mb-1.5">
         <History className="h-3 w-3 text-muted-foreground/70" />
         <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
-          最近 {rows.length} 次运行
+          Recent {rows.length} runs
         </span>
       </div>
       <div className="space-y-0.5">
@@ -672,6 +673,12 @@ function RunHistoryPanel({
  * events emitted by /api/evaluations/run. Each finished chapter becomes a
  * `<details>` row showing its Markdown content; chapters in flight show a
  * skeleton with the current `chapter_start` message.
+ *
+ * Supports BOTH the primary target's chapter events (`stage === 'chapter'`
+ * / `'chapter_done'`) AND batch target chapter events (`stage ===
+ * 'batch-N-chapter'` / `'batch-N-chapter_done'`). Each target's chapters
+ * are rendered as a separate section so the user can watch the LLM think
+ * through every target in the batch incrementally.
  */
 function ChapterStream({
   events,
@@ -701,31 +708,63 @@ function ChapterStream({
     startedAt?: string;
     finishedAt?: string;
   };
+  type GroupKey = 'primary' | `batch-${number}`;
+  type Group = { key: GroupKey; title: string; order: number; chapters: Map<string, ChapterRow> };
   const labels: Record<string, string> = {
-    summary: '执行摘要',
-    function: '蛋白功能与生物学背景',
-    topology: '序列与拓扑结构',
-    pdb_analysis: '现有 PDB 结构分析',
-    feasibility: '结构解析可行性评估',
-    experimental: '实验方案',
-    references: '重要参考文献',
-    conclusion: '总结',
+    summary: 'Executive Summary',
+    function: 'Protein Function & Biological Context',
+    topology: 'Sequence & Topology',
+    pdb_analysis: 'Existing PDB Structure Analysis',
+    feasibility: 'Structure Determination Feasibility',
+    experimental: 'Experimental Plan',
+    references: 'Key References',
+    conclusion: 'Conclusion',
   };
 
-  const byKey = new Map<string, ChapterRow>();
+  // Group events by target — primary (stage 'chapter' / 'chapter_done') gets
+  // its own group; each batch target (stage 'batch-N-chapter' /
+  // 'batch-N-chapter_done') gets its own group. This lets the user watch
+  // every target's chapter stream render incrementally as the run proceeds.
+  const groupMap = new Map<GroupKey, Group>();
+  const ensureGroup = (k: GroupKey, title: string, order: number): Group => {
+    let g = groupMap.get(k);
+    if (!g) {
+      g = { key: k, title, order, chapters: new Map() };
+      groupMap.set(k, g);
+    }
+    return g;
+  };
   for (const e of events) {
-    if (e.stage === 'chapter' && e.chapter) {
-      const k = e.chapter as string;
-      const cur = byKey.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' };
+    const stage = e.stage || '';
+    let groupKey: GroupKey | null = null;
+    let isDone = false;
+    if (stage === 'chapter') {
+      groupKey = 'primary';
+      isDone = false;
+    } else if (stage === 'chapter_done') {
+      groupKey = 'primary';
+      isDone = true;
+    } else {
+      const m = stage.match(/^batch-(\d+)-chapter(_done)?$/);
+      if (m) {
+        const bi = parseInt(m[1], 10);
+        groupKey = `batch-${bi}` as GroupKey;
+        isDone = !!m[2];
+      }
+    }
+    if (!groupKey || !e.chapter) continue;
+    const group = groupKey === 'primary'
+      ? ensureGroup('primary', 'Primary Target · Chapter Stream', 0)
+      : ensureGroup(groupKey, `Batch ${parseInt(groupKey.replace('batch-', ''), 10) + 1} · Chapter Stream`, parseInt(groupKey.replace('batch-', ''), 10) + 1);
+    const k = e.chapter as string;
+    const cur = group.chapters.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' as const };
+    if (!isDone) {
       cur.status = 'running';
       cur.index = (e.chapterIndex as number) ?? cur.index;
       cur.total = (e.chapterTotal as number) ?? cur.total;
       cur.startedAt = e.ts;
-      byKey.set(k, cur);
-    } else if (e.stage === 'chapter_done' && e.chapter) {
-      const k = e.chapter as string;
+    } else {
       const isSuccess = e.level === 'success';
-      const cur = byKey.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' };
       cur.status = isSuccess ? 'success' : 'error';
       cur.index = (e.chapterIndex as number) ?? cur.index;
       cur.total = (e.chapterTotal as number) ?? cur.total;
@@ -733,15 +772,20 @@ function ChapterStream({
       cur.error = (e.chapterError as string) ?? cur.error;
       cur.durationMs = (e.chapterDurationMs as number) ?? cur.durationMs;
       cur.finishedAt = e.ts;
-      byKey.set(k, cur);
     }
+    group.chapters.set(k, cur);
   }
-  const rows = Array.from(byKey.values()).sort((a, b) => (a.index || 0) - (b.index || 0));
-  if (rows.length === 0) return null;
+  const groups = Array.from(groupMap.values())
+    .filter((g) => g.chapters.size > 0)
+    .sort((a, b) => a.order - b.order);
+  if (groups.length === 0) return null;
 
-  const completedCount = rows.filter((r) => r.status !== 'running').length;
-  const okCount = rows.filter((r) => r.status === 'success').length;
-  const failCount = rows.filter((r) => r.status === 'error').length;
+  // Aggregate stats across all groups for the top-level header.
+  const allRows = groups.flatMap((g) => Array.from(g.chapters.values()));
+  const totalCount = allRows.length;
+  const completedCount = allRows.filter((r) => r.status !== 'running').length;
+  const okCount = allRows.filter((r) => r.status === 'success').length;
+  const failCount = allRows.filter((r) => r.status === 'error').length;
 
   return (
     <motion.div
@@ -756,80 +800,112 @@ function ChapterStream({
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setCollapsed((v) => !v); } }}
         className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/40 bg-background/40 cursor-pointer hover:bg-background/60 transition-colors select-none"
         aria-expanded={!collapsed}
-        aria-label="折叠/展开 LLM 思考过程章节列表"
+        aria-label="Collapse/Expand LLM chapter stream list"
       >
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <ChevronRight className={`h-3 w-3 text-violet-500 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
-          <span className="text-3xs font-semibold truncate">LLM 思考过程 · 分章流式</span>
+          <span className="text-3xs font-semibold truncate">LLM Chapter Stream</span>
+          {groups.length > 1 && (
+            <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
+              <Layers className="h-2 w-2" /> {groups.length} targets
+            </Badge>
+          )}
           <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300">
-            <Sparkles className="h-2 w-2" /> {completedCount}/{rows.length} 章节
+            <Sparkles className="h-2 w-2" /> {completedCount}/{totalCount} chapters
           </Badge>
           {okCount > 0 && failCount === 0 && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-              ✓ 全部成功
+              ✓ All OK
             </Badge>
           )}
           {failCount > 0 && (
             <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
-              ✗ {failCount} 失败
+              ✗ {failCount} failed
             </Badge>
           )}
-          {running && completedCount < rows.length && (
+          {running && completedCount < totalCount && (
             <span className="text-3xs text-violet-500 flex items-center gap-1 shrink-0">
               <Loader2 className="h-2.5 w-2.5 animate-spin" />
-              生成中…
+              Generating…
             </span>
           )}
         </div>
-        <span className="text-3xs text-muted-foreground/70 shrink-0">{collapsed ? '展开' : '收起'}</span>
+        <span className="text-3xs text-muted-foreground/70 shrink-0">{collapsed ? 'Expand' : 'Collapse'}</span>
       </div>
       {!collapsed && (
-      <div className="max-h-[40rem] overflow-y-auto thin-scroll p-2 space-y-1.5">
-        {rows.map((r) => {
-          const isRunning = r.status === 'running';
-          const isError = r.status === 'error';
+      <div className="max-h-[40rem] overflow-y-auto thin-scroll p-2 space-y-2">
+        {groups.map((g) => {
+          const rows = Array.from(g.chapters.values()).sort((a, b) => (a.index || 0) - (b.index || 0));
+          const gCompleted = rows.filter((r) => r.status !== 'running').length;
+          const gFail = rows.filter((r) => r.status === 'error').length;
           return (
-            <details
-              key={r.key}
-              open={isRunning}
-              className={`group rounded-md border ${
-                isRunning ? 'border-violet-500/40 bg-violet-500/5' :
-                isError ? 'border-rose-500/30 bg-rose-500/5' :
-                'border-emerald-500/30 bg-emerald-500/5'
-              }`}
-            >
-              <summary className="cursor-pointer list-none px-3 py-2 flex items-center gap-2 select-none">
-                <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90 text-muted-foreground shrink-0" />
-                <span className="text-sm font-semibold text-foreground/90 shrink-0">
-                  {r.index || '?'}/{r.total || '?'}
-                </span>
-                <span className="text-sm font-medium text-foreground/80 truncate">{r.label || r.key}</span>
-                {isRunning && <Loader2 className="h-2.5 w-2.5 animate-spin text-violet-500 shrink-0" />}
-                {isError && <XCircle className="h-3 w-3 text-rose-500 shrink-0" />}
-                {!isRunning && !isError && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500 shrink-0" />}
-                {r.durationMs != null && (
-                  <span className="text-3xs text-muted-foreground/60 font-mono ml-auto shrink-0">
-                    {(r.durationMs / 1000).toFixed(1)}s · {r.content?.length ?? 0} chars
-                  </span>
-                )}
-              </summary>
-              <div className="px-3 pb-3 pt-1">
-                {r.content ? (
-                  <div className="rounded border border-border/30 bg-background/40 p-3 max-h-72 overflow-y-auto thin-scroll text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none">
-                    <LazyMarkdown>{r.content}</LazyMarkdown>
-                  </div>
-                ) : isError ? (
-                  <div className="rounded border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-600 dark:text-rose-300 font-mono break-all">
-                    {r.error || '未知错误'}
-                  </div>
-                ) : (
-                  <div className="rounded border border-border/30 bg-background/40 p-3 text-sm text-muted-foreground italic">
-                    <Loader2 className="h-3 w-3 animate-spin inline-block mr-2" />
-                    等待 LLM 响应…
-                  </div>
-                )}
+            <div key={g.key} className="rounded-md border border-border/40 bg-background/30 overflow-hidden">
+              {/* Sub-header for each target group (only show when there are
+                  multiple groups — for single-target runs the top-level
+                  header is enough). */}
+              {groups.length > 1 && (
+                <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/40 bg-muted/30">
+                  <span className="text-3xs font-semibold text-foreground/80 truncate">{g.title}</span>
+                  <Badge variant="outline" className="text-4xs font-mono px-1.5 h-4 rounded shrink-0 border-border/60 bg-background/60 text-muted-foreground">
+                    {gCompleted}/{rows.length}
+                  </Badge>
+                  {gFail > 0 && (
+                    <Badge variant="outline" className="text-4xs font-mono px-1.5 h-4 rounded shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
+                      ✗ {gFail}
+                    </Badge>
+                  )}
+                </div>
+              )}
+              <div className="p-1.5 space-y-1.5">
+                {rows.map((r) => {
+                  const isRunning = r.status === 'running';
+                  const isError = r.status === 'error';
+                  return (
+                    <details
+                      key={r.key}
+                      open={isRunning}
+                      className={`group rounded-md border ${
+                        isRunning ? 'border-violet-500/40 bg-violet-500/5' :
+                        isError ? 'border-rose-500/30 bg-rose-500/5' :
+                        'border-emerald-500/30 bg-emerald-500/5'
+                      }`}
+                    >
+                      <summary className="cursor-pointer list-none px-3 py-2 flex items-center gap-2 select-none">
+                        <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-semibold text-foreground/90 shrink-0">
+                          {r.index || '?'}/{r.total || '?'}
+                        </span>
+                        <span className="text-sm font-medium text-foreground/80 truncate">{r.label || r.key}</span>
+                        {isRunning && <Loader2 className="h-2.5 w-2.5 animate-spin text-violet-500 shrink-0" />}
+                        {isError && <XCircle className="h-3 w-3 text-rose-500 shrink-0" />}
+                        {!isRunning && !isError && <CheckCircle2 className="h-2.5 w-2.5 text-emerald-500 shrink-0" />}
+                        {r.durationMs != null && (
+                          <span className="text-3xs text-muted-foreground/60 font-mono ml-auto shrink-0">
+                            {(r.durationMs / 1000).toFixed(1)}s · {r.content?.length ?? 0} chars
+                          </span>
+                        )}
+                      </summary>
+                      <div className="px-3 pb-3 pt-1">
+                        {r.content ? (
+                          <div className="rounded border border-border/30 bg-background/40 p-3 max-h-72 overflow-y-auto thin-scroll text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none">
+                            <LazyMarkdown>{r.content}</LazyMarkdown>
+                          </div>
+                        ) : isError ? (
+                          <div className="rounded border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-600 dark:text-rose-300 font-mono break-all">
+                            {r.error || (locale === 'zh' ? '未知错误' : 'Unknown error')}
+                          </div>
+                        ) : (
+                          <div className="rounded border border-border/30 bg-background/40 p-3 text-sm text-muted-foreground italic">
+                            <Loader2 className="h-3 w-3 animate-spin inline-block mr-2" />
+                            Waiting for LLM response…
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })}
               </div>
-            </details>
+            </div>
           );
         })}
       </div>
@@ -859,9 +935,9 @@ function CycleTimeline({
   result?: any;
 }) {
   const roles = [
-    { key: 'generator', label: 'Generator', desc: '初版周报生成', color: 'sky' },
-    { key: 'critic-scientific', label: 'Critic-Sci', desc: '科学性评审', color: 'amber' },
-    { key: 'synthesis', label: 'Synthesis', desc: '综合终稿', color: 'emerald' },
+    { key: 'generator', label: 'Generator', desc: locale === 'zh' ? '初版周报生成' : 'Initial report generation', color: 'sky' },
+    { key: 'critic-scientific', label: 'Critic-Sci', desc: locale === 'zh' ? '科学性评审' : 'Scientific review', color: 'amber' },
+    { key: 'synthesis', label: 'Synthesis', desc: locale === 'zh' ? '综合终稿' : 'Final synthesis', color: 'emerald' },
   ].slice(0, maxCycles);
 
   // Derive per-role status from the event stream + result payload.
@@ -948,6 +1024,8 @@ export function SettingsRunPanel({
   onOpenChange: externalOnOpenChange,
   activeTab: externalTab,
   onTabChange: externalOnTabChange,
+  contentRef,
+  tabContentRef,
 }: {
   onDbChanged?: () => void;
   /** Controlled open state (for tour integration). When provided, overrides internal state. */
@@ -956,7 +1034,14 @@ export function SettingsRunPanel({
   /** Controlled active tab (for tour integration). */
   activeTab?: string;
   onTabChange?: (tab: string) => void;
+  /** Ref attached to the dialog's content element so external code (e.g. the
+      onboarding tour) can spotlight it. */
+  contentRef?: React.RefObject<HTMLElement | null>;
+  /** Ref attached to the tab content panel (below the TabsList) so the tour
+      can spotlight the module panel area for steps 4/5/6. */
+  tabContentRef?: React.RefObject<HTMLElement | null>;
 } = {}) {
+  const { t, locale } = useI18n();
   const [internalOpen, setInternalOpen] = useState(false);
   const [internalTab, setInternalTab] = useState('evaluation');
   const open = externalOpen ?? internalOpen;
@@ -1062,7 +1147,7 @@ export function SettingsRunPanel({
       // Guard against HTML error pages (502 from gateway when server crashes)
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        setDbPathStatus('✗ 服务器无响应，请重试');
+        setDbPathStatus('✗ Server not responding, please retry');
         return;
       }
       const data = await res.json() as DbStatus;
@@ -1071,9 +1156,9 @@ export function SettingsRunPanel({
       // This keeps the Run Center display in lock-step with the setup wizard:
       // whichever path the wizard just confirmed is what we show here.
       setDbPath(data.configuredDbPath || data.activeUrl || 'file:./db/custom.db');
-      setDbPathStatus('✓ 已加载');
+      setDbPathStatus('✓ Loaded');
     } catch {
-      setDbPathStatus('✗ 加载失败');
+      setDbPathStatus('✗ Load failed');
     }
   }, []);
 
@@ -1089,23 +1174,23 @@ export function SettingsRunPanel({
       // Guard against HTML error pages (502 when server crashes during prisma db push)
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        setDbPathStatus('✗ 服务器在初始化时无响应，请重试');
+        setDbPathStatus('✗ Server not responding during initialization, please retry');
         setDbPathSaving(false);
         return;
       }
       const data = await res.json();
       if (data.ok) {
-        setDbPathStatus('✓ 已切换并即时生效（无需重启）');
+        setDbPathStatus('✓ Switched and effective immediately (no restart needed)');
         // Refresh status so the UI reflects the new active path + counts.
         await loadDbPath();
         // Notify parent (pdb-tracker) so it re-fetches all data from the
         // newly-active database — keeps the dashboard in sync.
         onDbChanged?.();
       } else {
-        setDbPathStatus(`✗ ${data.error || '保存失败'}`);
+        setDbPathStatus(`✗ ${data.error || (locale === 'zh' ? '保存失败' : 'Save failed')}`);
       }
     } catch (err: any) {
-      setDbPathStatus(`✗ ${err?.message || '网络错误'}`);
+      setDbPathStatus(`✗ ${err?.message || (locale === 'zh' ? '网络错误' : 'Network error')}`);
     } finally {
       setDbPathSaving(false);
     }
@@ -1143,6 +1228,48 @@ export function SettingsRunPanel({
   useEffect(() => {
     if (weeklyStream.state.done) setWeeklyRunCount(c => c + 1);
   }, [weeklyStream.state.done]);
+
+  // ── Synthetic primary report derived from chapter_done SSE events ──────
+  // The actual SSE `done` event is only sent at the very end of the run —
+  // AFTER batch mode finishes (which can take minutes for multi-target
+  // runs). To surface the primary target's report to the user as soon as
+  // its 8 chapters have streamed in (well before the batch loop ends), we
+  // synthesise a report object here from the chapter_done events already
+  // in the log. Once the run completes, the final `result.report` payload
+  // (which has the real provider/model metadata) takes precedence.
+  const primaryReportFromStream = useMemo(() => {
+    const chapterDones = evalStream.state.log.filter(
+      (e) => e.stage === 'chapter_done' && e.chapter && e.chapterContent,
+    );
+    if (chapterDones.length === 0) return null;
+    const canonical = ['summary', 'function', 'topology', 'pdb_analysis', 'feasibility', 'experimental', 'references', 'conclusion'];
+    const chapters: Record<string, string> = {};
+    let totalMs = 0;
+    let allOk = true;
+    for (const e of chapterDones) {
+      chapters[e.chapter as string] = e.chapterContent as string;
+      if (e.chapterDurationMs) totalMs += e.chapterDurationMs as number;
+      if (e.level !== 'success') allOk = false;
+    }
+    const content = canonical.map((ck) => chapters[ck] ?? '').filter(Boolean).join('\n\n');
+    if (!content) return null;
+    return {
+      ok: allOk,
+      content,
+      provider: '(streaming)',
+      model: '(streaming)',
+      durationMs: totalMs,
+      contentChars: content.length,
+      fallback: false,
+    };
+  }, [evalStream.state.log]);
+
+  // ── Effective primary report: prefer the final result once the stream is
+  // done; otherwise fall back to the streaming-derived synthetic report so
+  // the LLMPreview renders incrementally during batch mode.
+  const effectivePrimaryReport = evalStream.state.done
+    ? evalStream.state.result?.report
+    : primaryReportFromStream;
 
   /* ── data fetch on open ─────────────────────────────────────────────── */
   useEffect(() => {
@@ -1239,19 +1366,19 @@ export function SettingsRunPanel({
       ext = 'json';
     } else {
       content = [
-        `# 运行中心执行日志`,
+        `# ${t.execLogExportTitle}`,
         ``,
-        `导出时间：${new Date().toISOString()}`,
-        `过滤：${logFilter} · 搜索："${logSearch}" · ${filtered.length} 条`,
+        `Exported: ${new Date().toISOString()}`,
+        `Filter: ${logFilter} · Search: "${logSearch}" · ${filtered.length} entries`,
         ``,
         `---`,
         ``,
         ...filtered.map((l, i) => [
           `## ${i + 1}. [${l.module}] ${l.status} · ${l.ts}`,
           ``,
-          `**摘要**：${l.summary}`,
+          `**Summary**: ${l.summary}`,
           l.durationMs != null ? `` : ``,
-          ...(l.details ? [``, `### 详情`, ``, '```', l.details, '```'] : []),
+          ...(l.details ? [``, `### Details`, ``, '```', l.details, '```'] : []),
           ``,
         ].filter(Boolean).join('\n')),
       ].join('\n');
@@ -1272,7 +1399,7 @@ export function SettingsRunPanel({
     markRunning('lit');
     litStream.reset();
     setLitViewingDigest(null);
-    log({ ts: new Date().toISOString(), module: 'literature', status: 'running', summary: `每日结构生物学文献 ${litDate} (±${litWindowDays}d) — SSE streaming…` });
+    log({ ts: new Date().toISOString(), module: 'literature', status: 'running', summary: `Daily structural biology literature ${litDate} (±${litWindowDays}d) — SSE streaming…` });
     litStream.start('/api/literature/daily/run', {
       date: litDate,
       windowDays: litWindowDays,
@@ -1291,7 +1418,7 @@ export function SettingsRunPanel({
       const res = await fetch('/api/literature/daily/reports');
       const ct = res.headers.get('content-type') || '';
       if (!ct.includes('application/json')) {
-        setLitViewingDigest({ date, content: '', loading: false, error: '服务器无响应' });
+        setLitViewingDigest({ date, content: '', loading: false, error: (locale === 'zh' ? '服务器无响应' : 'Server not responding') });
         return;
       }
       const data = await res.json();
@@ -1301,10 +1428,10 @@ export function SettingsRunPanel({
       if (found && found.content) {
         setLitViewingDigest({ date, content: found.content, loading: false });
       } else {
-        setLitViewingDigest({ date, content: '', loading: false, error: `该日期 (${date}) 暂无 LLM 摘要存档。请运行文献检索生成摘要后再查看。` });
+        setLitViewingDigest({ date, content: '', loading: false, error: `No LLM digest archived for ${date}. Run a literature search to generate a digest first.` });
       }
     } catch (err: any) {
-      setLitViewingDigest({ date, content: '', loading: false, error: err?.message || '网络错误' });
+      setLitViewingDigest({ date, content: '', loading: false, error: err?.message || (locale === 'zh' ? '网络错误' : 'Network error') });
     }
   }, []);
 
@@ -1334,8 +1461,8 @@ export function SettingsRunPanel({
       if (rawSeqs.length === 1) {
         // Single sequence — backward compatible single-string payload.
         const seq = rawSeqs[0].replace(/\s/g, '');
-        const seqLabel = evalSeqType === 'dna' ? `DNA序列(${seq.length}nt)→转录→AA` : `AA序列(${seq.length}aa)`;
-        log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `序列评估 ${seqLabel} — BLASTp 搜索 — SSE streaming…` });
+        const seqLabel = evalSeqType === 'dna' ? `DNA seq (${seq.length}nt)→transcribe→AA` : `AA seq (${seq.length}aa)`;
+        log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `Sequence eval ${seqLabel} — BLASTp search — SSE streaming…` });
         evalStream.start('/api/evaluations/run', {
           inputMode: 'sequence',
           sequence: seq,
@@ -1350,8 +1477,8 @@ export function SettingsRunPanel({
         // Multiple sequences — send as `sequences` array; backend runs BLAST
         // for each + generates a cross-sequence comparison report.
         const cleaned = rawSeqs.map(s => s.replace(/\s/g, '').toUpperCase());
-        const seqLabel = evalSeqType === 'dna' ? `DNA序列` : 'AA序列';
-        log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `多序列批量评估 (${cleaned.length} 条 ${seqLabel}) — 每条独立 BLASTp + 跨序列相关性分析 — SSE streaming…` });
+        const seqLabel = evalSeqType === 'dna' ? `DNA seq` : 'AA seq';
+        log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary: `Multi-sequence batch eval (${cleaned.length} ${seqLabel}) — independent BLASTp per seq + cross-sequence correlation — SSE streaming…` });
         evalStream.start('/api/evaluations/run', {
           inputMode: 'sequence',
           sequenceType: evalSeqType,
@@ -1382,8 +1509,8 @@ export function SettingsRunPanel({
     evalStream.reset();
     const isBatch = targets.length > 1;
     const summary = isBatch
-      ? `Batch 评估 ${targets.length} 靶点 (${targets.map(t => t.uniprot).join(', ')}) — 含相关性分析 — SSE streaming…`
-      : `评估 ${targets[0].uniprot} — SSE streaming…`;
+      ? `Batch eval ${targets.length} targets (${targets.map(t => t.uniprot).join(', ')}) — includes correlation analysis — SSE streaming…`
+      : `Eval ${targets[0].uniprot} — SSE streaming…`;
     log({ ts: new Date().toISOString(), module: 'eval', status: 'running', summary });
     evalStream.start('/api/evaluations/run', {
       // Always send flat fields (from first target) for backward compat,
@@ -1406,7 +1533,7 @@ export function SettingsRunPanel({
     markRunning('weekly');
     weeklyStream.reset();
     const weekLabel = weeklyCustomWeek || weeklyWindow?.weekId || '?';
-    log({ ts: new Date().toISOString(), module: 'weekly', status: 'running', summary: `触发 PDB 周报 (${weekLabel}) • ${maxCycles}-cycle • SSE stream active… (预计 5–15 min)` });
+    log({ ts: new Date().toISOString(), module: 'weekly', status: 'running', summary: `Triggered PDB weekly report (${weekLabel}) • ${maxCycles}-cycle • SSE stream active… (est. 5–15 min)` });
     weeklyStream.start('/api/pdb-weekly/run', {
       maxCycles,
       ...(weeklyCustomWeek ? { weekId: weeklyCustomWeek } : {}),
@@ -1447,9 +1574,9 @@ export function SettingsRunPanel({
       const uid = d.uniprot || '';
       const repInfo = d.report
         ? (d.report.ok
-            ? ` + 报告 ${d.report.savedToFile ? `已落盘 ${d.report.filename}` : '已生成'} (${d.report.provider}/${d.report.model}, ${Math.round((d.report.durationMs || 0) / 100) / 10}s)`
-            : ` [!] 报告生成失败: ${d.report.error}`)
-        : ' (跳过报告)';
+            ? ` + report ${d.report.savedToFile ? `saved to ${d.report.filename}` : 'generated'} (${d.report.provider}/${d.report.model}, ${Math.round((d.report.durationMs || 0) / 100) / 10}s)`
+            : ` [!] report generation failed: ${d.report.error}`)
+        : ' (report skipped)';
       log({
         ts: new Date().toISOString(),
         module: 'eval',
@@ -1490,9 +1617,9 @@ export function SettingsRunPanel({
         ts: new Date().toISOString(),
         module: 'weekly',
         status: 'success',
-        summary: `完成 ${r.window?.weekId} (${(r.reports || []).join('+')}) • ${cycles.length} cycles • ${providers} • ${(r.durationMs / 1000).toFixed(0)}s`,
+        summary: `Completed ${r.window?.weekId} (${(r.reports || []).join('+')}) • ${cycles.length} cycles • ${providers} • ${(r.durationMs / 1000).toFixed(0)}s`,
         details: [
-          `DB 行数: PdbStructure=${r.dbCounts?.pdbStructure}, WeeklyReport=${r.dbCounts?.weeklyReport}, with_authors=${r.dbCounts?.withAuthors}/${r.dbCounts?.pdbStructure}, with_pubmedId=${r.dbCounts?.withPubmedId}/${r.dbCounts?.pdbStructure}, PubMedArticle.matched=${r.dbCounts?.pubmedArticleMatched}`,
+          `DB rows: PdbStructure=${r.dbCounts?.pdbStructure}, WeeklyReport=${r.dbCounts?.weeklyReport}, with_authors=${r.dbCounts?.withAuthors}/${r.dbCounts?.pdbStructure}, with_pubmedId=${r.dbCounts?.withPubmedId}/${r.dbCounts?.pdbStructure}, PubMedArticle.matched=${r.dbCounts?.pubmedArticleMatched}`,
           `Files:`,
           ...(r.filesWritten || []).map((f: string) => `  • ${f}`),
           `Cycles:`,
@@ -1524,7 +1651,7 @@ export function SettingsRunPanel({
           className="h-8 gap-1.5 text-xs font-medium border-border/60 hover:border-primary/40 hover:bg-accent/50 transition-all relative"
         >
           <Settings2 className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">运行中心</span>
+          <span className="hidden sm:inline">{t.runCenter}</span>
           {running.size > 0 && (
             <span className="absolute -top-1 -right-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-sky-500 text-white text-4xs font-bold px-1">
               {running.size}
@@ -1533,52 +1660,52 @@ export function SettingsRunPanel({
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden">
+      <DialogContent ref={contentRef} className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* ── Header band (compact) ──────────────────────────────────── */}
-        <div className="relative px-6 pt-4 pb-3 border-b border-border/60 bg-gradient-to-br from-muted/40 via-background to-background">
+        <div className="relative px-6 pt-4 pb-3 border-b border-border/60 bg-gradient-to-br from-muted/40 via-background to-background flex-shrink-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
           <DialogHeader className="relative">
             <DialogTitle className="flex items-center gap-2.5 text-lg">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-primary/15 to-primary/5 border border-primary/20">
                 <Sparkles className="h-4.5 w-4.5 text-primary" />
               </div>
-              <span>运行中心</span>
+              <span>{t.runCenter}</span>
               <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                <Layers className="h-2.5 w-2.5" /> 3 modules
+                <Layers className="h-2.5 w-2.5" /> {locale === 'zh' ? '3 个模块' : '3 modules'}
               </Badge>
               {running.size > 0 && (
                 <Badge variant="outline" className="ml-1 text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-sky-500/30 bg-sky-500/10 text-sky-600 dark:text-sky-300">
-                  <Loader2 className="h-2.5 w-2.5 animate-spin" /> {running.size} running
+                  <Loader2 className="h-2.5 w-2.5 animate-spin" /> {running.size} {locale === 'zh' ? '运行中' : 'running'}
                 </Badge>
               )}
             </DialogTitle>
             <DialogDescription className="text-sm leading-relaxed pt-1 text-muted-foreground">
-              每日文献检索 · 蛋白靶点评估 · PDB 周报生成 — 支持并行触发、SSE 实时进度、自动 provider 选择（hermes / claude / codex / Anthropic / OpenAI）
+              {t.runCenterDesc}
             </DialogDescription>
           </DialogHeader>
         </div>
 
         {/* ── LLM provider status bar — 2-column compact layout ──────────── */}
-        <div className="px-6 py-2.5 border-b border-border/60 bg-muted/20">
+        <div className="px-6 py-2.5 border-b border-border/60 bg-muted/20 flex-shrink-0">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
               <div className="flex items-center gap-1.5 shrink-0">
                 <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-                <span className="text-sm font-medium text-foreground">LLM 提供方</span>
+                <span className="text-sm font-medium text-foreground">{t.llmProvider}</span>
               </div>
               <code className="px-2 py-0.5 rounded bg-background border border-border/60 font-mono text-sm text-foreground shrink-0">
-                {effectiveProviderId || (scanning ? '扫描中…' : '未检测')}
+                {effectiveProviderId || (scanning ? (locale === 'zh' ? '扫描中…' : 'Scanning…') : (locale === 'zh' ? '未检测到' : 'Not detected'))}
               </code>
               <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground/70">
                 <span>
-                  {chosenProvider === AUTO_PROVIDER ? 'auto · ' : '🔒 已锁定 · '}
+                  {chosenProvider === AUTO_PROVIDER ? (locale === 'zh' ? 'auto · ' : 'auto · ') : (locale === 'zh' ? '🔒 已锁定 · ' : '🔒 Locked · ')}
                   <span className="font-mono">
                     {llmInfo?.available?.length ?? 0}
                   </span>
-                  可用
+                  {locale === 'zh' ? ' 可用' : ' available'}
                 </span>
                 <span className="opacity-50">/</span>
-                <span className="font-mono">{llmInfo?.totalClisScanned ?? 0} CLI</span>
+                <span className="font-mono">{llmInfo?.totalClisScanned ?? 0} {locale === 'zh' ? '个 CLI' : 'CLI'}</span>
               </div>
             </div>
             <div className="flex items-center gap-1">
@@ -1589,12 +1716,12 @@ export function SettingsRunPanel({
                       <RefreshCw className={`h-3.5 w-3.5 ${scanning ? 'animate-spin' : ''}`} />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent side="top">重新扫描 CLI / SDK</TooltipContent>
+                  <TooltipContent side="top">{locale === 'zh' ? '重新扫描 CLI / SDK' : 'Re-scan CLI / SDK'}</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
               <Button variant="ghost" size="sm" className="h-7 text-sm gap-1" onClick={() => setShowLlmCfg(s => !s)}>
                 <ChevronDown className={`h-3 w-3 transition-transform ${showLlmCfg ? 'rotate-180' : ''}`} />
-                {showLlmCfg ? '收起配置' : 'LLM 配置'}
+                {showLlmCfg ? (locale === 'zh' ? '隐藏配置' : 'Hide Config') : (locale === 'zh' ? 'LLM 配置' : 'LLM Config')}
               </Button>
             </div>
           </div>
@@ -1609,7 +1736,7 @@ export function SettingsRunPanel({
                     ? 'border-primary/50 bg-primary/10 text-foreground font-medium shadow-sm'
                     : 'border-border/60 text-muted-foreground hover:text-foreground hover:border-border'
                 }`}
-                title="让服务器按 CLI → SDK 顺序自动选择"
+                title={locale === 'zh' ? '让服务器按 CLI → SDK 顺序自动选择' : 'Let server auto-select in CLI → SDK order'}
               >
                 <Sparkles className="h-2 w-2" />
                 <span>auto</span>
@@ -1678,7 +1805,7 @@ export function SettingsRunPanel({
                           ? 'border-primary/50 bg-primary/10 text-foreground shadow-sm'
                           : 'border-sky-500/40 bg-sky-500/5 text-sky-600 dark:text-sky-300 hover:border-sky-500/60'
                       }`}
-                      title="z.ai SDK (z-ai-web-dev-sdk) — 临时 LLM 测试选项"
+                      title="z.ai SDK (z-ai-web-dev-sdk) — temporary LLM test option"
                     >
                       <Sparkles className="h-3 w-3" />
                       <span className="font-mono text-sm">z.ai</span>
@@ -1688,7 +1815,7 @@ export function SettingsRunPanel({
                   </TooltipTrigger>
                   <TooltipContent side="bottom" className="max-w-xs whitespace-pre-line text-left">
                     <div className="font-mono text-xs">z.ai SDK (z-ai-web-dev-sdk)</div>
-                    <div className="text-xs text-muted-foreground mt-1">临时 LLM 测试选项，使用内置 z-ai-web-dev-sdk 调用 GLM 模型。无需额外 API Key 配置。</div>
+                    <div className="text-xs text-muted-foreground mt-1">Temporary LLM test option using built-in z-ai-web-dev-sdk to call GLM models. No extra API key configuration needed.</div>
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -1696,8 +1823,8 @@ export function SettingsRunPanel({
 
           <div className="mt-1.5 text-xs text-muted-foreground/60">
             {chosenProvider === AUTO_PROVIDER
-              ? 'auto 模式：服务器按 CLI → SDK 顺序自动选，锁定的 provider 显示 🔒'
-              : `已锁定到 ${chosenProvider}。点 auto 或其他 provider 切换。`}
+              ? (locale === 'zh' ? '自动模式：服务器按 CLI → SDK 顺序自动选，锁定的 provider 显示 🔒' : 'Auto mode: server auto-selects in CLI → SDK order. Locked provider shows 🔒')
+              : `Locked to ${chosenProvider}. Click auto or another provider to switch.`}
           </div>
 
           {/* advanced LLM config (collapsible) */}
@@ -1712,16 +1839,16 @@ export function SettingsRunPanel({
               >
                 <div className="mt-3 pt-3 border-t border-border/40 grid grid-cols-2 gap-2.5">
                   <div className="col-span-2">
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Provider</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? '提供方' : 'Provider'}</Label>
                     <Input
-                      placeholder="cli:hermes | cli:claude | cli:codex | anthropic | openai | (空=auto)"
+                      placeholder={locale === 'zh' ? 'cli:hermes | cli:claude | cli:codex | anthropic | openai | (空=自动)' : 'cli:hermes | cli:claude | cli:codex | anthropic | openai | (empty=auto)'}
                       value={llmCfg.provider}
                       onChange={e => setLlmCfg({ ...llmCfg, provider: e.target.value })}
                       className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">API Key</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? 'API 密钥' : 'API Key'}</Label>
                     <Input
                       type="password"
                       placeholder="sk-…"
@@ -1731,7 +1858,7 @@ export function SettingsRunPanel({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Base URL</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? 'Base URL' : 'Base URL'}</Label>
                     <Input
                       placeholder="https://api.openai.com/v1"
                       value={llmCfg.baseUrl}
@@ -1740,7 +1867,7 @@ export function SettingsRunPanel({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">Model</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? '模型' : 'Model'}</Label>
                     <Input
                       placeholder="claude-sonnet-4-20250514 / gpt-4o-mini"
                       value={llmCfg.model}
@@ -1749,9 +1876,9 @@ export function SettingsRunPanel({
                     />
                   </div>
                   <div>
-                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">System</Label>
+                    <Label className="text-xs uppercase tracking-wider text-muted-foreground">{locale === 'zh' ? 'System' : 'System'}</Label>
                     <Input
-                      placeholder="(可选) 系统提示"
+                      placeholder={locale === 'zh' ? '(可选) System 提示词' : '(optional) System prompt'}
                       value={llmCfg.system}
                       onChange={e => setLlmCfg({ ...llmCfg, system: e.target.value })}
                       className="h-8 px-2 text-xs md:text-xs font-mono mt-1"
@@ -1767,7 +1894,7 @@ export function SettingsRunPanel({
             {/* Title + active path + schema badges + loaded status — single dense line */}
             <div className="flex items-center gap-1.5 flex-wrap mb-3">
               <Database className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-              <span className="text-sm font-medium text-foreground shrink-0">数据库</span>
+              <span className="text-sm font-medium text-foreground shrink-0">{t.database}</span>
               {dbStatus?.activeFsPath && (
                 <code className="text-xs font-mono text-muted-foreground truncate min-w-0" title={dbStatus.activeFsPath}>
                   {dbStatus.activeFsPath}
@@ -1775,16 +1902,16 @@ export function SettingsRunPanel({
               )}
               {dbStatus?.isTest && (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300">
-                  <AlertTriangle className="h-2 w-2" /> 测试库
+                  <AlertTriangle className="h-2 w-2" /> {locale === 'zh' ? '测试库' : 'Test DB'}
                 </Badge>
               )}
               {dbStatus?.hasSchema ? (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300">
-                  <CheckCircle2 className="h-2 w-2" /> 表结构 {dbStatus.tableCount}
+                  <CheckCircle2 className="h-2 w-2" /> {locale === 'zh' ? 'Schema' : 'Schema'} {dbStatus.tableCount}
                 </Badge>
               ) : dbStatus ? (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-rose-500/30 bg-rose-500/10 text-rose-600 dark:text-rose-300">
-                  <XCircle className="h-2 w-2" /> 未初始化
+                  <XCircle className="h-2 w-2" /> {locale === 'zh' ? '未初始化' : 'Not initialized'}
                 </Badge>
               ) : null}
               {dbStatus?.hasSchema && (dbStatus.counts?.PdbStructure || 0) > 0 && (
@@ -1794,12 +1921,12 @@ export function SettingsRunPanel({
               )}
               {dbStatus?.hasSchema && (dbStatus.counts?.Evaluation || 0) > 0 && (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                  评估 {dbStatus.counts?.Evaluation}
+                  Eval {dbStatus.counts?.Evaluation}
                 </Badge>
               )}
               {dbStatus?.hasSchema && (dbStatus.counts?.PubMedArticle || 0) > 0 && (
                 <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
-                  论文 {dbStatus.counts?.PubMedArticle}
+                  Papers {dbStatus.counts?.PubMedArticle}
                 </Badge>
               )}
               {dbPathStatus && (
@@ -1825,7 +1952,7 @@ export function SettingsRunPanel({
                 disabled={dbPathSaving}
               >
                 {dbPathSaving ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Save className="h-3 w-3" />}
-                <span className="ml-1">切换</span>
+                <span className="ml-1">{t.dbSwitch}</span>
               </Button>
               <Button
                 variant="outline"
@@ -1833,7 +1960,7 @@ export function SettingsRunPanel({
                 className="h-8 text-xs shrink-0 px-2 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10"
                 onClick={() => { setDbWizardMode('create'); setDbWizardOpen(true); }}
               >
-                <FilePlus2 className="h-3 w-3" /> 新建
+                <FilePlus2 className="h-3 w-3" /> {t.dbNew}
               </Button>
               <Button
                 variant="outline"
@@ -1841,14 +1968,14 @@ export function SettingsRunPanel({
                 className="h-8 text-xs shrink-0 px-2 border-sky-500/30 text-sky-700 hover:bg-sky-500/10"
                 onClick={() => { setDbWizardMode('select'); setDbWizardOpen(true); }}
               >
-                <FolderOpen className="h-3 w-3" /> 选择
+                <FolderOpen className="h-3 w-3" /> {t.dbSelect}
               </Button>
             </div>
 
             {dbStatus?.isTest && (
               <div className="mt-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-xs text-amber-700 dark:text-amber-300 leading-relaxed">
                 <AlertTriangle className="h-3 w-3 inline mr-1" />
-                当前使用的是测试数据库（<code className="font-mono">db/custom.db</code>），仅用于功能验证。建议点击「新建」创建正式数据库以保存您的工作数据。
+                {t.dbTestWarning}
               </div>
             )}
           </div>
@@ -1870,53 +1997,55 @@ export function SettingsRunPanel({
         </div>
 
         {/* ── Tabbed module panels ─────────────────────────────────────── */}
-        <div className="px-6 py-3 max-h-[calc(92vh-280px)] overflow-y-auto">
+        <div className="px-6 pt-3 pb-6 flex-1 min-h-0 overflow-y-auto">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="gap-2">
             <TabsList className="grid w-full grid-cols-3 h-10 bg-muted/50 rounded-lg p-1 gap-1">
               <TabsTrigger value="evaluation" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <FlaskConical className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">① 蛋白靶点评估</span>
-                <span className="sm:hidden">① 评估</span>
+                <span className="hidden sm:inline">① {t.tabEval}</span>
+                <span className="sm:hidden">① {t.tabEvalShort}</span>
                 {isRunning('eval') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="literature" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <BookOpen className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">② 每日文献检索</span>
-                <span className="sm:hidden">② 文献</span>
+                <span className="hidden sm:inline">② {t.tabLit}</span>
+                <span className="sm:hidden">② {t.tabLitShort}</span>
                 {isRunning('lit') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
               <TabsTrigger value="weekly" className="text-xs gap-1.5 rounded-md font-medium data-[state=active]:bg-primary/15 data-[state=active]:text-primary data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-primary/30 text-muted-foreground hover:text-foreground border border-transparent transition-all">
                 <CalendarClock className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">③ PDB 周报生成</span>
-                <span className="sm:hidden">③ 周报</span>
+                <span className="hidden sm:inline">③ {t.tabWeekly}</span>
+                <span className="sm:hidden">③ {t.tabWeeklyShort}</span>
                 {isRunning('weekly') && <Loader2 className="h-3 w-3 animate-spin text-sky-500" />}
               </TabsTrigger>
             </TabsList>
 
+            {/* Tab content panel — spotlighted by the tour (steps 4/5/6) */}
+            <div ref={tabContentRef} className="mt-2">
             {/* ═══ Module ① Target Evaluation ═══════════════════════════ */}
-            <TabsContent value="evaluation" className="mt-2">
+            <TabsContent value="evaluation" className="mt-0">
               <ModuleCard
                 icon={<FlaskConical className="h-4 w-4" />}
                 accent="emerald"
                 index="①"
-                title="蛋白靶点评估 + LLM 可行性报告"
+                title={t.moduleEvalTitle}
                 endpoint="POST /api/evaluations/run"
-                description="UniProt → 元数据 + 序列 → RCSB 直接 PDB → SIFTS 覆盖率 → NCBI BLASTp 同源 → 评分 → 原子任务包含 LLM 报告生成（写入 Evaluation.report + EvaluationReport 表 + 可选 LLM-Wiki）。支持多个 UniProt ID 批量评估，自动归入 batch，并分析靶点间共有的结构与相关性。"
+                description={locale === 'zh' ? 'UniProt → 元数据 + 序列 → RCSB 直接 PDB → SIFTS 覆盖度 → NCBI BLASTp 同源 → 评分 → 原子任务包含 LLM 报告生成（写入 Evaluation.report + EvaluationReport 表 + 可选 LLM-Wiki）。支持多个 UniProt ID 批量评估，含跨靶点结构与关联分析。' : 'UniProt → metadata + sequence → RCSB direct PDB → SIFTS coverage → NCBI BLASTp homology → scoring → atomic tasks include LLM report generation (writes to Evaluation.report + EvaluationReport table + optional LLM-Wiki). Supports multiple UniProt IDs for batch evaluation with cross-target structure and correlation analysis.'}
                 headerBadge={evalTargets.length > 1 ? (
-                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title="多靶点批量评估 + 相关性分析">
-                    <Layers className="h-2 w-2" /> Batch · {evalTargets.length} 靶点
+                  <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-violet-500/30 bg-violet-500/10 text-violet-600 dark:text-violet-300" title={locale === 'zh' ? '多靶点批量评估 + 关联分析' : 'Multi-target batch evaluation + correlation analysis'}>
+                    <Layers className="h-2 w-2" /> {locale === 'zh' ? '批量' : 'Batch'} · {evalTargets.length} {locale === 'zh' ? '靶点' : 'targets'}
                   </Badge>
                 ) : null}
               >
                 {/* Input mode toggle: UniProt ID vs Sequence */}
                 <div className="flex items-center gap-1.5 mb-3">
                   <div className="flex items-center gap-0.5 rounded-md bg-muted/40 border border-border/40 p-0.5">
-                    <button type="button" onClick={() => setEvalInputMode('uniprot')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'uniprot' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>UniProt ID</button>
-                    <button type="button" onClick={() => setEvalInputMode('sequence')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'sequence' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>序列输入</button>
+                    <button type="button" onClick={() => setEvalInputMode('uniprot')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'uniprot' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{locale === 'zh' ? 'UniProt ID' : 'UniProt ID'}</button>
+                    <button type="button" onClick={() => setEvalInputMode('sequence')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalInputMode === 'sequence' ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>{t.evalInputModeSequence}</button>
                   </div>
                   {evalInputMode === 'sequence' && (
                     <div className="flex items-center gap-0.5 rounded-md bg-muted/40 border border-border/40 p-0.5">
-                      <button type="button" onClick={() => setEvalSeqType('aa')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalSeqType === 'aa' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-300' : 'text-muted-foreground hover:text-foreground'}`}>氨基酸</button>
+                      <button type="button" onClick={() => setEvalSeqType('aa')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalSeqType === 'aa' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-300' : 'text-muted-foreground hover:text-foreground'}`}>{t.evalSeqTypeAA}</button>
                       <button type="button" onClick={() => setEvalSeqType('dna')} className={`px-2 py-1 rounded text-xs font-medium transition-colors ${evalSeqType === 'dna' ? 'bg-sky-500/10 text-sky-600 dark:text-sky-300' : 'text-muted-foreground hover:text-foreground'}`}>DNA</button>
                     </div>
                   )}
@@ -1927,14 +2056,20 @@ export function SettingsRunPanel({
                   <div className="space-y-2 mb-3">
                     <div>
                       <Label className="text-xs uppercase tracking-wider text-muted-foreground">
-                        {evalSeqType === 'dna' ? 'DNA 序列（将自动转录为氨基酸）' : '氨基酸序列'}
+                        {evalSeqType === 'dna'
+                          ? (locale === 'zh' ? 'DNA 序列（自动转录为氨基酸）' : 'DNA sequence (auto-transcribed to amino acid)')
+                          : (locale === 'zh' ? '氨基酸序列' : 'Amino acid sequence')}
                       </Label>
                       <textarea
                         value={evalSequence}
                         onChange={e => setEvalSequence(e.target.value)}
                         placeholder={evalSeqType === 'dna'
-                          ? '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nATGGCGAGC...\n\nATGTTACGT...'
-                          : '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nMAGSCKLP...\n\nMKLTVFGV...'}
+                          ? (locale === 'zh'
+                              ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nATGGCGAGC...\n\nATGTTACGT...'
+                              : locale === 'zh' ? '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nATGGCGAGC...\n\nATGTTACGT...' : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...')
+                          : (locale === 'zh'
+                              ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nMAGSCKLP...\n\nMKLTVFGV...'
+                              : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nMAGSCKLP...\n\nMKLTVFGV...')}
                         className="mt-1 w-full h-24 px-2 py-1.5 rounded-md border border-border/60 bg-background text-xs font-mono resize-y thin-scroll"
                         spellCheck={false}
                       />
@@ -1943,9 +2078,14 @@ export function SettingsRunPanel({
                           ? (() => {
                               const cnt = evalSequence.split(/\n\s*\n+/).map(s => s.trim()).filter(s => s.length > 0).length;
                               const totalLen = evalSequence.replace(/\s/g, '').length;
-                              return `${cnt} 条序列 · 共 ${totalLen} ${evalSeqType === 'dna' ? 'nt' : 'aa'}${cnt > 1 ? ' · 多序列批量模式（含跨序列分析）' : ''}`;
+                              const seqWord = locale === 'zh' ? '条序列' : 'sequences';
+                              const totalWord = locale === 'zh' ? '总数' : 'total';
+                              const multiWord = locale === 'zh' ? '多序列批量模式（含跨序列关联分析）' : 'multi-sequence batch mode (with cross-sequence analysis)';
+                              return `${cnt} ${seqWord} · ${totalLen} ${evalSeqType === 'dna' ? 'nt' : 'aa'} ${totalWord}${cnt > 1 ? ' · ' + multiWord : ''}`;
                             })()
-                          : `输入${evalSeqType === 'dna' ? 'DNA' : '氨基酸'}序列进行 BLASTp 同源搜索（多序列用空行分隔）`}
+                          : (locale === 'zh'
+                              ? `输入${evalSeqType === 'dna' ? 'DNA' : '氨基酸'}序列进行 BLASTp 同源搜索（多条序列以空行分隔）`
+                              : `Enter ${evalSeqType === 'dna' ? 'DNA' : 'amino acid'} sequence for BLASTp homology search (separate multiple sequences with blank lines)`)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5">
@@ -1966,21 +2106,21 @@ export function SettingsRunPanel({
                     <div key={i} className="flex items-end gap-1.5">
                       {/* Left slot: + (add) on row 1, remove (×) on rows 2+, placeholder on row 1 if single */}
                       {i === 0 ? (
-                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title="添加靶点">
+                        <Button variant="outline" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={addEvalTarget} title={locale === 'zh' ? '新增靶点' : 'Add target'}>
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
                       ) : (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title="移除此靶点">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-rose-500 shrink-0" onClick={() => removeEvalTarget(i)} title={locale === 'zh' ? '移除该靶点' : 'Remove this target'}>
                           <X className="h-3.5 w-3.5" />
                         </Button>
                       )}
                       <div className="w-28 shrink-0">
-                        <Field label={evalTargets.length > 1 ? `UniProt ID ${i + 1}` : 'UniProt ID'}>
+                        <Field label={evalTargets.length > 1 ? (locale === 'zh' ? `UniProt ID ${i + 1}` : `UniProt ID ${i + 1}`) : 'UniProt ID'}>
                           <Input value={t.uniprot} onChange={e => updateEvalTarget(i, 'uniprot', e.target.value)} placeholder="P00533" className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
                       <div className="w-16 shrink-0">
-                        <Field label="maxPdb">
+                        <Field label={locale === 'zh' ? 'PDB上限' : 'maxPdb'}>
                           <Input type="number" min={1} max={500} value={t.maxPdb} onChange={e => updateEvalTarget(i, 'maxPdb', parseInt(e.target.value || '80'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                         </Field>
                       </div>
@@ -1990,14 +2130,14 @@ export function SettingsRunPanel({
                         </Field>
                       </div>
                       {i === 0 && (
-                        <div className="w-20 shrink-0" title="LLM 报告上下文中附加的 PubMed 文献数量上限（按期刊 IF 降序截取）">
-                          <Field label="最大文献数">
+                        <div className="w-20 shrink-0" title={locale === 'zh' ? '附加到 LLM 报告上下文的最大 PubMed 文献数（按期刊 IF 降序排序）' : 'Max PubMed literature count attached to LLM report context (sorted by journal IF descending)'}>
+                          <Field label={locale === 'zh' ? '上限' : 'Max Lit'}>
                             <Input type="number" min={0} max={200} value={evalMaxLitCount} onChange={e => setEvalMaxLitCount(Math.max(0, Math.min(200, parseInt(e.target.value || '20') || 0)))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                           </Field>
                         </div>
                       )}
-                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label="强制BLAST" disabled={t.skipBlast} />
-                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label="跳过BLAST" disabled={t.forceBlast} />
+                      <ToggleChip checked={t.forceBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'forceBlast', v); if (v) updateEvalTarget(i, 'skipBlast', false); }} label={locale === 'zh' ? '强制 BLAST' : 'Force BLAST'} disabled={t.skipBlast} />
+                      <ToggleChip checked={t.skipBlast} onCheckedChange={(v) => { updateEvalTarget(i, 'skipBlast', v); if (v) updateEvalTarget(i, 'forceBlast', false); }} label={locale === 'zh' ? '跳过 BLAST' : 'Skip BLAST'} disabled={t.forceBlast} />
                       {i === 0 && (
                         <div className="ml-auto shrink-0">
                           <RunButton
@@ -2017,7 +2157,7 @@ export function SettingsRunPanel({
                   running={evalStream.state.running}
                   done={evalStream.state.done}
                   ok={evalStream.state.ok}
-                  emptyHint="输入 UniProt ID 并点击「执行」启动评估流水线"
+                  emptyHint={locale === 'zh' ? '输入 UniProt ID 并点击 “执行” 启动评估流水线' : 'Enter a UniProt ID and click Run to start the evaluation pipeline'}
                 />
 
                 {/* Per-chapter streamed LLM output (collapsible "thinking process") */}
@@ -2027,19 +2167,22 @@ export function SettingsRunPanel({
                   done={evalStream.state.done}
                 />
 
-                {/* LLM report inline preview (module ①) — shows real LLM output or failure */}
-                {evalStream.state.done && evalStream.state.result?.report && (
+                {/* LLM report inline preview (module ①) — shows real LLM output or failure.
+                    Uses `effectivePrimaryReport` so the preview appears as soon as the
+                    primary target's chapters finish streaming (via chapter_done SSE
+                    events), WITHOUT waiting for the entire batch run to complete. */}
+                {effectivePrimaryReport && (
                   <LLMPreview
-                    content={evalStream.state.result.report.content}
-                    title={`LLM 可行性报告 · ${evalStream.state.result.uniprotInfo?.proteinName || evalStream.state.result.uniprot}`}
-                    provider={evalStream.state.result.report.provider}
-                    model={evalStream.state.result.report.model}
-                    durationMs={evalStream.state.result.report.durationMs}
-                    fallback={evalStream.state.result.report.fallback}
-                    error={evalStream.state.result.report.error}
-                    ok={evalStream.state.result.report.ok}
-                    dbSaved={evalStream.state.result.dbSaved}
-                    chars={evalStream.state.result.report.contentChars}
+                    content={effectivePrimaryReport.content}
+                    title={`${locale === 'zh' ? 'LLM 可行性报告' : 'LLM Feasibility Report'} · ${evalStream.state.result?.uniprotInfo?.proteinName || evalStream.state.result?.uniprot || (evalStream.state.running ? (locale === 'zh' ? '生成中…' : 'Generating…') : (locale === 'zh' ? '主靶点' : 'Primary target'))}`}
+                    provider={effectivePrimaryReport.provider}
+                    model={effectivePrimaryReport.model}
+                    durationMs={effectivePrimaryReport.durationMs}
+                    fallback={effectivePrimaryReport.fallback}
+                    error={effectivePrimaryReport.error}
+                    ok={effectivePrimaryReport.ok}
+                    dbSaved={evalStream.state.done ? evalStream.state.result?.dbSaved : undefined}
+                    chars={effectivePrimaryReport.contentChars}
                     accent="emerald"
                   />
                 )}
@@ -2083,7 +2226,7 @@ export function SettingsRunPanel({
                   && evalStream.state.result?.crossAnalysis?.crossReport?.content && (
                   <LLMPreview
                     content={evalStream.state.result.crossAnalysis.crossReport.content}
-                    title="靶点间相关性分析报告 · Batch Cross-Target"
+                    title={locale === 'zh' ? '跨靶点关联报告 · 批量' : 'Cross-Target Correlation Report · Batch'}
                     provider={evalStream.state.result.crossAnalysis.crossReport.provider}
                     model={evalStream.state.result.crossAnalysis.crossReport.model}
                     durationMs={evalStream.state.result.crossAnalysis.crossReport.durationMs}
@@ -2099,11 +2242,11 @@ export function SettingsRunPanel({
                 <div className="mt-3 flex items-center gap-3 flex-wrap">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Switch checked={evalGenerateReport} onCheckedChange={setEvalGenerateReport} className="scale-90" />
-                    同时生成 LLM 报告
+                    {locale === 'zh' ? '生成 LLM 报告' : 'Generate LLM report'}
                   </label>
                   <label className={`flex items-center gap-2 text-xs cursor-pointer ${evalGenerateReport ? 'text-muted-foreground' : 'text-muted-foreground/40 pointer-events-none'}`}>
                     <Switch checked={evalSaveReportFile} onCheckedChange={setEvalSaveReportFile} disabled={!evalGenerateReport} className="scale-90" />
-                    写入 LLM-Wiki 文件
+                    {locale === 'zh' ? '保存为 LLM-Wiki 文件' : 'Save to LLM-Wiki file'}
                   </label>
                 </div>
               </ModuleCard>
@@ -2115,24 +2258,24 @@ export function SettingsRunPanel({
                 icon={<BookOpen className="h-4 w-4" />}
                 accent="sky"
                 index="②"
-                title="每日结构生物学文献获取"
+                title={t.moduleLitTitle}
                 endpoint="POST /api/literature/daily/run"
-                description="双路径 PubMed 检索（Path A: MeSH+方法关键词 / Path B: 高 IF 期刊+方法关键词）→ ±N 天窗口 → 方法筛选（Cryo-EM / X-ray / NMR / AlphaFold）→ 去重排序 → 每篇 LLM 中文研究概要 → 可选执行摘要 → 写入 PubMedArticle + daily-reports 索引。"
+                description={locale === 'zh' ? '双通路 PubMed 检索（Path A：MeSH+方法关键词 / Path B：高 IF 期刊+方法关键词）→ ±N 天窗口 → 方法过滤（冷冻电镜 / X 射线 / NMR / AlphaFold）→ 去重+排序 → 单篇 LLM 摘要 → 可选执行摘要 → 写入 PubMedArticle + daily-reports 索引。' : 'Dual-pathway PubMed search (Path A: MeSH+method keywords / Path B: high-IF journals+method keywords) → ±N day window → method filter (Cryo-EM / X-ray / NMR / AlphaFold) → dedup+sort → per-paper LLM summary → optional executive summary → writes to PubMedArticle + daily-reports index.'}
               >
                 <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
-                  <Field label="日期">
+                  <Field label={locale === 'zh' ? '日期' : 'Date'}>
                     <Input type="date" value={litDate} onChange={e => setLitDate(e.target.value)} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="±窗口天数">
+                  <Field label={locale === 'zh' ? '±天数' : '±Days'}>
                     <Input type="number" min={0} max={7} value={litWindowDays} onChange={e => setLitWindowDays(parseInt(e.target.value || '3'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="Path A 上限">
+                  <Field label={locale === 'zh' ? 'Path A 上限' : 'Path A Max'}>
                     <Input type="number" min={10} max={1000} value={litMaxPathA} onChange={e => setLitMaxPathA(parseInt(e.target.value || '300'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="Path B 上限">
+                  <Field label={locale === 'zh' ? 'Path B 上限' : 'Path B Max'}>
                     <Input type="number" min={5} max={200} value={litMaxPathB} onChange={e => setLitMaxPathB(parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
-                  <Field label="最终入选上限">
+                  <Field label={locale === 'zh' ? '上限' : 'Max Papers'}>
                     <Input type="number" min={1} max={100} value={litMaxPapers} onChange={e => setLitMaxPapers(parseInt(e.target.value || '20'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                 </div>
@@ -2140,7 +2283,7 @@ export function SettingsRunPanel({
                 <div className="flex items-center justify-between gap-2 mb-1">
                   <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                     <Switch checked={litSkipWikiFiles} onCheckedChange={setLitSkipWikiFiles} className="scale-90" />
-                    仅 DB（不写 LLM-Wiki 文件）
+                    {locale === 'zh' ? '仅入库（不生成 LLM-Wiki 文件）' : 'DB only (no LLM-Wiki file)'}
                   </label>
                   <RunButton
                     running={isRunning('lit')}
@@ -2154,7 +2297,7 @@ export function SettingsRunPanel({
                   running={litStream.state.running}
                   done={litStream.state.done}
                   ok={litStream.state.ok}
-                  emptyHint="点击「执行」启动 PubMed 双路径检索 + LLM 摘要流水线"
+                  emptyHint={locale === 'zh' ? '点击 “执行” 启动 PubMed 双通路检索 + LLM 摘要流水线' : 'Click Run to start PubMed dual-pathway search + LLM summary pipeline'}
                 />
 
                 {/* LLM digest inline preview (module ②) — shows real LLM output or failure */}
@@ -2177,9 +2320,9 @@ export function SettingsRunPanel({
                 {litExistingReports.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/40">
                     <div className="text-xs uppercase tracking-wider text-muted-foreground mb-1.5 flex items-center gap-1.5">
-                      <FileText className="h-3 w-3" /> 历史报告 ({litExistingReports.length} 天)
-                      <span className="normal-case tracking-normal text-muted-foreground/60 flex items-center gap-0.5 ml-1" title="带星标图标的日期已生成 LLM 摘要">
-                        <Sparkles className="h-2.5 w-2.5 text-purple-400" /> = 有 LLM 摘要（点击查看）
+                      <FileText className="h-3 w-3" /> History ({litExistingReports.length} days)
+                      <span className="normal-case tracking-normal text-muted-foreground/60 flex items-center gap-0.5 ml-1" title="Dates with star icon have LLM digest generated">
+                        <Sparkles className="h-2.5 w-2.5 text-purple-400" /> = Has LLM digest (click to view)
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
@@ -2195,7 +2338,7 @@ export function SettingsRunPanel({
                                 ? 'border-sky-500/50 bg-sky-500/10 text-sky-600 dark:text-sky-300'
                                 : 'border-border/60 hover:bg-accent/50 text-muted-foreground hover:text-foreground'
                             }`}
-                            title={`${r.date} — ${r.paperCount} 篇${r.hasLLMDigest ? ' · 有 LLM 摘要' : ''}（点击查看 LLM 摘要）`}
+                            title={`${r.date} — ${r.paperCount} papers${r.hasLLMDigest ? ' · has LLM digest' : ''} (click to view digest)`}
                           >
                             <span className="font-mono">{r.date.slice(5)}</span>
                             <span className="opacity-60">{r.paperCount || '?'}</span>
@@ -2210,16 +2353,16 @@ export function SettingsRunPanel({
                         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-sky-500/30 bg-sky-500/10">
                           <div className="flex items-center gap-1.5">
                             <FileText className="h-3.5 w-3.5 text-sky-600" />
-                            <span className="text-xs font-semibold">LLM 摘要 · {litViewingDigest.date}</span>
+                            <span className="text-xs font-semibold">LLM Digest · {litViewingDigest.date}</span>
                           </div>
-                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setLitViewingDigest(null)} title="关闭">
+                          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => setLitViewingDigest(null)} title="Close">
                             <X className="h-3 w-3" />
                           </Button>
                         </div>
                         <div className="px-3 py-2 max-h-64 overflow-y-auto thin-scroll text-xs leading-relaxed prose prose-sm dark:prose-invert max-w-none">
                           {litViewingDigest.loading ? (
                             <div className="flex items-center gap-2 text-muted-foreground">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> 正在加载摘要…
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading digest…
                             </div>
                           ) : litViewingDigest.error ? (
                             <div className="text-amber-600 dark:text-amber-400 text-xs flex items-start gap-1.5">
@@ -2243,14 +2386,14 @@ export function SettingsRunPanel({
                 icon={<CalendarClock className="h-4 w-4" />}
                 accent="amber"
                 index="③"
-                title="手动触发本周 PDB 周报"
+                title={t.moduleWeeklyTitle}
                 endpoint="POST /api/pdb-weekly/run"
-                description="web-v3 进程内 2-step 对抗式生成器：fetch → backfill → PubMed → Generator → Critic-Scientific → (Synthesis) → 写 DB。复用当前选中的 LLM 提供方。SSE 流式推送进度，页面不会冻结。预计耗时 5–15 分钟。"
+                description="web-v3 in-process 2-step adversarial generator: fetch → backfill → PubMed → Generator → Critic-Scientific → (Synthesis) → write DB. Uses the currently selected LLM provider. SSE streaming progress, non-blocking. Estimated 5-15 min."
               >
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
                   <div>
                     <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                      <CalendarClock className="h-3 w-3" />ISO Week
+                      <CalendarClock className="h-3 w-3" />{locale === 'zh' ? 'ISO 周' : 'ISO Week'}
                     </Label>
                     <div className="mt-1 flex items-center gap-1">
                       <input
@@ -2258,24 +2401,24 @@ export function SettingsRunPanel({
                         value={weeklyCustomWeek || (weeklyWindow?.weekId || '')}
                         onChange={e => setWeeklyCustomWeek(e.target.value)}
                         className="h-8 px-2 rounded-md border border-border/60 bg-background text-xs font-mono text-foreground flex-1 min-w-0"
-                        title="自定义选择 ISO 周（留空则使用当前周）"
+                        title="Custom ISO week selection (leave empty for current week)"
                       />
                       {weeklyCustomWeek && (
-                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => setWeeklyCustomWeek('')} title="重置为当前周">
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 shrink-0" onClick={() => setWeeklyCustomWeek('')} title="Reset to current week">
                           <X className="h-3 w-3" />
                         </Button>
                       )}
                     </div>
                   </div>
-                  <InfoTile label="报告日期" value={weeklyCustomWeek ? `${weeklyCustomWeek}-5` : (weeklyWindow?.reportDate || '…')} />
-                  <InfoTile label="起始" value={weeklyWindow?.startDate || '…'} />
-                  <InfoTile label="结束 (RCSB)" value={weeklyWindow?.endDate || '…'} />
+                  <InfoTile label={locale === 'zh' ? '报告日期' : 'Report Date'} value={weeklyCustomWeek ? `${weeklyCustomWeek}-5` : (weeklyWindow?.reportDate || '…')} />
+                  <InfoTile label={locale === 'zh' ? '起始' : 'Start'} value={weeklyWindow?.startDate || '…'} />
+                  <InfoTile label={locale === 'zh' ? '截止 (RCSB)' : 'End (RCSB)'} value={weeklyWindow?.endDate || '…'} />
                 </div>
 
                 {weeklyDbCounts && (
                   <div className="mb-3 flex items-center gap-2 flex-wrap text-xs text-muted-foreground">
                     <Database className="h-3 w-3" />
-                    <span>DB 中本周已有：</span>
+                    <span>{locale === 'zh' ? '本周入库：' : 'In DB this week:'}</span>
                     <code className="px-1.5 py-0.5 rounded bg-muted/60 font-mono">PdbStructure {weeklyDbCounts.pdbStructure}</code>
                     <code className="px-1.5 py-0.5 rounded bg-muted/60 font-mono">WeeklyReport {weeklyDbCounts.weeklyReport}</code>
                     <code className="px-1.5 py-0.5 rounded bg-muted/60 font-mono">WeeklySnapshot {weeklyDbCounts.weeklySnapshot}</code>
@@ -2284,7 +2427,7 @@ export function SettingsRunPanel({
 
                 <div className="flex items-center gap-2 flex-wrap mb-2">
                   <div className="flex items-center gap-1 text-xs">
-                    <span className="text-muted-foreground mr-1">Cycle:</span>
+                    <span className="text-muted-foreground mr-1">{locale === 'zh' ? '周期：' : 'Cycle:'}</span>
                     {([1, 2, 3] as const).map(c => (
                       <button
                         key={c}
@@ -2295,11 +2438,11 @@ export function SettingsRunPanel({
                             ? 'border-primary/50 bg-primary/10 text-foreground font-medium'
                             : 'border-border/60 text-muted-foreground hover:text-foreground hover:border-border'
                         }`}
-                        title={c === 1 ? '~5 min' : c === 2 ? '~10 min' : '~15 min'}
+                        title={c === 1 ? (locale === 'zh' ? '约 5 分钟' : '~5 min') : c === 2 ? (locale === 'zh' ? '约 10 分钟' : '~10 min') : (locale === 'zh' ? '约 15 分钟' : '~15 min')}
                       >
                         {c}
                         <span className="opacity-50 ml-1 hidden sm:inline">
-                          {c === 1 ? '(单步)' : c === 2 ? '(Gen+Critic)' : '(完整)'}
+                          {c === 1 ? (locale === 'zh' ? '(单步)' : '(single)') : c === 2 ? (locale === 'zh' ? '(生成+评审)' : '(Gen+Critic)') : (locale === 'zh' ? '(完整)' : '(full)')}
                         </span>
                       </button>
                     ))}
@@ -2309,12 +2452,12 @@ export function SettingsRunPanel({
                     running={isRunning('weekly')}
                     onClick={() => runWeekly(weeklyCycles)}
                     onCancel={() => weeklyStream.cancel()}
-                    label={isRunning('weekly') ? '运行中…' : '立即触发'}
+                    label={isRunning('weekly') ? (locale === 'zh' ? '运行中…' : 'Running…') : (locale === 'zh' ? '立即执行' : 'Run Now')}
                   />
 
                   <span className="text-xs text-muted-foreground ml-auto flex items-center gap-1">
                     <Cpu className="h-3 w-3" />
-                    LLM → <code className="px-1 py-0.5 rounded bg-muted/60 font-mono">{effectiveProviderId || 'auto'}</code>
+                    {locale === 'zh' ? 'LLM →' : 'LLM →'} <code className="px-1 py-0.5 rounded bg-muted/60 font-mono">{effectiveProviderId || 'auto'}</code>
                   </span>
                 </div>
 
@@ -2331,10 +2474,11 @@ export function SettingsRunPanel({
                   running={weeklyStream.state.running}
                   done={weeklyStream.state.done}
                   ok={weeklyStream.state.ok}
-                  emptyHint="选择 cycle 数并点击「立即触发」启动对抗式周报生成器"
+                  emptyHint={locale === 'zh' ? '选择周期数并点击 “立即执行” 启动对抗式周报生成器' : 'Select cycles and click Run Now to start the adversarial weekly report generator'}
                 />
               </ModuleCard>
               </TabsContent>
+            </div>
           </Tabs>
 
           {/* ── Execution log (shared) ─────────────────────────────────── */}
@@ -2351,7 +2495,7 @@ export function SettingsRunPanel({
                   <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-border/60 bg-muted/40 flex-wrap">
                     <div className="flex items-center gap-2">
                       <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-                      <span className="text-xs font-semibold">执行日志</span>
+                      <span className="text-xs font-semibold">{t.execLog}</span>
                       <Badge variant="outline" className="text-xs font-medium px-2 h-5 gap-1 rounded-md shrink-0 border-border/60 bg-muted/40 text-muted-foreground">
                         {logFilter === 'all' ? logs.length : logs.filter(l => l.module === logFilter).length}
                       </Badge>
@@ -2372,7 +2516,7 @@ export function SettingsRunPanel({
                             className={`px-1.5 py-0.5 rounded text-xs font-medium transition-colors ${
                               logFilter === f.k ? 'bg-primary/10 text-foreground' : 'text-muted-foreground hover:text-foreground'
                             }`}
-                            title={f.k === 'all' ? '全部' : f.k === 'literature' ? '文献' : f.k === 'eval' ? '评估' : '周报'}
+                            title={f.k === 'all' ? t.execLogFilterAll : f.k === 'literature' ? t.tabLit : f.k === 'eval' ? t.tabEval : t.tabWeekly}
                           >
                             {f.label}
                           </button>
@@ -2385,18 +2529,18 @@ export function SettingsRunPanel({
                           type="text"
                           value={logSearch}
                           onChange={e => setLogSearch(e.target.value)}
-                          placeholder="搜索…"
+                          placeholder={t.execLogSearch}
                           className="w-16 bg-transparent text-xs outline-none placeholder:text-muted-foreground/50"
                         />
                       </div>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('md')} title="导出 Markdown" disabled={logs.length === 0}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('md')} title={locale === 'zh' ? '导出 Markdown' : 'Export Markdown'} disabled={logs.length === 0}>
                         <FileDown className="h-3 w-3" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('json')} title="导出 JSON" disabled={logs.length === 0}>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => exportLogs('json')} title={locale === 'zh' ? '导出 JSON' : 'Export JSON'} disabled={logs.length === 0}>
                         <Download className="h-3 w-3" />
                       </Button>
                       <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground px-2" onClick={() => setLogs([])}>
-                        清空
+                        {t.execLogClear}
                       </Button>
                     </div>
                   </div>
@@ -2407,10 +2551,10 @@ export function SettingsRunPanel({
                         .filter(l => !logSearch || l.summary.toLowerCase().includes(logSearch.toLowerCase()) || (l.details || '').toLowerCase().includes(logSearch.toLowerCase()))
                         .map((l, i) => {
                           const moduleBadge = l.module === 'literature'
-                            ? { txt: '① 文献', cls: 'border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/10' }
+                            ? { txt: '① Lit', cls: 'border-sky-500/30 text-sky-600 dark:text-sky-300 bg-sky-500/10' }
                             : l.module === 'eval'
-                            ? { txt: '② 评估', cls: 'border-emerald-500/30 text-emerald-600 dark:text-emerald-300 bg-emerald-500/10' }
-                            : { txt: '③ 周报', cls: 'border-amber-500/30 text-amber-600 dark:text-amber-300 bg-amber-500/10' };
+                            ? { txt: '② Eval', cls: 'border-emerald-500/30 text-emerald-600 dark:text-emerald-300 bg-emerald-500/10' }
+                            : { txt: '③ Weekly', cls: 'border-amber-500/30 text-amber-600 dark:text-amber-300 bg-amber-500/10' };
                           return (
                             <div
                               key={i}
@@ -2437,7 +2581,7 @@ export function SettingsRunPanel({
                           );
                         })}
                       {logs.filter(l => logFilter === 'all' || l.module === logFilter).filter(l => !logSearch || l.summary.toLowerCase().includes(logSearch.toLowerCase()) || (l.details || '').toLowerCase().includes(logSearch.toLowerCase())).length === 0 && (
-                        <div className="text-xs text-muted-foreground/60 text-center py-3">无匹配日志</div>
+                        <div className="text-xs text-muted-foreground/60 text-center py-3">{locale === 'zh' ? '没有匹配的日志' : 'No matching logs'}</div>
                       )}
                     </div>
                   </div>
@@ -2446,9 +2590,6 @@ export function SettingsRunPanel({
             )}
           </AnimatePresence>
         </div>
-
-        {/* Bottom spacer — matches px-6 horizontal padding */}
-        <div className="h-6 flex-shrink-0" />
 
       </DialogContent>
     </Dialog>
@@ -2558,7 +2699,7 @@ function RunButton({
   disabled,
   onClick,
   onCancel,
-  label = '执行',
+  label = 'Run',
 }: {
   running: boolean;
   disabled?: boolean;
@@ -2566,11 +2707,12 @@ function RunButton({
   onCancel?: () => void;
   label?: string;
 }) {
+  const { locale } = useI18n();
   return (
     <div className="flex items-center gap-1.5">
       <Button onClick={onClick} disabled={disabled} size="sm" className="h-8 text-xs gap-1.5 min-w-[88px]">
         {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
-        {running ? '运行中…' : label}
+        {running ? (locale === 'zh' ? '运行中…' : 'Running…') : (label === 'Run' ? (locale === 'zh' ? '执行' : 'Run') : label)}
       </Button>
       {running && onCancel && (
         <Button
@@ -2578,9 +2720,9 @@ function RunButton({
           variant="outline"
           size="sm"
           className="h-8 text-xs gap-1 border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-400"
-          title="停止当前任务（后端可能在几秒后才真正停止）"
+          title={locale === 'zh' ? '停止当前任务（后端可能需要几秒钟才能真正停止）' : 'Stop current task (backend may take a few seconds to actually stop)'}
         >
-          <XCircle className="h-3.5 w-3.5" /> 停止
+          <XCircle className="h-3.5 w-3.5" /> {locale === 'zh' ? '停止' : 'Stop'}
         </Button>
       )}
     </div>

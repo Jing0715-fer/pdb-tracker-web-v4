@@ -17,6 +17,7 @@ import {
   Zap,
   Upload,
 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 interface KeyboardShortcutsPanelProps {
   open: boolean;
@@ -35,67 +36,67 @@ interface ShortcutCategory {
   shortcuts: ShortcutItem[];
 }
 
-const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
+const buildShortcutCategories = (locale: 'en' | 'zh'): ShortcutCategory[] => [
   {
-    title: 'Navigation',
+    title: locale === 'zh' ? '导航' : 'Navigation',
     icon: Navigation,
     color: 'text-blue-500',
     shortcuts: [
-      { keys: ['↑', '↓'], description: 'Navigate table rows' },
-      { keys: ['Enter'], description: 'Open detail panel' },
-      { keys: ['Space'], description: 'Toggle bookmark' },
-      { keys: ['Alt', '←'], description: 'Previous week' },
-      { keys: ['Alt', '→'], description: 'Next week' },
-      { keys: ['⇧', 'Click'], description: 'Range select rows' },
-      { keys: ['G'], description: 'Focus search & clear' },
-      { keys: ['D'], description: 'Copy PDB ID to clipboard' },
-      { keys: ['/'], description: 'Focus table filter' },
+      { keys: ['↑', '↓'], description: locale === 'zh' ? '在表格行间导航' : 'Navigate table rows' },
+      { keys: ['Enter'], description: locale === 'zh' ? '打开详情面板' : 'Open detail panel' },
+      { keys: ['Space'], description: locale === 'zh' ? '切换收藏' : 'Toggle bookmark' },
+      { keys: ['Alt', '←'], description: locale === 'zh' ? '上一周' : 'Previous week' },
+      { keys: ['Alt', '→'], description: locale === 'zh' ? '下一周' : 'Next week' },
+      { keys: ['⇧', 'Click'], description: locale === 'zh' ? '范围选择行' : 'Range select rows' },
+      { keys: ['G'], description: locale === 'zh' ? '聚焦搜索并清空' : 'Focus search & clear' },
+      { keys: ['D'], description: locale === 'zh' ? '复制 PDB ID 到剪贴板' : 'Copy PDB ID to clipboard' },
+      { keys: ['/'], description: locale === 'zh' ? '聚焦表格筛选' : 'Focus table filter' },
     ],
   },
   {
-    title: 'Actions',
+    title: locale === 'zh' ? '操作' : 'Actions',
     icon: Zap,
     color: 'text-amber-500',
     shortcuts: [
-      { keys: ['⌘/Ctrl', 'K'], description: 'Focus search' },
-      { keys: ['⌘/Ctrl', 'E'], description: 'Toggle Weekly/Eval mode' },
-      { keys: ['⌘/Ctrl', 'B'], description: 'Toggle bookmarks' },
-      { keys: ['⌘/Ctrl', 'I'], description: 'Import Data…' },
-      { keys: ['⌘/Ctrl', ','], description: 'Preferences' },
-      { keys: ['C'], description: 'Open comparison' },
-      { keys: ['N'], description: 'Add/toggle note' },
-      { keys: ['Esc'], description: 'Close panels (cascading)' },
-      { keys: ['Alt', 'R'], description: 'Recent actions panel' },
-      { keys: ['⇧', '1-5'], description: 'Filter by min rating' },
-      { keys: ['⇧', '0'], description: 'Clear rating filter' },
-      { keys: ['1'], description: 'Quick filter: Cryo-EM Only' },
-      { keys: ['2'], description: 'Quick filter: X-ray Only' },
-      { keys: ['3'], description: 'Quick filter: High Resolution' },
-      { keys: ['4'], description: 'Quick filter: With Ligands' },
-      { keys: ['5'], description: 'Quick filter: Released This Week' },
-      { keys: ['6'], description: 'Quick filter: High Impact' },
+      { keys: ['⌘/Ctrl', 'K'], description: locale === 'zh' ? '聚焦搜索' : 'Focus search' },
+      { keys: ['⌘/Ctrl', 'E'], description: locale === 'zh' ? '切换 周报/评估 模式' : 'Toggle Weekly/Eval mode' },
+      { keys: ['⌘/Ctrl', 'B'], description: locale === 'zh' ? '切换收藏' : 'Toggle bookmarks' },
+      { keys: ['⌘/Ctrl', 'I'], description: locale === 'zh' ? '导入数据…' : 'Import Data…' },
+      { keys: ['⌘/Ctrl', ','], description: locale === 'zh' ? '偏好设置' : 'Preferences' },
+      { keys: ['C'], description: locale === 'zh' ? '打开对比' : 'Open comparison' },
+      { keys: ['N'], description: locale === 'zh' ? '添加/切换备注' : 'Add/toggle note' },
+      { keys: ['Esc'], description: locale === 'zh' ? '关闭面板（级联）' : 'Close panels (cascading)' },
+      { keys: ['Alt', 'R'], description: locale === 'zh' ? '最近操作面板' : 'Recent actions panel' },
+      { keys: ['⇧', '1-5'], description: locale === 'zh' ? '按最低评分筛选' : 'Filter by min rating' },
+      { keys: ['⇧', '0'], description: locale === 'zh' ? '清除评分筛选' : 'Clear rating filter' },
+      { keys: ['1'], description: locale === 'zh' ? '快捷筛选：仅 Cryo-EM' : 'Quick filter: Cryo-EM Only' },
+      { keys: ['2'], description: locale === 'zh' ? '快捷筛选：仅 X-ray' : 'Quick filter: X-ray Only' },
+      { keys: ['3'], description: locale === 'zh' ? '快捷筛选：高分辨率' : 'Quick filter: High Resolution' },
+      { keys: ['4'], description: locale === 'zh' ? '快捷筛选：含配体' : 'Quick filter: With Ligands' },
+      { keys: ['5'], description: locale === 'zh' ? '快捷筛选：本周发布' : 'Quick filter: Released This Week' },
+      { keys: ['6'], description: locale === 'zh' ? '快捷筛选：高影响力' : 'Quick filter: High Impact' },
     ],
   },
   {
-    title: 'General',
+    title: locale === 'zh' ? '通用' : 'General',
     icon: Settings,
     color: 'text-emerald-500',
     shortcuts: [
-      { keys: ['⌘/Ctrl', '⇧', 'P'], description: 'Command palette' },
-      { keys: ['?'], description: 'This shortcuts panel' },
+      { keys: ['⌘/Ctrl', '⇧', 'P'], description: locale === 'zh' ? '命令面板' : 'Command palette' },
+      { keys: ['?'], description: locale === 'zh' ? '本快捷键面板' : 'This shortcuts panel' },
     ],
   },
 ];
 
-const PRO_TIPS = [
-  { icon: ArrowLeft, text: 'Use Alt+Arrow keys to quickly browse weeks' },
-  { icon: Search, text: 'Press C to compare selected structures' },
-  { icon: MousePointerClick, text: 'Right-click any row for more options' },
-  { icon: Command, text: 'Use ⌘+K for quick search access' },
-  { icon: Zap, text: 'Press Alt+R to view recent actions' },
-  { icon: Upload, text: 'Press 1-6 to toggle quick filters instantly' },
-  { icon: Command, text: 'Use ⌘+I to import CSV or JSON data' },
-  { icon: MousePointerClick, text: 'Right-click column headers to pin/freeze columns for horizontal scroll' },
+const buildProTips = (locale: 'en' | 'zh') => [
+  { icon: ArrowLeft, text: locale === 'zh' ? '使用 Alt+方向键快速浏览周报' : 'Use Alt+Arrow keys to quickly browse weeks' },
+  { icon: Search, text: locale === 'zh' ? '按 C 比较所选结构' : 'Press C to compare selected structures' },
+  { icon: MousePointerClick, text: locale === 'zh' ? '右键单击任意行查看更多选项' : 'Right-click any row for more options' },
+  { icon: Command, text: locale === 'zh' ? '使用 ⌘+K 快速访问搜索' : 'Use ⌘+K for quick search access' },
+  { icon: Zap, text: locale === 'zh' ? '按 Alt+R 查看最近操作' : 'Press Alt+R to view recent actions' },
+  { icon: Upload, text: locale === 'zh' ? '按 1-6 立即切换快捷筛选' : 'Press 1-6 to toggle quick filters instantly' },
+  { icon: Command, text: locale === 'zh' ? '使用 ⌘+I 导入 CSV 或 JSON 数据' : 'Use ⌘+I to import CSV or JSON data' },
+  { icon: MousePointerClick, text: locale === 'zh' ? '右键单击列标题可固定/冻结列，便于横向滚动' : 'Right-click column headers to pin/freeze columns for horizontal scroll' },
 ];
 
 const ICON_KEYS = new Set(['⌘', '⇧', '↑', '↓', '←', '→', 'Space', 'Esc']);
@@ -162,7 +163,11 @@ function ShortcutRow({ shortcut }: { shortcut: ShortcutItem }) {
 }
 
 export function KeyboardShortcutsPanel({ open, onOpenChange }: KeyboardShortcutsPanelProps) {
+  const { locale } = useI18n();
   if (!open) return null;
+
+  const SHORTCUT_CATEGORIES = buildShortcutCategories(locale);
+  const PRO_TIPS = buildProTips(locale);
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center">
@@ -181,10 +186,10 @@ export function KeyboardShortcutsPanel({ open, onOpenChange }: KeyboardShortcuts
             </div>
             <div>
               <h2 className="text-sm font-semibold text-claude-text dark:text-[#e8e4dd]">
-                Keyboard Shortcuts
+                {locale === 'zh' ? '键盘快捷键' : 'Keyboard Shortcuts'}
               </h2>
               <p className="text-[10px] text-claude-text-muted dark:text-[#9b9590]">
-                Press Esc to close this panel
+                {locale === 'zh' ? '按 Esc 关闭此面板' : 'Press Esc to close this panel'}
               </p>
             </div>
           </div>
@@ -237,7 +242,7 @@ export function KeyboardShortcutsPanel({ open, onOpenChange }: KeyboardShortcuts
                 <Lightbulb className="h-3 w-3" />
               </div>
               <h3 className="text-xs font-semibold text-claude-text dark:text-[#e8e4dd] uppercase tracking-wider">
-                Pro Tips
+                {locale === 'zh' ? '进阶提示' : 'Pro Tips'}
               </h3>
               <div className="flex-1 h-px bg-amber-500/15 dark:bg-amber-500/10 ml-1" />
             </div>
@@ -263,8 +268,11 @@ export function KeyboardShortcutsPanel({ open, onOpenChange }: KeyboardShortcuts
         {/* Footer */}
         <div className="px-6 py-3 border-t border-claude-border/50 dark:border-[#3d3832]/50 bg-white/40 dark:bg-[#1a1917]/40">
           <p className="text-[10px] text-center text-claude-text-muted">
-            Shortcuts are disabled when typing in search or input fields · Press{' '}
-            <Kbd>?</Kbd> to reopen this panel
+            {locale === 'zh' ? (
+              <>在搜索或输入框中输入时快捷键将被禁用 · 按 <Kbd>?</Kbd> 重新打开此面板</>
+            ) : (
+              <>{locale === 'zh' ? '在搜索或输入框中输入时快捷键已禁用 · 按 ' : 'Shortcuts are disabled when typing in search or input fields · Press '}<Kbd>?</Kbd>{locale === 'zh' ? ' 重新打开此面板' : ' to reopen this panel'}</>
+            )}
           </p>
         </div>
       </div>

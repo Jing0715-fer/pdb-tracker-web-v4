@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, X, BookmarkPlus, ListChecks, Trash2, Check, Clock, GripVertical } from 'lucide-react';
 import type { LitPaper } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,20 @@ const DEFAULT_LISTS: ReadingList[] = [
   { id: 'reading', name: 'Reading', color: 'amber', paperPmids: [] },
   { id: 'read', name: 'Read', color: 'emerald', paperPmids: [] },
 ];
+
+// Localized display name for default lists (id-based so users' localStorage
+// entries don't need to be migrated when locale changes).
+function getDefaultListDisplayName(id: string, locale: 'en' | 'zh'): string {
+  if (locale === 'zh') {
+    if (id === 'to-read') return '待读';
+    if (id === 'reading') return '阅读中';
+    if (id === 'read') return '已读';
+  }
+  if (id === 'to-read') return 'To Read';
+  if (id === 'reading') return 'Reading';
+  if (id === 'read') return 'Read';
+  return id;
+}
 
 // Left-border color indicators for default categories
 const CATEGORY_BORDER_COLORS: Record<string, string> = {
@@ -295,6 +310,7 @@ export function ReadingListSidebar({
   progressMap,
   onPaperClick,
 }: ReadingListSidebarProps) {
+  const { locale } = useI18n();
   const [isCreating, setIsCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [newColor, setNewColor] = useState('teal');
@@ -374,7 +390,7 @@ export function ReadingListSidebar({
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider flex items-center gap-1">
           <ListChecks className="h-3 w-3" />
-          Reading Lists
+          {locale === 'zh' ? '阅读列表' : 'Reading Lists'}
         </h3>
         <button
           onClick={() => setIsCreating(!isCreating)}
@@ -443,7 +459,7 @@ export function ReadingListSidebar({
             : 'text-claude-text-secondary hover:bg-claude-border-light dark:hover:bg-[#2b2926] hover:pl-2'
         }`}
       >
-        <span>All Papers</span>
+        <span>{locale === 'zh' ? '全部论文' : 'All Papers'}</span>
         {totalPapersInLists > 0 && (
           <span className="text-[9px] text-claude-text-muted font-mono">{totalPapersInLists}</span>
         )}
@@ -485,7 +501,9 @@ export function ReadingListSidebar({
                 </span>
               )}
               <span className={`inline-block h-2.5 w-2.5 rounded-full flex-shrink-0 ${colorDef.dot}`} />
-              <span className="truncate flex-1">{list.name}</span>
+              <span className="truncate flex-1">
+                {isDefault ? getDefaultListDisplayName(list.id, locale) : list.name}
+              </span>
               {/* Paper count badge */}
               {list.paperPmids.length > 0 && (
                 <span className={`inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full text-[9px] font-bold ${
@@ -553,7 +571,7 @@ export function ReadingListSidebar({
           <div className="flex items-center gap-1 mb-1">
             <Clock className="h-3 w-3 text-claude-text-muted" />
             <span className="text-[9px] font-semibold text-claude-text-muted uppercase tracking-wider">
-              Recently Added
+              {locale === 'zh' ? '最近添加' : 'Recently Added'}
             </span>
           </div>
           <div className="space-y-0.5">
@@ -587,7 +605,7 @@ export function ReadingListSidebar({
           <div className="px-2 py-1.5 rounded-md bg-claude-border-light/30 dark:bg-[#1a1917]/30">
             <div className="flex items-center justify-between mb-1">
               <span className="text-[9px] font-medium text-claude-text-muted uppercase tracking-wider">
-                Average Progress
+                {locale === 'zh' ? '平均进度' : 'Average Progress'}
               </span>
               <span className={`text-[11px] font-bold tabular-nums ${
                 averageProgress >= 100
@@ -611,10 +629,12 @@ export function ReadingListSidebar({
               />
             </div>
             <div className="flex items-center gap-2 mt-1 text-[9px] text-claude-text-muted">
-              <span>{totalPapersInLists} papers in lists</span>
+              <span>{locale === 'zh' ? `${totalPapersInLists} 篇在列表中` : `${totalPapersInLists} papers in lists`}</span>
               {Object.values(progressMap).filter(p => p === 100).length > 0 && (
                 <span className="text-emerald-600 dark:text-emerald-400">
-                  {Object.values(progressMap).filter(p => p === 100).length} completed
+                  {locale === 'zh'
+                    ? `${Object.values(progressMap).filter(p => p === 100).length} 篇已完成`
+                    : `${Object.values(progressMap).filter(p => p === 100).length} completed`}
                 </span>
               )}
             </div>

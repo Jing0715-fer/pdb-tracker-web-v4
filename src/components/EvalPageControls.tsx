@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { exportToCSV, exportToJSON, formatEvalForExport } from '@/lib/export-utils';
 import { toast } from 'sonner';
+import { useI18n } from '@/lib/i18n';
 import type { Evaluation } from '@/lib/pdb-types';
 
 // ─── Filter Chip Config ───────────────────────────────────────────────────────
@@ -57,6 +58,7 @@ export function EvalPageControls({
   selectedEvalId,
   filteredEvaluations,
 }: EvalPageControlsProps) {
+  const { t, locale } = useI18n();
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -120,7 +122,7 @@ export function EvalPageControls({
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted" />
           <Input
             type="text"
-            placeholder="Search evaluations..."
+            placeholder={t.searchEvals}
             value={searchQuery}
             onChange={e => onSearchChange(e.target.value)}
             className="h-7 pl-8 pr-7 text-xs bg-claude-bg dark:bg-[#1a1917] border-claude-border dark:border-[#3d3832]"
@@ -165,7 +167,7 @@ export function EvalPageControls({
             onClick={() => setExportOpen(!exportOpen)}
             disabled={!filteredEvaluations.length}
             className="h-6 px-1.5 text-[10px] text-claude-text-muted hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#2b2926] gap-1"
-            title="Export data"
+            title={t.exportDataBtn}
           >
             <Download className="h-3 w-3" />
             <ChevronDown className={`h-2.5 w-2.5 transition-transform ${exportOpen ? 'rotate-180' : ''}`} />

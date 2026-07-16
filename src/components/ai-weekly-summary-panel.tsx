@@ -12,6 +12,7 @@ import {
   Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/lib/i18n';
 
 // Lazy-load markdown renderer to reduce bundle size
 const LazyMarkdown = dynamic(
@@ -88,6 +89,7 @@ function AnimatedDots() {
 // ─── Main Component ────────────────────────────────────────────────────────
 
 export function AiWeeklySummaryPanel({ weekId, entries }: AiWeeklySummaryPanelProps) {
+  const { t, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -137,11 +139,11 @@ export function AiWeeklySummaryPanel({ weekId, entries }: AiWeeklySummaryPanelPr
       setSummary(newSummary);
       setCachedSummary(weekId, newSummary);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate summary');
+      setError(err instanceof Error ? err.message : (locale === 'zh' ? '摘要生成失败' : 'Failed to generate summary'));
     } finally {
       setLoading(false);
     }
-  }, [weekId, entries]);
+  }, [weekId, entries, locale]);
 
   const handleCopy = useCallback(() => {
     if (!summary) return;
@@ -193,7 +195,7 @@ export function AiWeeklySummaryPanel({ weekId, entries }: AiWeeklySummaryPanelPr
                 <button
                   onClick={handleCopy}
                   className="p-1 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border/40 transition-colors"
-                  title="Copy summary"
+                  title={t.copySummary}
                 >
                   {copied ? (
                     <Check className="h-3 w-3 text-green-500" />
@@ -207,7 +209,7 @@ export function AiWeeklySummaryPanel({ weekId, entries }: AiWeeklySummaryPanelPr
                 <button
                   onClick={generateSummary}
                   className="p-1 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border/40 transition-colors"
-                  title="Regenerate summary"
+                  title={t.regenerateSummary}
                 >
                   <RotateCcw className="h-3 w-3 text-claude-text-muted" />
                 </button>
@@ -219,7 +221,7 @@ export function AiWeeklySummaryPanel({ weekId, entries }: AiWeeklySummaryPanelPr
                     setExpanded(false);
                   }}
                   className="p-1 rounded-md hover:bg-claude-border-light dark:hover:bg-claude-border/40 transition-colors"
-                  title="Collapse"
+                  title={t.collapse}
                 >
                   <ChevronDown className="h-3 w-3 text-claude-text-muted rotate-180" />
                 </button>

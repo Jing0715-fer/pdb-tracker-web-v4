@@ -7,28 +7,35 @@ import { Button } from '@/components/ui/button';
 import { exportToCSV, exportToJSON, formatPdbEntryForExport } from '@/lib/export-utils';
 import { toast } from 'sonner';
 import type { PdbEntry } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Filter Chip Config ───────────────────────────────────────────────────────
 
-const FILTER_CHIPS = [
-  { key: 'all', label: 'All', color: '' },
-  { key: 'bookmarks', label: '★ Bookmarks', color: 'border-claude-accent/40 text-claude-accent bg-claude-accent/10 dark:bg-claude-accent/20' },
-  { key: 'Cryo-EM', label: 'Cryo-EM', color: 'border-claude-cryoem/40 text-claude-cryoem bg-claude-cryoem-bg' },
-  { key: 'X-RAY DIFFRACTION', label: 'X-ray', color: 'border-claude-xray/40 text-claude-xray bg-claude-xray-bg' },
-  { key: 'SOLUTION NMR', label: 'NMR', color: 'border-claude-nmr/40 text-claude-nmr bg-claude-nmr-bg' },
-  { key: 'high-if', label: 'High IF', color: 'border-claude-high/40 text-claude-high bg-claude-high-bg' },
-  { key: 'top-if', label: 'Top IF', color: 'border-claude-top/40 text-claude-top bg-claude-top-bg' },
-];
+function useFilterChips() {
+  const { t } = useI18n();
+  return [
+    { key: 'all', label: t.filterAll, color: '' },
+    { key: 'bookmarks', label: t.filterBookmarks, color: 'border-claude-accent/40 text-claude-accent bg-claude-accent/10 dark:bg-claude-accent/20' },
+    { key: 'Cryo-EM', label: t.filterCryoem, color: 'border-claude-cryoem/40 text-claude-cryoem bg-claude-cryoem-bg' },
+    { key: 'X-RAY DIFFRACTION', label: t.filterXray, color: 'border-claude-xray/40 text-claude-xray bg-claude-xray-bg' },
+    { key: 'SOLUTION NMR', label: t.filterNmr, color: 'border-claude-nmr/40 text-claude-nmr bg-claude-nmr-bg' },
+    { key: 'high-if', label: t.filterHighIf, color: 'border-claude-high/40 text-claude-high bg-claude-high-bg' },
+    { key: 'top-if', label: t.filterTopIf, color: 'border-claude-top/40 text-claude-top bg-claude-top-bg' },
+  ];
+}
 
 // ─── Sort Options ──────────────────────────────────────────────────────────────
 
-const SORT_OPTIONS = [
-  { value: 'releaseDate', label: 'Date' },
-  { value: 'pdbId', label: 'PDB ID' },
-  { value: 'resolution', label: 'Resolution' },
-  { value: 'journalIf', label: 'IF' },
-  { value: 'method', label: 'Method' },
-];
+function useSortOptions() {
+  const { t, locale } = useI18n();
+  return [
+    { value: 'releaseDate', label: t.date },
+    { value: 'pdbId', label: 'PDB ID' },
+    { value: 'resolution', label: locale === 'zh' ? '分辨率' : 'Resolution' },
+    { value: 'journalIf', label: 'IF' },
+    { value: 'method', label: locale === 'zh' ? '方法' : 'Method' },
+  ];
+}
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -61,6 +68,10 @@ export function WeeklyPageControls({
 }: WeeklyPageControlsProps) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  const FILTER_CHIPS = useFilterChips();
+  const SORT_OPTIONS = useSortOptions();
+  const { locale } = useI18n();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -194,7 +205,7 @@ export function WeeklyPageControls({
 
         {/* Count */}
         <div className="text-[11px] text-claude-text-muted hidden sm:block">
-          <span className="font-mono font-semibold text-claude-text-secondary">{totalCount}</span> entries
+          <span className="font-mono font-semibold text-claude-text-secondary">{totalCount}</span> {locale === 'zh' ? '条' : 'entries'}
           {selectedWeek && <span className="ml-1">· {selectedWeek}</span>}
         </div>
       </div>

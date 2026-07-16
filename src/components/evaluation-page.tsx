@@ -9,6 +9,7 @@ import { EvaluationToolbar } from '@/components/EvaluationToolbar';
 import type { Evaluation, EvalRow, EvalStructureRow, EvalBlastRow } from '@/lib/pdb-types';
 import { exportToCSV, exportToJSON, formatEvalForExport } from '@/lib/export-utils';
 import { EnhancedEmptyState } from '@/components/enhanced-empty-state';
+import { useI18n } from '@/lib/i18n';
 
 interface EvaluationPageProps {
   evaluation: Evaluation | null;
@@ -18,16 +19,17 @@ interface EvaluationPageProps {
 }
 
 function EmptyState() {
+  const { t } = useI18n();
   return (
     <EnhancedEmptyState
       icon={<FlaskConical className="h-10 w-10" />}
-      title="Protein Structure Evaluation"
-      description="Select a protein evaluation from the sidebar to explore its PDB structures, BLAST homologs, quality scores, and coverage analysis."
+      title={t.evalEmptyTitle}
+      description={t.evalEmptyDesc}
       accentColor="#c96442"
       suggestions={[
-        { icon: <Dna className="h-3.5 w-3.5" />, text: 'Choose an evaluation' },
-        { icon: <BarChart3 className="h-3.5 w-3.5" />, text: 'View quality scores' },
-        { icon: <Microscope className="h-3.5 w-3.5" />, text: 'Explore BLAST results' },
+        { icon: <Dna className="h-3.5 w-3.5" />, text: t.evalEmptySugg1 },
+        { icon: <BarChart3 className="h-3.5 w-3.5" />, text: t.evalEmptySugg2 },
+        { icon: <Microscope className="h-3.5 w-3.5" />, text: t.evalEmptySugg3 },
       ]}
     />
   );

@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React from 'react';
 import {
@@ -47,6 +48,7 @@ export function ToolbarButton({
   disabled?: boolean;
   className?: string;
 }) {
+  const { locale } = useI18n();
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -361,7 +363,7 @@ export function ViewerToolbar({
           <ToolbarButton
             onClick={onResetCamera}
             icon={<RotateCcw className="w-3.5 h-3.5" />}
-            label="Reset Camera"
+            label={locale === "zh" ? "重置视角" : "Reset Camera"}
           />
 
           {/* Focus on Highlighted */}
@@ -369,7 +371,7 @@ export function ViewerToolbar({
             <ToolbarButton
               onClick={onFocusHighlighted}
               icon={<Crosshair className="w-3.5 h-3.5" />}
-              label="Focus on Selection"
+              label={locale === "zh" ? "聚焦选中" : "Focus on Selection"}
               active
             />
           )}
@@ -378,7 +380,7 @@ export function ViewerToolbar({
           <ToolbarButton
             onClick={onScreenshot}
             icon={<Camera className="w-3.5 h-3.5" />}
-            label="Screenshot (PNG)"
+            label={locale === "zh" ? "截图 (PNG)" : "Screenshot (PNG)"}
             disabled={!structureLoaded}
           />
 

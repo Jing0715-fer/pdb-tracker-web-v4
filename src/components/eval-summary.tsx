@@ -10,6 +10,7 @@ import { EvalDomainCoverage } from '@/components/EvalDomainCoverage';
 import { EvalScoreRadar } from '@/components/EvalScoreRadar';
 import { EvalProgressTracker } from '@/components/EvalProgressTracker';
 import type { Evaluation, EvalPdbStructure, EvalBlastResult } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 interface EvalSummaryProps {
   evaluation: Evaluation;
@@ -84,44 +85,47 @@ function CoverageRing({ coverage, size = 64 }: { coverage: number | null; size?:
 
 function generateRecommendations(
   evaluation: Evaluation,
-  scores: Record<string, ScoreEntry>
+  scores: Record<string, ScoreEntry>,
+  locale: 'en' | 'zh' = 'en'
 ): { type: 'success' | 'warning' | 'info'; text: string }[] {
   const recs: { type: 'success' | 'warning' | 'info'; text: string }[] = [];
   const coverage = evaluation.coverage ?? 0;
+  const zh = locale === 'zh';
 
   if (coverage >= 80) {
-    recs.push({ type: 'success', text: 'Excellent structural coverage — most of the sequence is represented.' });
+    recs.push({ type: 'success', text: zh ? '结构覆盖度优秀 — 序列绝大部分已有结构。' : 'Excellent structural coverage — most of the sequence is represented.' });
   } else if (coverage >= 50) {
-    recs.push({ type: 'warning', text: 'Moderate coverage — consider looking for additional structures to fill gaps.' });
+    recs.push({ type: 'warning', text: zh ? '覆盖度中等 — 建议寻找更多结构填补空缺。' : 'Moderate coverage — consider looking for additional structures to fill gaps.' });
   } else {
-    recs.push({ type: 'warning', text: 'Low structural coverage — significant portions of the protein lack structural data.' });
+    recs.push({ type: 'warning', text: zh ? '结构覆盖度较低 — 蛋白质大部分区域缺少结构数据。' : 'Low structural coverage — significant portions of the protein lack structural data.' });
   }
 
   const overallScore = scores['Overall']?.score ?? 0;
   if (overallScore >= 8) {
-    recs.push({ type: 'success', text: 'High overall quality score — available structures are generally well-suited.' });
+    recs.push({ type: 'success', text: zh ? '总体质量评分较高 — 现有结构通常较为适用。' : 'High overall quality score — available structures are generally well-suited.' });
   } else if (overallScore < 5) {
-    recs.push({ type: 'warning', text: 'Low quality score — structures may have limited resolution or relevance.' });
+    recs.push({ type: 'warning', text: zh ? '质量评分较低 — 结构可能分辨率或相关性不足。' : 'Low quality score — structures may have limited resolution or relevance.' });
   }
 
   const blastCount = evaluation.blastResults?.length ?? 0;
   if (blastCount > 0) {
-    recs.push({ type: 'info', text: `${blastCount} homolog${blastCount > 1 ? 's' : ''} found via BLAST — useful for comparative modeling.` });
+    recs.push({ type: 'info', text: zh ? `通过 BLAST 找到 ${blastCount} 个同源序列 — 可用于比较建模。` : `${blastCount} homolog${blastCount > 1 ? 's' : ''} found via BLAST — useful for comparative modeling.` });
   }
 
   const pdbCount = evaluation.pdbStructures?.length ?? 0;
   if (pdbCount === 0 && blastCount > 0) {
-    recs.push({ type: 'info', text: 'No direct structures — homologs can provide structural insights via modeling.' });
+    recs.push({ type: 'info', text: zh ? '无直接结构 — 同源序列可通过建模提供结构信息。' : 'No direct structures — homologs can provide structural insights via modeling.' });
   }
 
   if (recs.length === 0) {
-    recs.push({ type: 'info', text: 'Select structures and homologs for detailed analysis.' });
+    recs.push({ type: 'info', text: zh ? '选择结构与同源序列以进行详细分析。' : 'Select structures and homologs for detailed analysis.' });
   }
 
   return recs;
 }
 
 export function EvalSummary({ evaluation, comparisonEvaluations }: EvalSummaryProps) {
+  const { locale } = useI18n();
   const scores = useMemo(() => parseScores(evaluation.scores), [evaluation.scores]);
 
   const scoreEntries = useMemo(() => {
@@ -131,8 +135,8 @@ export function EvalSummary({ evaluation, comparisonEvaluations }: EvalSummaryPr
   const overallScore = scores['Overall']?.score ?? 0;
 
   const recommendations = useMemo(
-    () => generateRecommendations(evaluation, scores),
-    [evaluation, scores]
+    () => generateRecommendations(evaluation, scores, locale),
+    [evaluation, scores, locale]
   );
 
   // Check if we have enough score dimensions for radar
@@ -147,13 +151,13 @@ export function EvalSummary({ evaluation, comparisonEvaluations }: EvalSummaryPr
       <div className="flex items-center gap-4">
         <div className="text-center">
           <CoverageRing coverage={evaluation.coverage} size={72} />
-          <p className="text-[9px] text-claude-text-muted mt-1">Coverage</p>
+          <p className="text-[9px] text-claude-text-muted mt-1">{locale === 'zh' ? '覆盖度' : 'Coverage'}</p>
         </div>
         <div className="flex-1 space-y-2">
-          <ScoreBar label="Overall Score" score={overallScore} maxScore={10} />
+          <ScoreBar label={locale === 'zh' ? '总体评分' : 'Overall Score'} score={overallScore} maxScore={10} />
           {evaluation.sequenceLength && (
             <div className="text-[10px] text-claude-text-muted">
-              Sequence length: <span className="font-mono">{evaluation.sequenceLength}</span> residues
+              {locale === 'zh' ? '序列长度：' : 'Sequence length: '}<span className="font-mono">{evaluation.sequenceLength}</span> {locale === 'zh' ? '残基' : 'residues'}
             </div>
           )}
         </div>
@@ -163,7 +167,7 @@ export function EvalSummary({ evaluation, comparisonEvaluations }: EvalSummaryPr
       {scoreEntries.length > 0 && (
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider">
-            Score Breakdown
+            {locale === 'zh' ? '评分明细' : 'Score Breakdown'}
           </h4>
           <div className="space-y-1.5">
             {scoreEntries.map(([key, val]) => (
@@ -189,7 +193,7 @@ export function EvalSummary({ evaluation, comparisonEvaluations }: EvalSummaryPr
       <div className="space-y-2">
         <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
           <Lightbulb className="h-3 w-3 text-claude-accent" />
-          Recommendations
+          {locale === 'zh' ? '建议' : 'Recommendations'}
         </h4>
         <div className="space-y-1.5">
           {recommendations.map((rec, idx) => (

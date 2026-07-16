@@ -6,7 +6,7 @@ import { useTheme } from 'next-themes';
 import {
   X, Sun, Moon, Monitor, Palette, SlidersHorizontal,
   Eye, Bell, Keyboard, Info, RotateCcw, ChevronRight,
-  Dna, BarChart3, Microscope, FileText,
+  Dna, BarChart3, Microscope, FileText, Languages,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
+import { useI18n } from '@/lib/i18n';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -47,15 +48,18 @@ interface SettingsPanelProps {
 
 // ─── Keyboard Shortcuts Reference ──────────────────────────────────────────────
 
-const KEYBOARD_SHORTCUTS = [
-  { keys: '1', description: 'Switch to Weekly mode' },
-  { keys: '2', description: 'Switch to Evaluation mode' },
-  { keys: '3', description: 'Switch to Literature mode' },
-  { keys: 'Escape', description: 'Close detail panel / settings' },
-  { keys: '⌘K', description: 'Open command palette' },
-  { keys: 'B', description: 'Toggle bookmark on hovered row' },
-  { keys: '←/→', description: 'Navigate pages' },
-];
+function useKeyboardShortcuts() {
+  const { t } = useI18n();
+  return [
+    { keys: '1', description: t.shortcutWeekly },
+    { keys: '2', description: t.shortcutEval },
+    { keys: '3', description: t.shortcutLit },
+    { keys: 'Escape', description: t.shortcutEscape },
+    { keys: '⌘K', description: t.shortcutCmdK },
+    { keys: 'B', description: t.shortcutBookmark },
+    { keys: '←/→', description: t.shortcutNavigate },
+  ];
+}
 
 // ─── Section Header Component ──────────────────────────────────────────────────
 
@@ -104,6 +108,8 @@ export function SettingsPanel({
   toggleActivityType,
 }: SettingsPanelProps) {
   const { setTheme } = useTheme();
+  const { t, locale, setLocale } = useI18n();
+  const KEYBOARD_SHORTCUTS = useKeyboardShortcuts();
   const [resetDialogOpen, setResetDialogOpen] = useState(false);
 
   const handleThemeChange = (value: string) => {
@@ -170,20 +176,20 @@ export function SettingsPanel({
 
               {/* ─── 1. Appearance ─────────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Palette className="h-3.5 w-3.5" />} title="Appearance" />
+                <SectionHeader icon={<Palette className="h-3.5 w-3.5" />} title={t.appearance} />
 
                 {/* Theme */}
                 <div className="mb-3">
-                  <Label className="text-xs font-medium text-claude-text mb-2 block">Theme</Label>
+                  <Label className="text-xs font-medium text-claude-text mb-2 block">{t.theme}</Label>
                   <RadioGroup
                     value={settings.theme}
                     onValueChange={handleThemeChange}
                     className="flex gap-2"
                   >
                     {[
-                      { value: 'light', label: 'Light', icon: <Sun className="h-3.5 w-3.5" /> },
-                      { value: 'dark', label: 'Dark', icon: <Moon className="h-3.5 w-3.5" /> },
-                      { value: 'system', label: 'System', icon: <Monitor className="h-3.5 w-3.5" /> },
+                      { value: 'light', label: t.themeLight, icon: <Sun className="h-3.5 w-3.5" /> },
+                      { value: 'dark', label: t.themeDark, icon: <Moon className="h-3.5 w-3.5" /> },
+                      { value: 'system', label: t.themeSystem, icon: <Monitor className="h-3.5 w-3.5" /> },
                     ].map((opt) => (
                       <label
                         key={opt.value}
@@ -201,10 +207,37 @@ export function SettingsPanel({
                   </RadioGroup>
                 </div>
 
-                {/* Compact Mode */}
+                {/* Language */}
+                <div className="mb-3">
+                  <Label className="text-xs font-medium text-claude-text mb-2 block flex items-center gap-1.5">
+                    <Languages className="h-3.5 w-3.5" /> {t.language}
+                  </Label>
+                  <RadioGroup
+                    value={locale}
+                    onValueChange={(v) => setLocale(v as 'en' | 'zh')}
+                    className="flex gap-2"
+                  >
+                    {[
+                      { value: 'en', label: 'English' },
+                      { value: 'zh', label: '中文' },
+                    ].map((opt) => (
+                      <label
+                        key={opt.value}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md border cursor-pointer transition-all text-xs font-medium ${
+                          locale === opt.value
+                            ? 'border-claude-accent bg-claude-accent/10 text-claude-accent'
+                            : 'border-claude-border dark:border-[#3d3832] text-claude-text-muted hover:border-claude-accent/50 hover:text-claude-text'
+                        }`}
+                      >
+                        <RadioGroupItem value={opt.value} className="sr-only" />
+                        {opt.label}
+                      </label>
+                    ))}
+                  </RadioGroup>
+                </div>
                 <SettingRow
-                  label="Compact Mode"
-                  description="Reduce padding and font sizes for denser layouts"
+                  label={t.compactMode}
+                  description={t.compactModeDesc}
                 >
                   <Switch
                     checked={settings.compactMode}
@@ -213,7 +246,7 @@ export function SettingsPanel({
                 </SettingRow>
 
                 {/* Card Style */}
-                <SettingRow label="Card Style" description="Visual style for data cards">
+                <SettingRow label={t.cardStyle} description={t.cardStyleDesc}>
                   <Select
                     value={settings.cardStyle}
                     onValueChange={(v) => updateSetting('cardStyle', v as 'default' | 'glass' | 'flat')}
@@ -222,9 +255,9 @@ export function SettingsPanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="default">Default</SelectItem>
-                      <SelectItem value="glass">Glass</SelectItem>
-                      <SelectItem value="flat">Flat</SelectItem>
+                      <SelectItem value="default">{t.cardStyleDefault}</SelectItem>
+                      <SelectItem value="glass">{t.cardStyleGlass}</SelectItem>
+                      <SelectItem value="flat">{t.cardStyleFlat}</SelectItem>
                     </SelectContent>
                   </Select>
                 </SettingRow>
@@ -234,10 +267,10 @@ export function SettingsPanel({
 
               {/* ─── 2. Default Behavior ───────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<SlidersHorizontal className="h-3.5 w-3.5" />} title="Default Behavior" />
+                <SectionHeader icon={<SlidersHorizontal className="h-3.5 w-3.5" />} title={t.defaultBehavior} />
 
                 {/* Default Mode */}
-                <SettingRow label="Default Mode" description="Mode shown on app startup">
+                <SettingRow label={t.defaultMode} description={locale === 'zh' ? '启动时显示的模式' : 'Mode shown on app startup'}>
                   <Select
                     value={settings.defaultMode}
                     onValueChange={(v) => updateSetting('defaultMode', v as 'weekly' | 'evaluation' | 'literature')}
@@ -246,15 +279,15 @@ export function SettingsPanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="evaluation">Evaluation</SelectItem>
-                      <SelectItem value="literature">Literature</SelectItem>
+                      <SelectItem value="weekly">{t.modeWeeklyFull}</SelectItem>
+                      <SelectItem value="evaluation">{t.modeEvaluationFull}</SelectItem>
+                      <SelectItem value="literature">{t.modeLiteratureFull}</SelectItem>
                     </SelectContent>
                   </Select>
                 </SettingRow>
 
                 {/* Default Sort Field */}
-                <SettingRow label="Default Sort" description="Initial sort column">
+                <SettingRow label={t.defaultSort} description={t.defaultSortDesc}>
                   <Select
                     value={settings.defaultSortField}
                     onValueChange={(v) => updateSetting('defaultSortField', v)}
@@ -271,7 +304,7 @@ export function SettingsPanel({
                 </SettingRow>
 
                 {/* Default Sort Direction */}
-                <SettingRow label="Sort Direction">
+                <SettingRow label={t.sortDirection}>
                   <Select
                     value={settings.defaultSortDir}
                     onValueChange={(v) => updateSetting('defaultSortDir', v as 'asc' | 'desc')}
@@ -280,14 +313,14 @@ export function SettingsPanel({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="desc">Descending</SelectItem>
-                      <SelectItem value="asc">Ascending</SelectItem>
+                      <SelectItem value="desc">{t.sortDirDesc}</SelectItem>
+                      <SelectItem value="asc">{t.sortDirAsc}</SelectItem>
                     </SelectContent>
                   </Select>
                 </SettingRow>
 
                 {/* Default Page Size */}
-                <SettingRow label="Page Size" description="Entries per page">
+                <SettingRow label={t.pageSize} description={locale === 'zh' ? '每页显示条目数' : 'Entries per page'}>
                   <Select
                     value={String(settings.defaultPageSize)}
                     onValueChange={(v) => updateSetting('defaultPageSize', Number(v))}
@@ -308,11 +341,11 @@ export function SettingsPanel({
 
               {/* ─── 3. Data Display ───────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Eye className="h-3.5 w-3.5" />} title="Data Display" />
+                <SectionHeader icon={<Eye className="h-3.5 w-3.5" />} title={t.dataDisplay} />
 
                 <SettingRow
-                  label="Show NMR Resolution"
-                  description="Display resolution column for NMR entries"
+                  label={t.showNmrResolution}
+                  description={t.showNmrResolutionDesc}
                 >
                   <Switch
                     checked={settings.showNmrResolution}
@@ -321,8 +354,8 @@ export function SettingsPanel({
                 </SettingRow>
 
                 <SettingRow
-                  label="Show Ligand Chips"
-                  description="Display ligand badges in table rows"
+                  label={t.showLigandChips}
+                  description={t.showLigandChipsDesc}
                 >
                   <Switch
                     checked={settings.showLigandChips}
@@ -331,8 +364,8 @@ export function SettingsPanel({
                 </SettingRow>
 
                 <SettingRow
-                  label="Show Method Badges"
-                  description="Display Cryo-EM/X-ray/NMR method badges"
+                  label={t.showMethodBadges}
+                  description={t.showMethodBadgesDesc}
                 >
                   <Switch
                     checked={settings.showMethodBadges}
@@ -341,8 +374,8 @@ export function SettingsPanel({
                 </SettingRow>
 
                 <SettingRow
-                  label="Abstract Truncation"
-                  description="Max length for abstract previews"
+                  label={t.abstractTruncation}
+                  description={t.abstractTruncationDesc}
                 >
                   <Select
                     value={String(settings.abstractTruncation)}
@@ -364,11 +397,11 @@ export function SettingsPanel({
 
               {/* ─── 4. Notifications ──────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Bell className="h-3.5 w-3.5" />} title="Notifications" />
+                <SectionHeader icon={<Bell className="h-3.5 w-3.5" />} title={t.notifications} />
 
                 <SettingRow
-                  label="Enable Notifications"
-                  description="Show activity notifications"
+                  label={t.enableNotifications}
+                  description={t.enableNotificationsDesc}
                 >
                   <Switch
                     checked={settings.enableNotifications}
@@ -377,8 +410,8 @@ export function SettingsPanel({
                 </SettingRow>
 
                 <SettingRow
-                  label="Notification Sound"
-                  description="Play sound for new notifications"
+                  label={t.notificationSound}
+                  description={t.notificationSoundDesc}
                 >
                   <Switch
                     checked={settings.notificationSound}
@@ -423,7 +456,7 @@ export function SettingsPanel({
 
               {/* ─── 5. Keyboard Shortcuts ─────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Keyboard className="h-3.5 w-3.5" />} title="Keyboard Shortcuts" />
+                <SectionHeader icon={<Keyboard className="h-3.5 w-3.5" />} title={t.keyboardShortcuts} />
 
                 <div className="rounded-md border border-claude-border dark:border-[#3d3832] overflow-hidden">
                   {KEYBOARD_SHORTCUTS.map((shortcut, i) => (
@@ -446,19 +479,19 @@ export function SettingsPanel({
 
               {/* ─── 6. About ──────────────────────────────────────────────── */}
               <section>
-                <SectionHeader icon={<Info className="h-3.5 w-3.5" />} title="About" />
+                <SectionHeader icon={<Info className="h-3.5 w-3.5" />} title={t.about} />
 
                 <div className="space-y-2 text-[11px]">
                   <div className="flex items-center justify-between">
-                    <span className="text-claude-text-muted">Version</span>
+                    <span className="text-claude-text-muted">{t.version}</span>
                     <span className="font-mono text-claude-text-secondary">1.0.0</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-claude-text-muted">Data Source</span>
+                    <span className="text-claude-text-muted">{t.dataSource}</span>
                     <span className="text-claude-text-secondary">RCSB PDB + PubMed</span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-claude-text-muted">Storage</span>
+                    <span className="text-claude-text-muted">{t.storage}</span>
                     <span className="font-mono text-claude-text-secondary">localStorage</span>
                   </div>
                 </div>
@@ -473,23 +506,23 @@ export function SettingsPanel({
                         className="w-full h-8 text-[11px] border-red-300 dark:border-red-800 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
                       >
                         <RotateCcw className="h-3 w-3 mr-1.5" />
-                        Reset All Settings
+                        {t.resetAllSettings}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent className="bg-claude-surface dark:bg-[#242220] border-claude-border dark:border-[#3d3832]">
                       <AlertDialogHeader>
-                        <AlertDialogTitle className="text-claude-text">Reset Settings?</AlertDialogTitle>
+                        <AlertDialogTitle className="text-claude-text">{t.resetSettingsQuestion}</AlertDialogTitle>
                         <AlertDialogDescription className="text-claude-text-muted">
-                          This will restore all preferences to their default values. This action cannot be undone.
+                          {t.resetSettingsWarning}
                         </AlertDialogDescription>
                       </AlertDialogHeader>
                       <AlertDialogFooter>
-                        <AlertDialogCancel className="text-claude-text-secondary">Cancel</AlertDialogCancel>
+                        <AlertDialogCancel className="text-claude-text-secondary">{t.cancelBtn}</AlertDialogCancel>
                         <AlertDialogAction
                           onClick={handleReset}
                           className="bg-red-600 text-white hover:bg-red-700"
                         >
-                          Reset
+                          {t.resetBtn}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>

@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useI18n } from '@/lib/i18n';
 import {
   ArrowRightLeft, LayoutDashboard, Clock, Database, FlaskConical, CheckCircle2, Target,
   Layers, FileText, Share2, ExternalLink, Box, Info, ArrowUpRight, Dna, Microscope, BarChart3,
@@ -55,6 +56,7 @@ function EvalStatCards({ evaluations, evalBatches, evalLoading }: {
   evalBatches: EvalBatch[];
   evalLoading: boolean;
 }) {
+  const { locale } = useI18n();
   const totalEvals = evaluations.length;
   const totalBatches = evalBatches.length;
 
@@ -83,66 +85,66 @@ function EvalStatCards({ evaluations, evalBatches, evalLoading }: {
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 p-2 sm:p-3 [grid-auto-rows:1fr] min-w-0 stagger-list">
       {/* Eval Targets — completion rate ring */}
       <StatCard
-        title="Eval Targets"
+        title={locale === 'zh' ? '评估靶点' : 'Eval Targets'}
         value={totalEvals}
         icon={<FlaskConical className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#2d8f8f] to-[#1a6b6b]"
         glowColor="#2d8f8f"
-        subtitle={`${totalBatches} batch${totalBatches !== 1 ? 'es' : ''} · ${completionRate.toFixed(0)}% done`}
+        subtitle={locale === 'zh' ? `${totalBatches} 个批次 · ${completionRate.toFixed(0)}% 完成` : `${totalBatches} batch${totalBatches !== 1 ? 'es' : ''} · ${completionRate.toFixed(0)}% done`}
         loading={evalLoading}
         delay={0}
         borderColor="#2d8f8f"
-        tooltip={`Eval Targets: ${totalEvals} (${completionRate.toFixed(0)}% complete, ${totalBatches} batches)`}
+        tooltip={locale === 'zh' ? `评估靶点: ${totalEvals} (${completionRate.toFixed(0)}% 完成, ${totalBatches} 个批次)` : `Eval Targets: ${totalEvals} (${completionRate.toFixed(0)}% complete, ${totalBatches} batches)`}
       >
         <CircularProgress value={completionRate} max={100} color="#2d8f8f" size={28} />
       </StatCard>
 
       {/* Batches — mini bar showing batch density */}
       <StatCard
-        title="Batches"
+        title={locale === 'zh' ? '批量评估' : 'Batches'}
         value={totalBatches}
         icon={<Database className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#c9872e] to-[#a06b1a]"
         glowColor="#c9872e"
-        subtitle={`${totalEvals} evals · ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} avg`}
+        subtitle={locale === 'zh' ? `${totalEvals} 个评估 · 平均 ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)}` : `${totalEvals} evals · ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} avg`}
         loading={evalLoading}
         delay={80}
         borderColor="#c9872e"
-        tooltip={`Batches: ${totalBatches} (${totalEvals} evaluations, avg ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} evals/batch)`}
+        tooltip={locale === 'zh' ? `批次: ${totalBatches} (${totalEvals} 个评估, 平均 ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} 评估/批次)` : `Batches: ${totalBatches} (${totalEvals} evaluations, avg ${(totalEvals / Math.max(totalBatches, 1)).toFixed(1)} evals/batch)`}
       >
         <MiniBar value={totalBatches > 0 ? Math.min((totalBatches / Math.max(totalEvals, 1)) * 100 * 3, 100) : 0} max={100} color="#c9872e" width={40} height={5} />
       </StatCard>
 
       {/* Avg Coverage — coverage ring */}
       <StatCard
-        title="Avg Coverage"
+        title={locale === 'zh' ? '平均覆盖率' : 'Avg Coverage'}
         value={avgCoverage}
         suffix="%"
         decimals={0}
         icon={<Target className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#7c5cbf] to-[#5a3d99]"
         glowColor="#7c5cbf"
-        subtitle={`${highCoverageCount} high (≥80%)`}
+        subtitle={locale === 'zh' ? `${highCoverageCount} 高 (≥80%)` : `${highCoverageCount} high (≥80%)`}
         loading={evalLoading}
         delay={160}
         borderColor="#7c5cbf"
-        tooltip={`Avg Coverage: ${avgCoverage.toFixed(1)}% (${highCoverageCount} high ≥80%)`}
+        tooltip={locale === 'zh' ? `平均覆盖率: ${avgCoverage.toFixed(1)}% (${highCoverageCount} 高 ≥80%)` : `Avg Coverage: ${avgCoverage.toFixed(1)}% (${highCoverageCount} high ≥80%)`}
       >
         <CircularProgress value={avgCoverage} max={100} color="#7c5cbf" size={28} />
       </StatCard>
 
       {/* ≥80% Coverage — mini bar */}
       <StatCard
-        title="≥80% Coverage"
+        title={locale === 'zh' ? '≥80% 覆盖率' : '≥80% Coverage'}
         value={highCoverageCount}
         icon={<CheckCircle2 className="h-3.5 w-3.5 text-white" />}
         color="bg-gradient-to-br from-[#16a34a] to-[#0d7a35]"
         glowColor="#16a34a"
-        subtitle={totalEvals > 0 ? `${((highCoverageCount / totalEvals) * 100).toFixed(0)}% of total` : 'No data'}
+        subtitle={totalEvals > 0 ? (locale === 'zh' ? `${((highCoverageCount / totalEvals) * 100).toFixed(0)}% 占比` : `${((highCoverageCount / totalEvals) * 100).toFixed(0)}% of total`) : (locale === 'zh' ? '暂无数据' : 'No data')}
         loading={evalLoading}
         delay={240}
         borderColor="#16a34a"
-        tooltip={`High Coverage: ${highCoverageCount} targets ≥80% (${totalEvals > 0 ? ((highCoverageCount / totalEvals) * 100).toFixed(0) : 0}%)`}
+        tooltip={locale === 'zh' ? `高覆盖: ${highCoverageCount} 个靶点 ≥80% (${totalEvals > 0 ? ((highCoverageCount / totalEvals) * 100).toFixed(0) : 0}%)` : `High Coverage: ${highCoverageCount} targets ≥80% (${totalEvals > 0 ? ((highCoverageCount / totalEvals) * 100).toFixed(0) : 0}%)`}
       >
         <MiniBar value={highCoveragePct} max={100} color="#16a34a" width={40} height={5} />
       </StatCard>
@@ -177,6 +179,231 @@ interface BatchDetailViewProps {
   evalBatchSubTargets: Record<string, EvalBatchSubTarget[]>;
   onSelectSubTarget: (uniprotId: string) => void;
   onOpenBatchReport?: (batchId: string, title: string) => void;
+}
+
+// ─── BatchCommonPdbView ────────────────────────────────────────────────────
+// Simplified batch view: shows the common (shared) PDB list in the middle,
+// mirroring the single-eval PDB table layout. The batch's combined report
+// is shown in the right detail panel (same as single eval).
+function BatchCommonPdbView({
+  batchId,
+  allEvals,
+  evalBatches,
+  evalBatchSubTargets,
+  onSelectSubTarget,
+  onSelectPdb,
+}: {
+  batchId: string;
+  allEvals: Evaluation[];
+  evalBatches: EvalBatch[];
+  evalBatchSubTargets: Record<string, EvalBatchSubTarget[]>;
+  onSelectSubTarget: (uniprotId: string) => void;
+  onSelectPdb?: (pdbId: string) => void;
+}) {
+  const { locale } = useI18n();
+  const batch = evalBatches.find(b => b.batchId === batchId);
+  const subTargets = evalBatchSubTargets[batchId] || [];
+  const commonPdbIds = parseCommonPdbIds(batch?.commonPdbIds);
+
+  // Build a map of pdbId → list of UniProt IDs that have it (for "Shared By" column)
+  const pdbHolders = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    for (const sub of subTargets) {
+      const evalData = allEvals.find(e => e.uniprotId === sub.uniprotId);
+      if (!evalData) continue;
+      for (const s of evalData.pdbStructures || []) {
+        if (!map[s.pdbId]) map[s.pdbId] = [];
+        if (!map[s.pdbId].includes(sub.uniprotId)) {
+          map[s.pdbId].push(sub.uniprotId);
+        }
+      }
+      for (const b of evalData.blastResults || []) {
+        if (!map[b.pdbId]) map[b.pdbId] = [];
+        if (!map[b.pdbId].includes(sub.uniprotId)) {
+          map[b.pdbId].push(sub.uniprotId);
+        }
+      }
+    }
+    return map;
+  }, [subTargets, allEvals]);
+
+  // Build rows for the common PDB table — merge structure info from any eval that has it
+  const rows = useMemo(() => {
+    return commonPdbIds.map(pdbId => {
+      // Find the first eval that has this PDB to get method/resolution/title
+      let method = '';
+      let resolution: number | null = null;
+      let title = '';
+      let ifTier = '';
+      let journalIf: number | null = null;
+      let releaseDate: string | null = null;
+
+      for (const sub of subTargets) {
+        const evalData = allEvals.find(e => e.uniprotId === sub.uniprotId);
+        if (!evalData) continue;
+        const struct = (evalData.pdbStructures || []).find(s => s.pdbId === pdbId);
+        if (struct) {
+          method = struct.method || method;
+          resolution = resolution ?? struct.resolution ?? null;
+          title = title || struct.title || '';
+          ifTier = ifTier || struct.ifTier || '';
+          journalIf = journalIf ?? struct.journalIf ?? null;
+          releaseDate = releaseDate || struct.releaseDate || null;
+          break;
+        }
+        const blast = (evalData.blastResults || []).find(b => b.pdbId === pdbId);
+        if (blast) {
+          method = method || blast.method || '';
+          resolution = resolution ?? blast.resolution ?? null;
+          title = title || blast.title || blast.description || '';
+          ifTier = ifTier || blast.ifTier || '';
+          journalIf = journalIf ?? blast.journalIf ?? null;
+          releaseDate = releaseDate || blast.releaseDate || null;
+          break;
+        }
+      }
+
+      return {
+        pdbId,
+        method,
+        resolution,
+        title,
+        ifTier,
+        journalIf,
+        releaseDate,
+        holders: pdbHolders[pdbId] || [],
+      };
+    });
+  }, [commonPdbIds, subTargets, allEvals, pdbHolders]);
+
+  if (!batch) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+        <Layers className="h-8 w-8 mb-2 opacity-40" />
+        <p className="text-xs">{locale === 'zh' ? '未找到批次' : 'Batch not found'}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Toolbar — batch title + stats */}
+      <div className="flex items-center gap-3 px-4 py-2.5 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500/15 to-violet-500/5 border border-violet-500/20 flex items-center justify-center flex-shrink-0">
+            <Layers className="h-4 w-4 text-violet-600 dark:text-violet-300" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-sm font-semibold text-claude-text truncate">{batch.title || 'Batch'}</span>
+              <Badge variant="outline" className="text-[9px] font-semibold px-1.5 h-4 rounded bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 border-violet-200 dark:border-violet-800/40 shrink-0">
+                {subTargets.length} targets
+              </Badge>
+            </div>
+            <div className="text-[10px] text-claude-text-muted font-mono">{batch.batchId}</div>
+          </div>
+        </div>
+        <div className="flex-1" />
+        <div className="flex items-center gap-3 text-[10px] text-claude-text-muted">
+          <span className="flex items-center gap-1">
+            <Box className="h-3 w-3" />
+            <span className="font-mono font-semibold text-claude-text-secondary">{commonPdbIds.length}</span> shared PDB
+          </span>
+        </div>
+      </div>
+
+      {/* Sub-target chips — clickable to open individual eval */}
+      <div className="flex items-center gap-1.5 px-4 py-2 border-b border-claude-border/50 dark:border-[#3d3832]/50 overflow-x-auto flex-shrink-0">
+        <span className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold shrink-0 mr-1">{locale === 'zh' ? '靶点：' : 'Targets:'}</span>
+        {subTargets.length === 0 ? (
+          <span className="text-[10px] text-claude-text-muted italic">{locale === 'zh' ? '无子靶点' : 'No sub-targets'}</span>
+        ) : (
+          subTargets.map(sub => (
+            <button
+              key={sub.uniprotId}
+              onClick={() => onSelectSubTarget(sub.uniprotId)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-mono font-medium bg-claude-border-light/60 dark:bg-[#2b2926]/60 hover:bg-claude-accent/10 hover:text-claude-accent text-claude-text-secondary transition-all border border-transparent hover:border-claude-accent/20 whitespace-nowrap"
+              title={`${sub.proteinName || sub.geneName || sub.uniprotId} · ${sub.pdbCount} PDB · ${sub.blastCount} BLAST`}
+            >
+              {sub.uniprotId}
+              <span className="text-[8px] text-claude-text-muted font-sans">{sub.pdbCount}P</span>
+            </button>
+          ))
+        )}
+      </div>
+
+      {/* Common PDB list — same visual style as single eval PDB table */}
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+        {rows.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
+            <Box className="h-8 w-8 mb-2 opacity-40" />
+            <p className="text-xs">No common PDB structures found between targets</p>
+            <p className="text-[10px] mt-1">Run the batch evaluation to detect shared structures.</p>
+          </div>
+        ) : (
+          <table className="w-full text-xs">
+            <thead className="sticky top-0 z-10 bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832]">
+              <tr>
+                <th className="text-left font-semibold text-claude-text-muted px-4 py-2 w-[90px]">{locale === 'zh' ? 'PDB ID' : 'PDB ID'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">{locale === 'zh' ? '方法' : 'Method'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[80px]">{locale === 'zh' ? '分辨率 (Å)' : 'Res. (Å)'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">{locale === 'zh' ? 'IF 级别' : 'IF Tier'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 min-w-0">{locale === 'zh' ? '标题' : 'Title'}</th>
+                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[160px]">{locale === 'zh' ? '共享子靶点' : 'Shared By'}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => {
+                const methodStyle = getMethodColor(row.method);
+                const resColor = row.resolution != null
+                  ? row.resolution < 2.5 ? 'text-emerald-600 dark:text-emerald-400'
+                    : row.resolution < 3.5 ? 'text-amber-600 dark:text-amber-400'
+                    : 'text-red-600 dark:text-red-400'
+                  : 'text-claude-text-muted';
+                return (
+                  <tr
+                    key={row.pdbId}
+                    onClick={() => onSelectPdb?.(row.pdbId)}
+                    className={`border-b border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-claude-border-light/20 dark:bg-[#1a1917]/20'}`}
+                  >
+                    <td className="px-4 py-2">
+                      <span className="font-mono font-bold text-[11px] text-claude-accent">{row.pdbId}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${methodStyle}`}>{row.method || '—'}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <span className={`font-mono text-[11px] font-medium ${resColor}`}>{row.resolution != null ? row.resolution.toFixed(1) : '—'}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      {row.ifTier ? (
+                        <span className="text-[10px] font-medium" style={getIfTierStyle(row.ifTier)}>{row.ifTier}</span>
+                      ) : (
+                        <span className="text-[10px] text-claude-text-muted">—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 min-w-0">
+                      <span className="text-[11px] text-claude-text-secondary truncate block max-w-[300px]" title={row.title}>{row.title || '—'}</span>
+                    </td>
+                    <td className="px-2 py-2">
+                      <div className="flex items-center gap-0.5 flex-wrap">
+                        {row.holders.slice(0, 3).map(h => (
+                          <span key={h} className="text-[9px] font-mono px-1 py-0.5 rounded bg-claude-border-light/60 dark:bg-[#2b2926]/60 text-claude-text-muted">{h}</span>
+                        ))}
+                        {row.holders.length > 3 && (
+                          <span className="text-[9px] text-claude-text-muted">+{row.holders.length - 3}</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function getScoreColor(score: number): string {
@@ -274,6 +501,7 @@ function BatchDetailView({
   onSelectSubTarget,
   onOpenBatchReport,
 }: BatchDetailViewProps) {
+  const { locale } = useI18n();
   const [activeTab, setActiveTab] = useState<BatchDetailTab>('Summary');
   const [selectedSubTarget, setSelectedSubTarget] = useState<string | null>(null);
   const [sortField, setSortField] = useState<string>('pdbId');
@@ -447,7 +675,7 @@ function BatchDetailView({
     return (
       <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
         <Layers className="h-8 w-8 mb-2 opacity-40" />
-        <p className="text-xs">Batch not found</p>
+        <p className="text-xs">{locale === 'zh' ? '未找到批次' : 'Batch not found'}</p>
       </div>
     );
   }
@@ -508,12 +736,12 @@ function BatchDetailView({
             {/* Sub-targets list */}
             <div className="p-2 space-y-0.5">
               <div className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold px-2 py-1.5 flex items-center justify-between">
-                <span>Sub-Targets</span>
+                <span>{locale === 'zh' ? '子靶点' : 'Sub-Targets'}</span>
                 <span className="font-mono">{subTargets.length}</span>
               </div>
               {subTargets.length === 0 ? (
                 <p className="text-[10px] text-claude-text-muted italic px-2 py-2">
-                  No sub-targets recorded
+                  {locale === 'zh' ? '暂无子靶点记录' : 'No sub-targets recorded'}
                 </p>
               ) : (
                 subTargets.map(sub => {
@@ -1142,7 +1370,7 @@ function BatchDetailView({
                         size="sm"
                         onClick={() => onSelectSubTarget(selectedSubTarget)}
                         className="h-7 px-2.5 text-[11px] border-claude-accent/30 text-claude-accent hover:bg-claude-accent/10 flex-shrink-0"
-                        title="Open this evaluation in the full individual-eval view"
+                        title={locale === 'zh' ? '在完整单独评估视图中打开此评估' : 'Open this evaluation in the full individual-eval view'}
                       >
                         Open Full View <ArrowUpRight className="h-3 w-3 ml-1" />
                       </Button>
@@ -1250,6 +1478,7 @@ export function EvaluationView({
   onSelectSubTarget,
   onOpenBatchReport,
 }: EvaluationViewProps) {
+  const { t, locale } = useI18n();
   // Sub-view: toolbar + full-width component
   const currentSubView: string = evalSubView;
   if (evalSubView === 'compare' || evalSubView === 'dashboard' || evalSubView === 'timeline' || evalSubView === 'batch') {
@@ -1263,7 +1492,7 @@ export function EvaluationView({
             onClick={() => onSetEvalSubView('default')}
             className="h-7 px-2.5 text-[11px] text-claude-text-secondary hover:text-claude-text"
           >
-            ← Back to Evaluation
+            ← {locale === 'zh' ? '返回评估' : 'Back to Evaluation'}
           </Button>
           <div className="flex items-center gap-1 ml-2">
             <Button
@@ -1273,7 +1502,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'compare' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <ArrowRightLeft className="h-3 w-3 mr-1" />
-              Compare
+              {t.compare}
             </Button>
             <Button
               variant="ghost"
@@ -1282,7 +1511,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'dashboard' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <LayoutDashboard className="h-3 w-3 mr-1" />
-              Dashboard
+              {t.dashboard}
             </Button>
             <Button
               variant="ghost"
@@ -1291,7 +1520,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'timeline' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <Clock className="h-3 w-3 mr-1" />
-              Timeline
+              {t.timeline}
             </Button>
             <Button
               variant="ghost"
@@ -1300,7 +1529,7 @@ export function EvaluationView({
               className={`h-7 px-2.5 text-[11px] ${evalSubView === 'batch' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
             >
               <Database className="h-3 w-3 mr-1" />
-              Batch Matrix
+              {t.batchMatrix}
             </Button>
           </div>
         </div>
@@ -1355,7 +1584,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'compare' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <ArrowRightLeft className="h-3 w-3 mr-1" />
-          Compare
+          {t.compare}
         </Button>
         <Button
           variant="ghost"
@@ -1364,7 +1593,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'dashboard' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <LayoutDashboard className="h-3 w-3 mr-1" />
-          Dashboard
+          {t.dashboard}
         </Button>
         <Button
           variant="ghost"
@@ -1373,7 +1602,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'timeline' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <Clock className="h-3 w-3 mr-1" />
-          Timeline
+          {t.timeline}
         </Button>
         <Button
           variant="ghost"
@@ -1382,7 +1611,7 @@ export function EvaluationView({
           className={`h-7 px-2.5 text-[11px] ${currentSubView === 'batch' ? 'bg-claude-accent/10 text-claude-accent' : 'text-claude-text-muted'}`}
         >
           <Database className="h-3 w-3 mr-1" />
-          Batch Matrix
+          {t.batchMatrix}
         </Button>
         {selectedBatchId && !selectedEvalId && (
           <Button
@@ -1390,21 +1619,19 @@ export function EvaluationView({
             size="sm"
             onClick={() => onSelectEvalId(null)}
             className="h-7 px-2.5 text-[11px] text-claude-text-muted ml-auto"
-            title="Exit batch detail"
+            title={locale === 'zh' ? '退出批次详情' : 'Exit batch detail'}
           >
-            ← Back to list
+            ← {t.backToList}
           </Button>
         )}
       </div>
-      {/* When a batch is selected and no individual sub-target is open, show the
-          batch-level preview (common PDB IDs, cross-target LLM report, sub-target
-          list with their individual reports). Otherwise fall back to the regular
-          individual-eval detail page. */}
+      {/* When a batch is selected and no individual sub-target is open, show
+          the common PDB list in the middle (same layout as single eval).
+          The batch's combined report shows in the right detail panel. */}
       {selectedBatchId && !selectedEvalId ? (
-        <BatchDetailView
+        <BatchCommonPdbView
           batchId={selectedBatchId}
           allEvals={allEvaluations}
-          batchFetchedEvals={batchFetchedEvals || {}}
           evalBatches={evalBatches}
           evalBatchSubTargets={batchSubTargets}
           onSelectSubTarget={(uniprotId) => {
@@ -1414,7 +1641,6 @@ export function EvaluationView({
               onSelectEvalId(uniprotId);
             }
           }}
-          onOpenBatchReport={onOpenBatchReport}
         />
       ) : (
         <EvaluationPage

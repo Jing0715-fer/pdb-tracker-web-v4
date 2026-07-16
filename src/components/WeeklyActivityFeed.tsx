@@ -3,6 +3,7 @@
 import React, { useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Atom, ExternalLink, FileText, Users, Clock, BookOpen } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import type { PdbEntry } from '@/lib/pdb-types';
 import { getMethodColor, getMethodLabel, formatDate } from '@/components/pdb-helpers';
 
@@ -29,6 +30,7 @@ interface WeeklyActivityFeedProps {
 }
 
 export function WeeklyActivityFeed({ entries, weekLabel, maxEvents = 10 }: WeeklyActivityFeedProps) {
+  const { t } = useI18n();
   const events = useMemo(() => {
     const eventList: ActivityEvent[] = [];
 
@@ -102,10 +104,10 @@ export function WeeklyActivityFeed({ entries, weekLabel, maxEvents = 10 }: Weekl
     return (
       <div className="px-3 py-4">
         <div className="text-[10px] font-semibold text-claude-text-secondary mb-2 uppercase tracking-wider">
-          Recent Activity
+          {t.recentActivity}
         </div>
         <div className="text-[10px] text-claude-text-muted text-center py-3">
-          No activity for this week
+          {t.noActivityThisWeekFull}
         </div>
       </div>
     );
@@ -114,7 +116,7 @@ export function WeeklyActivityFeed({ entries, weekLabel, maxEvents = 10 }: Weekl
   return (
     <div className="px-3 py-3">
       <div className="text-[10px] font-semibold text-claude-text-secondary mb-2.5 uppercase tracking-wider">
-        Recent Activity
+        {t.recentActivity}
       </div>
       <div className="space-y-0 relative">
         {/* Timeline line */}

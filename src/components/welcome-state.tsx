@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { useI18n } from '@/lib/i18n';
 import {
   Database,
   FlaskConical,
@@ -44,35 +45,38 @@ interface WelcomeStateProps {
   onShowKeyboardHints?: () => void;
 }
 
-const MODE_CONFIG = {
+const buildModeConfig = (locale: 'en' | 'zh') => ({
   weekly: {
     icon: Database,
-    label: 'Weekly Structures',
+    label: locale === 'zh' ? '周报结构' : 'Weekly Structures',
     gradient: 'from-[#2d8f8f] to-[#1a6b6b]',
     color: '#2d8f8f',
-    heading: 'Explore Weekly PDB Releases',
-    description:
-      'Browse the latest protein structure releases from the PDB. Track methods, resolutions, and impact factors across weekly snapshots.',
+    heading: locale === 'zh' ? '浏览每周 PDB 发布' : 'Explore Weekly PDB Releases',
+    description: locale === 'zh'
+      ? '浏览 PDB 最新蛋白质结构发布。跨周报跟踪方法、分辨率和影响因子。'
+      : 'Browse the latest protein structure releases from the PDB. Track methods, resolutions, and impact factors across weekly snapshots.',
   },
   evaluation: {
     icon: FlaskConical,
-    label: 'Target Evaluations',
+    label: locale === 'zh' ? '目标评估' : 'Target Evaluations',
     gradient: 'from-[#7c5cbf] to-[#5a3d99]',
     color: '#7c5cbf',
-    heading: 'Evaluate Target Coverage',
-    description:
-      'Assess structural coverage for your protein targets. Compare domain coverage, BLAST results, and completeness scores.',
+    heading: locale === 'zh' ? '评估目标覆盖率' : 'Evaluate Target Coverage',
+    description: locale === 'zh'
+      ? '评估蛋白质目标的结构覆盖率。比较结构域覆盖、BLAST 结果和完整性评分。'
+      : 'Assess structural coverage for your protein targets. Compare domain coverage, BLAST results, and completeness scores.',
   },
   literature: {
     icon: BookOpen,
-    label: 'Literature Monitor',
+    label: locale === 'zh' ? '文献监测' : 'Literature Monitor',
     gradient: 'from-[#c9872e] to-[#a06b1a]',
     color: '#c9872e',
-    heading: 'Monitor Structural Biology Literature',
-    description:
-      'Track the latest publications in structural biology. Monitor impact factors, reading progress, and citation networks.',
+    heading: locale === 'zh' ? '监测结构生物学文献' : 'Monitor Structural Biology Literature',
+    description: locale === 'zh'
+      ? '跟踪结构生物学最新发表。监测影响因子、阅读进度和引用网络。'
+      : 'Track the latest publications in structural biology. Monitor impact factors, reading progress, and citation networks.',
   },
-} as const;
+} as const);
 
 function StatBadge({
   label,
@@ -106,7 +110,7 @@ function StatBadge({
   );
 }
 
-function RecentActivityItem({ item, index }: { item: RecentItem; index: number }) {
+function RecentActivityItem({ item, index, locale }: { item: RecentItem; index: number; locale: 'en' | 'zh' }) {
   const typeIcons: Record<string, React.ElementType> = {
     structure: Microscope,
     evaluation: Eye,
@@ -120,7 +124,7 @@ function RecentActivityItem({ item, index }: { item: RecentItem; index: number }
   const Icon = typeIcons[item.type] || FileText;
   const color = typeColors[item.type] || '#6b7280';
 
-  const timeAgo = getTimeAgo(item.date);
+  const timeAgo = getTimeAgo(item.date, locale);
 
   return (
     <div
@@ -144,12 +148,21 @@ function RecentActivityItem({ item, index }: { item: RecentItem; index: number }
   );
 }
 
-function getTimeAgo(dateStr: string): string {
+function getTimeAgo(dateStr: string, locale: 'en' | 'zh' = 'en'): string {
   try {
     const date = new Date(dateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
+    if (locale === 'zh') {
+      if (diffMins < 1) return '刚刚';
+      if (diffMins < 60) return `${diffMins} 分钟前`;
+      const diffHrs = Math.floor(diffMins / 60);
+      if (diffHrs < 24) return `${diffHrs} 小时前`;
+      const diffDays = Math.floor(diffHrs / 24);
+      if (diffDays < 7) return `${diffDays} 天前`;
+      return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+    }
     if (diffMins < 1) return 'Just now';
     if (diffMins < 60) return `${diffMins}m ago`;
     const diffHrs = Math.floor(diffMins / 60);
@@ -196,13 +209,14 @@ export function WelcomeState({
   onOpenSearch,
   onShowKeyboardHints,
 }: WelcomeStateProps) {
-  const modeConfig = MODE_CONFIG[mode];
+  const { t, locale } = useI18n();
+  const modeConfig = buildModeConfig(locale)[mode];
 
   // Build stats based on mode
   const getWeeklyStats = () => [
-    { label: 'Total Structures', value: totalEntries, icon: Layers, color: '#2d8f8f' },
+    { label: locale === 'zh' ? '结构总数' : 'Total Structures', value: totalEntries, icon: Layers, color: '#2d8f8f' },
     {
-      label: 'Avg Resolution',
+      label: locale === 'zh' ? '平均分辨率' : 'Avg Resolution',
       value: avgResolution ? avgResolution.toFixed(1) : '—',
       suffix: avgResolution ? 'Å' : undefined,
       icon: Microscope,
@@ -219,20 +233,20 @@ export function WelcomeState({
 
   const getEvaluationStats = () => [
     {
-      label: 'Total Evaluations',
+      label: locale === 'zh' ? '评估总数' : 'Total Evaluations',
       value: totalEvaluations ?? 0,
       icon: Eye,
       color: '#7c5cbf',
     },
     {
-      label: 'Avg Coverage',
+      label: locale === 'zh' ? '平均覆盖率' : 'Avg Coverage',
       value: avgCoverage != null ? avgCoverage.toFixed(0) : '—',
       suffix: avgCoverage != null ? '%' : undefined,
       icon: TrendingUp,
       color: '#2d8f8f',
     },
     {
-      label: 'Targets Tracked',
+      label: locale === 'zh' ? '跟踪目标数' : 'Targets Tracked',
       value: totalEntries || 0,
       icon: FlaskConical,
       color: '#c9872e',
@@ -241,19 +255,19 @@ export function WelcomeState({
 
   const getLiteratureStats = () => [
     {
-      label: 'Total Papers',
+      label: locale === 'zh' ? '论文总数' : 'Total Papers',
       value: totalPapers ?? 0,
       icon: BookOpen,
       color: '#c9872e',
     },
     {
-      label: 'Avg Impact Factor',
+      label: locale === 'zh' ? '平均影响因子' : 'Avg Impact Factor',
       value: avgIf != null ? avgIf.toFixed(1) : '—',
       icon: TrendingUp,
       color: '#7c5cbf',
     },
     {
-      label: 'Journals Tracked',
+      label: locale === 'zh' ? '跟踪期刊数' : 'Journals Tracked',
       value: totalEntries || 0,
       icon: FileText,
       color: '#2d8f8f',
@@ -272,15 +286,15 @@ export function WelcomeState({
     recentItems && recentItems.length > 0
       ? recentItems.slice(0, 3)
       : [
-          { id: '1', title: 'Select a mode to get started', type: 'structure', date: new Date().toISOString() },
-          { id: '2', title: 'Use ⌘K to search across all data', type: 'paper', date: new Date().toISOString() },
-          { id: '3', title: 'Press 1/2/3 to switch modes', type: 'evaluation', date: new Date().toISOString() },
+          { id: '1', title: locale === 'zh' ? '选择一种模式开始' : 'Select a mode to get started', type: 'structure', date: new Date().toISOString() },
+          { id: '2', title: locale === 'zh' ? '使用 ⌘K 跨所有数据搜索' : 'Use ⌘K to search across all data', type: 'paper', date: new Date().toISOString() },
+          { id: '3', title: locale === 'zh' ? '按 1/2/3 切换模式' : 'Press 1/2/3 to switch modes', type: 'evaluation', date: new Date().toISOString() },
         ];
 
   const tips = [
-    { icon: Search, shortcut: '⌘K', description: 'Quick search' },
-    { icon: Keyboard, shortcut: '1/2/3', description: 'Switch modes' },
-    { icon: BarChart3, shortcut: '⌘B', description: 'Toggle dashboard' },
+    { icon: Search, shortcut: '⌘K', description: locale === 'zh' ? '快速搜索' : 'Quick search' },
+    { icon: Keyboard, shortcut: '1/2/3', description: locale === 'zh' ? '切换模式' : 'Switch modes' },
+    { icon: BarChart3, shortcut: '⌘B', description: locale === 'zh' ? '切换仪表盘' : 'Toggle dashboard' },
   ];
 
   return (
@@ -326,7 +340,7 @@ export function WelcomeState({
           <div className="flex items-center gap-1.5 mb-2.5">
             <BarChart3 className="h-3.5 w-3.5 text-claude-text-muted" />
             <span className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider">
-              Quick Stats
+              {locale === 'zh' ? '快捷统计' : 'Quick Stats'}
             </span>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -354,8 +368,8 @@ export function WelcomeState({
               <Database className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="text-left">
-              <div className="text-[11px] font-semibold text-claude-text">Latest Week</div>
-              <div className="text-[9px] text-claude-text-muted">Browse structures</div>
+              <div className="text-[11px] font-semibold text-claude-text">{locale === 'zh' ? '最新一周' : 'Latest Week'}</div>
+              <div className="text-[9px] text-claude-text-muted">{locale === 'zh' ? '浏览结构' : 'Browse structures'}</div>
             </div>
             <ArrowRight className="h-3.5 w-3.5 text-claude-text-muted ml-auto group-hover:translate-x-0.5 transition-transform" />
           </Button>
@@ -369,8 +383,8 @@ export function WelcomeState({
               <FlaskConical className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="text-left">
-              <div className="text-[11px] font-semibold text-claude-text">Evaluations</div>
-              <div className="text-[9px] text-claude-text-muted">Coverage analysis</div>
+              <div className="text-[11px] font-semibold text-claude-text">{locale === 'zh' ? '评估' : 'Evaluations'}</div>
+              <div className="text-[9px] text-claude-text-muted">{locale === 'zh' ? '覆盖率分析' : 'Coverage analysis'}</div>
             </div>
             <ArrowRight className="h-3.5 w-3.5 text-claude-text-muted ml-auto group-hover:translate-x-0.5 transition-transform" />
           </Button>
@@ -384,8 +398,8 @@ export function WelcomeState({
               <BookOpen className="h-3.5 w-3.5 text-white" />
             </div>
             <div className="text-left">
-              <div className="text-[11px] font-semibold text-claude-text">Literature</div>
-              <div className="text-[9px] text-claude-text-muted">Browse papers</div>
+              <div className="text-[11px] font-semibold text-claude-text">{locale === 'zh' ? '文献' : 'Literature'}</div>
+              <div className="text-[9px] text-claude-text-muted">{locale === 'zh' ? '浏览论文' : 'Browse papers'}</div>
             </div>
             <ArrowRight className="h-3.5 w-3.5 text-claude-text-muted ml-auto group-hover:translate-x-0.5 transition-transform" />
           </Button>
@@ -396,12 +410,12 @@ export function WelcomeState({
           <div className="flex items-center gap-1.5 mb-2">
             <Clock className="h-3.5 w-3.5 text-claude-text-muted" />
             <span className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider">
-              Recent Activity
+              {locale === 'zh' ? '最近活动' : 'Recent Activity'}
             </span>
           </div>
           <div className="rounded-xl border border-claude-border/40 dark:border-[#3d3832]/40 bg-white/40 dark:bg-[#242220]/40 backdrop-blur-sm overflow-hidden">
             {displayItems.map((item, i) => (
-              <RecentActivityItem key={item.id} item={item} index={i} />
+              <RecentActivityItem key={item.id} item={item} index={i} locale={locale} />
             ))}
           </div>
         </div>
@@ -411,7 +425,7 @@ export function WelcomeState({
           <div className="flex items-center gap-1.5 mb-2">
             <Keyboard className="h-3.5 w-3.5 text-claude-text-muted" />
             <span className="text-[10px] font-semibold text-claude-text-muted uppercase tracking-wider">
-              Quick Tips
+              {locale === 'zh' ? '快捷提示' : 'Quick Tips'}
             </span>
           </div>
           <div className="flex flex-col gap-1.5">

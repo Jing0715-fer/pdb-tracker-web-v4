@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { TiltCard, AnimatedNumber } from '@/components/ui/pdb-animated';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Unified Stat Card Component ──────────────────────────────────────────────
 // Shared across Weekly, Evaluation, and Literature modules for consistent styling.
@@ -325,9 +326,12 @@ export function TierBadge({ tier, label, compact = false }: {
 // Best for: Latest Update card — shows data freshness at a glance
 
 export function FreshnessDot({ score }: { score: number }) {
+  const { locale } = useI18n();
   // score: 100 = fresh (≤1 day), 80 = recent (≤7 days), 50 = aging (≤30 days), 25 = stale
   const color = score >= 80 ? '#16a34a' : score >= 50 ? '#c9872e' : '#dc2626';
-  const label = score >= 80 ? 'Fresh' : score >= 50 ? 'Recent' : 'Aging';
+  const label = locale === 'zh'
+    ? (score >= 80 ? '新鲜' : score >= 50 ? '近期' : '老化')
+    : (score >= 80 ? 'Fresh' : score >= 50 ? 'Recent' : 'Aging');
   const pulse = score >= 80;
 
   return (

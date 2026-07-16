@@ -11,11 +11,14 @@ import {
   Calendar, ArrowRightLeft, LayoutDashboard, Clock, FileDown, Settings,
   Microscope, ArrowUp, RefreshCw, Download, Box, Upload, ChevronLeft,
   StickyNote, Tag, Trophy, Eye, AlertTriangle, HelpCircle,
+  Maximize2, Layers, Info, CheckCircle2, Trash2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { Mode, PdbEntry, WeeklySnapshot, WeeklyReport, Evaluation, LitPaper, LitReport, LitStats, EvalBatch, EvalBatchSubTarget, EvalRow } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Utility: Time Ago ─────────────────────────────────────────────────────
 
@@ -239,6 +242,10 @@ const EvalScoreRadarChart = dynamic(() => import('@/components/eval-score-radar'
   ssr: false,
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
 });
+const EvalScoreRadar = dynamic(() => import('@/components/EvalScoreRadar').then(m => ({ default: m.EvalScoreRadar })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
 const EvalScoreBreakdown = dynamic(() => import('@/components/eval-score-breakdown').then(m => ({ default: m.EvalScoreBreakdown })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
@@ -371,6 +378,7 @@ interface AiAnalysisResult {
 
 export default function PdbTracker() {
   const { theme, setTheme } = useTheme();
+  const { t, locale } = useI18n();
   const [mounted, setMounted] = useState(false);
 
   // ── First-run DB setup wizard ───────────────────────────────────────────
@@ -729,7 +737,7 @@ export default function PdbTracker() {
     const msg = err instanceof Error ? err.message : String(err);
     return /HTTP 500|no such table|database.*not.*found|P2021|P2003/i.test(msg);
   };
-  const dbErrorMsg = '数据库未配置或未初始化。请先在运行中心创建或选择数据库。';
+  const dbErrorMsg = t.dbNotConfigured;
 
   // Track whether fallback data is being used
   const [usingFallbackData, setUsingFallbackData] = useState(false);
@@ -751,7 +759,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch snapshots:', err);
       setSnapshots([]);
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载快照失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadSnapshotsFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     }
   }, [selectedSnapshot]);
 
@@ -776,7 +784,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch entries:', err);
       setEntries([]);
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载 PDB 结构失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadEntriesFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     } finally {
       setLoading(false);
       setShowWelcome(false);
@@ -809,7 +817,7 @@ export default function PdbTracker() {
       setEvalBatches([]);
       setBatchSubTargets({});
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载评估数据失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadEvaluationsFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     } finally {
       setEvalLoading(false);
     }
@@ -851,6 +859,7 @@ export default function PdbTracker() {
     setSelectedEval(null);
     setSelectedEvalStructure(null);
     setEvalSubView('default');
+    setEvalDetailTab('Summary');
     setDetailPanelOpen(true);
   }, []);
 
@@ -858,6 +867,7 @@ export default function PdbTracker() {
     setSelectedBatchId(batchId);
     setSelectedEvalId(uniprotId);
     setSelectedEvalStructure(null);
+    setEvalDetailTab('Summary');
     setDetailPanelOpen(true);
   }, []);
 
@@ -915,6 +925,36 @@ export default function PdbTracker() {
     }
   }, [selectedEvalId, fetchEvaluations]);
 
+  // Delete an entire batch + all its sub-target evaluations.
+  const handleDeleteBatch = useCallback(async (batchId: string) => {
+    const batch = evalBatches.find(b => b.batchId === batchId);
+    const subTargets = batchSubTargets[batchId] || [];
+    const confirmed = window.confirm(
+      `Delete batch "${batch?.title || batchId}"?\n\nThis will permanently remove ${subTargets.length} evaluation(s), their PDB structures, BLAST results, and the cross-target report.`
+    );
+    if (!confirmed) return;
+    try {
+      // Delete each sub-target evaluation
+      for (const sub of subTargets) {
+        await queuedFetchWithRetry(`/api/evaluations/${sub.uniprotId}`, { method: 'DELETE' });
+      }
+      // Delete the batch record itself
+      await queuedFetchWithRetry(`/api/evaluations/batch/${batchId}`, { method: 'DELETE' });
+      toast.success(`Deleted batch ${batchId}`);
+      setSelectedBatchId(null);
+      setSelectedEvalId(null);
+      setSelectedEval(null);
+      setSelectedEvalStructure(null);
+      setDetailPanelOpen(false);
+      await fetchEvaluations();
+    } catch (err) {
+      console.error('Failed to delete batch:', err);
+      toast.error('Failed to delete batch', {
+        description: err instanceof Error ? err.message : 'unknown error',
+      });
+    }
+  }, [evalBatches, batchSubTargets, fetchEvaluations]);
+
   const fetchLitStats = useCallback(async () => {
     try {
       const res = await queuedFetchWithRetry('/api/literature/stats');
@@ -929,7 +969,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch lit stats:', err);
       setLitStats(null);
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载文献统计失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadLitStatsFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     }
   }, []);
 
@@ -950,7 +990,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch lit papers:', err);
       setLitPapers([]);
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载论文列表失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadPapersFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     } finally {
       setLitLoading(false);
     }
@@ -970,7 +1010,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch lit reports:', err);
       setLitReports([]);
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载文献报告失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadLitReportsFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     }
   }, []);
 
@@ -988,7 +1028,7 @@ export default function PdbTracker() {
       console.error('Failed to fetch reports:', err);
       setWeeklyReports([]);
       setUsingFallbackData(false);
-      setFetchError(isDbError(err) ? dbErrorMsg : `加载周报失败：${err instanceof Error ? err.message : '网络错误'}`);
+      setFetchError(isDbError(err) ? dbErrorMsg : `${t.loadWeeklyReportsFailed}: ${err instanceof Error ? err.message : t.networkError}`);
     }
   }, []);
 
@@ -1059,6 +1099,12 @@ export default function PdbTracker() {
   // missing. The mode switcher + search input are spotlighted; all other
   // steps render as centered tooltips. The 「帮助」 button in the top bar
   // calls `startTour()` to re-trigger the tour on demand.
+  const runCenterContentRef = useRef<HTMLDivElement>(null);
+  const dbWizardContentRef = useRef<HTMLDivElement>(null);
+  const tabContentRef = useRef<HTMLDivElement>(null);
+  // Run Center controlled state (for tour integration) — declared BEFORE useTour
+  const [runCenterOpen, setRunCenterOpen] = useState(false);
+  const [runCenterTab, setRunCenterTab] = useState('evaluation');
   const {
     tourActive,
     tourStep,
@@ -1071,20 +1117,24 @@ export default function PdbTracker() {
     refs: {
       modeSwitcherRef: modeTabContainerRef,
       searchRef: searchWrapRef,
+      dbWizardContentRef,
+      runCenterContentRef,
+      tabContentRef,
     },
     onOpenDbWizard: () => setDbWizardOpen(true),
     onCloseDbWizard: () => setDbWizardOpen(false),
-    onOpenRunCenter: () => { setRunCenterOpen(true); setRunCenterTab('evaluation'); },
+    onOpenRunCenter: (tab) => {
+      setRunCenterOpen(true);
+      // Switch to the requested tab so each module step (eval / lit /
+      // weekly) shows its own panel inside the open Run Center dialog.
+      if (tab) setRunCenterTab(tab);
+    },
     onCloseRunCenter: () => setRunCenterOpen(false),
     onSwitchTab: (tab) => setRunCenterTab(tab),
     onSwitchEval: () => setRunCenterTab('evaluation'),
     onSwitchLit: () => setRunCenterTab('literature'),
     onSwitchWeekly: () => setRunCenterTab('weekly'),
   });
-
-  // Run Center controlled state (for tour integration)
-  const [runCenterOpen, setRunCenterOpen] = useState(false);
-  const [runCenterTab, setRunCenterTab] = useState('evaluation');
 
   // ── First-run DB check ────────────────────────────────────────────────
   // Pop the setup wizard AFTER the tour completes (or if no tour needed).
@@ -1771,7 +1821,7 @@ export default function PdbTracker() {
           {(!sidebarCollapsed || mobile) && (
             <div className="flex items-center gap-1.5">
               <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">
-                Weekly Snapshots
+                {t.weeklySnapshotsTitle}
               </h3>
             </div>
           )}
@@ -1847,7 +1897,7 @@ export default function PdbTracker() {
                             <span className="snapshot-method-btn-label">X</span>
                           </button>
                         </TooltipTrigger>
-                        <TooltipContent side="right"><p>X-ray Report</p></TooltipContent>
+                        <TooltipContent side="right"><p>{t.xrayReport}</p></TooltipContent>
                       </Tooltip>
                       {getReportCountForWeek(snap.weekId) > 1 && (
                         <Tooltip>
@@ -1856,7 +1906,7 @@ export default function PdbTracker() {
                               <span className="snapshot-method-btn-label">E</span>
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="right"><p>Cryo-EM Report</p></TooltipContent>
+                          <TooltipContent side="right"><p>{t.cryoemReport}</p></TooltipContent>
                         </Tooltip>
                       )}
                       {getReportCountForWeek(snap.weekId) > 2 && (
@@ -1866,7 +1916,7 @@ export default function PdbTracker() {
                               <span className="snapshot-method-btn-label">N</span>
                             </button>
                           </TooltipTrigger>
-                          <TooltipContent side="right"><p>NMR Report</p></TooltipContent>
+                          <TooltipContent side="right"><p>{t.nmrReport}</p></TooltipContent>
                         </Tooltip>
                       )}
                     </div>
@@ -1943,7 +1993,7 @@ export default function PdbTracker() {
       <div className="px-3 py-3 border-b border-claude-border dark:border-[#3d3832]">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">
-            Evaluations
+            {t.evaluationsTitle}
           </h3>
           {mobile && (
             <Button
@@ -1981,7 +2031,7 @@ export default function PdbTracker() {
       <div className="px-3 py-3 border-b border-claude-border dark:border-[#3d3832]">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-semibold text-claude-text-secondary uppercase tracking-wider">
-            Literature
+            {t.modeLiterature}
           </h3>
           {mobile && (
             <Button
@@ -2079,7 +2129,7 @@ export default function PdbTracker() {
   const renderWeeklyContent = () => (
     <>
       {/* Error banner with retry */}
-      {fetchError && !loading && (
+      {fetchError && !loading && !dbWizardOpen && (
         <div className="mx-3 mt-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <RefreshCw className="h-4 w-4 text-red-500 flex-shrink-0" />
@@ -2092,7 +2142,7 @@ export default function PdbTracker() {
             className="h-7 px-2.5 text-[11px] border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/40 flex-shrink-0"
           >
             <RefreshCw className="h-3 w-3 mr-1" />
-            Retry
+            {t.retry}
           </Button>
         </div>
       )}
@@ -2437,7 +2487,7 @@ export default function PdbTracker() {
       {/* Mobile: full-screen overlay */}
       <div className="md:hidden fixed inset-0 z-50 flex flex-col bg-claude-bg dark:bg-[#1a1917]">
         <div className="flex items-center justify-between px-4 py-2.5 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-shrink-0">
-          <span className="text-sm font-semibold text-claude-text">Details</span>
+          <span className="text-sm font-semibold text-claude-text">{locale === 'zh' ? '详情' : 'Details'}</span>
           <Button variant="ghost" size="sm" onClick={closeHandler} className="h-8 w-8 p-0">
             <X className="h-4 w-4" />
           </Button>
@@ -2514,24 +2564,24 @@ export default function PdbTracker() {
           </div>
           {/* Title */}
           <div className="px-4 py-3 border-b border-claude-border/50 dark:border-[#3d3832]/50">
-            <div className="text-xs text-claude-text-muted mb-1">Title</div>
+            <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '标题' : 'Title'}</div>
             <div className="text-sm text-claude-text font-medium leading-snug">{pdbEntry.title || '—'}</div>
           </div>
           {/* Method & Resolution */}
           <div className="px-4 py-3 space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Method</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '方法' : 'Method'}</div>
                 <span className={`method-badge inline-flex px-2 py-0.5 rounded text-[11px] font-medium border ${
                   pdbEntry.isCryoem ? 'method-badge-cryoem bg-claude-cryoem-bg text-claude-cryoem border-claude-cryoem/30' :
                   pdbEntry.isXray ? 'method-badge-xray bg-claude-xray-bg text-claude-xray border-claude-xray/30' :
                   'method-badge-nmr bg-claude-nmr-bg text-claude-nmr border-claude-nmr/30'
                 }`}>
-                  {pdbEntry.method || 'Unknown'}
+                  {pdbEntry.method || (locale === 'zh' ? '未知' : 'Unknown')}
                 </span>
               </div>
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Resolution</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className={`text-sm font-mono font-semibold ${
                   pdbEntry.resolution != null
                     ? pdbEntry.resolution <= 2.0 ? 'text-green-600 dark:text-green-400'
@@ -2614,7 +2664,7 @@ export default function PdbTracker() {
                 <div className="flex items-center gap-1.5">
                   <BookOpen className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
                   <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">
-                    Reading Progress
+                    {locale === 'zh' ? '阅读进度' : 'Reading Progress'}
                   </span>
                 </div>
                 <span className={`text-sm font-bold tabular-nums ${
@@ -2663,12 +2713,12 @@ export default function PdbTracker() {
                     onClick={() => readingProgressState.markComplete(paper.pmid)}
                   >
                     <Check className="h-3 w-3 mr-1" />
-                    Mark as Complete
+                    {locale === 'zh' ? '标记为已完成' : 'Mark as Complete'}
                   </Button>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                     <Check className="h-3 w-3" />
-                    Completed
+                    {locale === 'zh' ? '已完成' : 'Completed'}
                   </span>
                 )}
                 {readingProgressState.getProgress(paper.pmid) > 0 && readingProgressState.getProgress(paper.pmid) < 100 && (
@@ -2689,7 +2739,7 @@ export default function PdbTracker() {
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-claude-accent" />
-                  <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">AI Summary</span>
+                  <span className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider">{locale === 'zh' ? 'AI 摘要' : 'AI Summary'}</span>
                 </div>
                 {!litAiSummary && !litAiSummaryLoading && (
                   <button
@@ -2718,7 +2768,7 @@ export default function PdbTracker() {
                   <div className="flex items-start gap-2">
                     <Users className="h-3.5 w-3.5 text-claude-text-muted mt-0.5 flex-shrink-0" />
                     <div>
-                      <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Authors</div>
+                      <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '作者' : 'Authors'}</div>
                       <div className="text-xs text-claude-text-secondary leading-relaxed">{paper.authors}</div>
                     </div>
                   </div>
@@ -2726,13 +2776,13 @@ export default function PdbTracker() {
               )}
               {paper.journal && (
                 <div>
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Journal</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '期刊' : 'Journal'}</div>
                   <div className="text-xs text-claude-text-secondary font-medium">{paper.journal}</div>
                 </div>
               )}
               {paper.IF != null && (
                 <div>
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Impact Factor</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? '影响因子' : 'Impact Factor'}</div>
                   <div className={`text-sm font-bold ${
                     paper.IF >= 20 ? 'text-red-600 dark:text-red-400' :
                     paper.IF >= 10 ? 'text-orange-600 dark:text-orange-400' :
@@ -2745,12 +2795,12 @@ export default function PdbTracker() {
               )}
               {paper.pubdate && (
                 <div>
-                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">Date</div>
+                  <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{t.date}</div>
                   <div className="text-xs text-claude-text-secondary">{paper.pubdate}</div>
                 </div>
               )}
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">PMID</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-0.5">{locale === 'zh' ? 'PMID' : 'PMID'}</div>
                 <div className="text-xs text-claude-text-secondary font-mono">{paper.pmid}</div>
               </div>
             </div>
@@ -2772,7 +2822,7 @@ export default function PdbTracker() {
             {/* Abstract */}
             {paper.abstract && (
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Abstract</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '摘要' : 'Abstract'}</div>
                 <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                   {paper.abstract}
                 </div>
@@ -2832,7 +2882,7 @@ export default function PdbTracker() {
                         </svg>
                       </div>
                     </TooltipTrigger>
-                    <TooltipContent>Attention score: {score}/100 (based on IF, PDB structures, metadata)</TooltipContent>
+                    <TooltipContent>{t.attentionScore}: {score}/100</TooltipContent>
                   </Tooltip>
                 );
               })()}
@@ -2840,7 +2890,7 @@ export default function PdbTracker() {
 
             {/* Citation Format Selector */}
             <div>
-              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Cite this paper</div>
+              <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '引用本文' : 'Cite this paper'}</div>
               <CitationFormatSelector paper={paper} />
             </div>
 
@@ -2869,9 +2919,9 @@ export default function PdbTracker() {
                         {/* Resolution quality dot */}
                         {resDotColor && (
                           <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                            pdb.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                            pdb.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                            'Low resolution (≥3.5Å)'
+                            pdb.resolution! < 2.5 ? (locale === 'zh' ? '高分辨率 (<2.5Å)' : 'High resolution (<2.5Å)') :
+                            pdb.resolution! < 3.5 ? (locale === 'zh' ? '中分辨率 (<3.5Å)' : 'Medium resolution (<3.5Å)') :
+                            (locale === 'zh' ? '低分辨率 (≥3.5Å)' : 'Low resolution (≥3.5Å)')
                           } />
                         )}
                         <button
@@ -2904,7 +2954,7 @@ export default function PdbTracker() {
             {/* Keywords */}
             {paper.keywords && paper.keywords.length > 0 && (
               <div>
-                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">Keywords</div>
+                <div className="text-[10px] font-medium text-claude-text-muted uppercase tracking-wider mb-1.5">{locale === 'zh' ? '关键词' : 'Keywords'}</div>
                 <div className="flex flex-wrap gap-1">
                   {paper.keywords.map((kw, i) => (
                     <span key={i} className="px-2 py-0.5 rounded-md text-[10px] font-medium bg-claude-border-light dark:bg-[#2b2926] text-claude-text-secondary border border-claude-border/50 dark:border-[#3d3832]/50">
@@ -3025,7 +3075,7 @@ export default function PdbTracker() {
 
             {/* Title */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Title</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '标题' : 'Title'}</div>
               <div className="text-sm text-claude-text font-medium leading-snug">
                 {row.title || (row as any).description || '—'}
               </div>
@@ -3033,7 +3083,7 @@ export default function PdbTracker() {
 
             {/* Quality Score Breakdown */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-2">Quality Score</div>
+              <div className="text-xs text-claude-text-muted mb-2">{locale === 'zh' ? '质量评分' : 'Quality Score'}</div>
               <div className="flex items-center gap-4">
                 <div className="relative score-ring-glow">
                   <QualityRing score={qualityScore.score} size={56} />
@@ -3043,21 +3093,21 @@ export default function PdbTracker() {
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Resolution</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '分辨率' : 'Resolution'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.resolution}/35</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.resolution / 35) * 100}%`, backgroundColor: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Method</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '方法' : 'Method'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.method}/25</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.method / 25) * 100}%`, backgroundColor: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Impact</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '影响力' : 'Impact'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.impact >= 20 ? '#2d8f8f' : qualityScore.impact >= 10 ? '#c9872e' : '#e55a4f' }}>{qualityScore.impact}/30</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
@@ -3070,18 +3120,18 @@ export default function PdbTracker() {
             {/* Method & Resolution */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Method</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '方法' : 'Method'}</div>
                 <span className={`method-badge inline-flex px-2 py-0.5 rounded text-[11px] font-medium border ${methodStyle.bg} ${methodStyle.text} ${methodStyle.border} border`}>
                   {getMethodLabel(row.method || '')}
                 </span>
               </div>
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Resolution</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className="flex items-center gap-1.5">
                   {resDotColor && <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                    row.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                    row.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                    'Low resolution (≥3.5Å)'
+                    row.resolution! < 2.5 ? (locale === 'zh' ? '高分辨率 (<2.5Å)' : 'High resolution (<2.5Å)') :
+                    row.resolution! < 3.5 ? (locale === 'zh' ? '中分辨率 (<3.5Å)' : 'Medium resolution (<3.5Å)') :
+                    (locale === 'zh' ? '低分辨率 (≥3.5Å)' : 'Low resolution (≥3.5Å)')
                   } />}
                   <span className={`text-sm font-mono font-semibold ${
                     row.resolution != null
@@ -3099,11 +3149,11 @@ export default function PdbTracker() {
             {/* BLAST-specific info (only for homolog rows) */}
             {!isStructure && (
               <div className="p-3 rounded-lg border border-amber-200 dark:border-amber-700/50 bg-amber-50/50 dark:bg-amber-900/10">
-                <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-2">BLAST Homolog Info</div>
+                <div className="text-[10px] font-medium text-amber-700 dark:text-amber-300 uppercase tracking-wider mb-2">{locale === 'zh' ? 'BLAST 同源信息' : 'BLAST Homolog Info'}</div>
                 <div className="grid grid-cols-2 gap-2">
                   {(row as any).identity != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">Identity</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '一致性' : 'Identity'}</div>
                       <span className={`text-sm font-mono font-semibold ${
                         (row as any).identity >= 90 ? 'text-green-600 dark:text-green-400'
                           : (row as any).identity >= 70 ? 'text-teal-600 dark:text-teal-400'
@@ -3116,7 +3166,7 @@ export default function PdbTracker() {
                   )}
                   {(row as any).evalue != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">E-value</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? 'E 值' : 'E-value'}</div>
                       <span className="text-sm font-mono font-semibold text-claude-text">
                         {formatEvalue(parseFloat((row as any).evalue))}
                       </span>
@@ -3124,7 +3174,7 @@ export default function PdbTracker() {
                   )}
                   {(row as any).queryCoverage != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">Query Coverage</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '查询覆盖度' : 'Query Coverage'}</div>
                       <span className="text-sm font-mono font-semibold text-claude-text">
                         {(row as any).queryCoverage.toFixed(1)}%
                       </span>
@@ -3132,7 +3182,7 @@ export default function PdbTracker() {
                   )}
                   {(row as any).targetCoverage != null && (
                     <div>
-                      <div className="text-[10px] text-claude-text-muted">Target Coverage</div>
+                      <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '靶标覆盖度' : 'Target Coverage'}</div>
                       <span className="text-sm font-mono font-semibold text-claude-text">
                         {(row as any).targetCoverage.toFixed(1)}%
                       </span>
@@ -3141,7 +3191,7 @@ export default function PdbTracker() {
                 </div>
                 {(row as any).description && (
                   <div className="mt-2">
-                    <div className="text-[10px] text-claude-text-muted mb-0.5">Description</div>
+                    <div className="text-[10px] text-claude-text-muted mb-0.5">{locale === 'zh' ? '描述' : 'Description'}</div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed">{(row as any).description}</div>
                   </div>
                 )}
@@ -3153,13 +3203,13 @@ export default function PdbTracker() {
               <div className="grid grid-cols-2 gap-3">
                 {(row as any).chainId && (
                   <div>
-                    <div className="text-xs text-claude-text-muted mb-1">Chain</div>
+                    <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '链' : 'Chain'}</div>
                     <div className="text-sm text-claude-text font-mono">{(row as any).chainId}</div>
                   </div>
                 )}
                 {(row as any).unpStart != null && (row as any).unpEnd != null && (
                   <div>
-                    <div className="text-xs text-claude-text-muted mb-1">UniProt Range</div>
+                    <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? 'UniProt 范围' : 'UniProt Range'}</div>
                     <div className="text-sm text-claude-text font-mono">{(row as any).unpStart}–{(row as any).unpEnd}</div>
                   </div>
                 )}
@@ -3171,7 +3221,7 @@ export default function PdbTracker() {
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Users className="h-3 w-3 text-claude-text-muted" />
-                  <span className="text-xs text-claude-text-muted">Authors</span>
+                  <span className="text-xs text-claude-text-muted">{locale === 'zh' ? '作者' : 'Authors'}</span>
                 </div>
                 <div className="text-xs text-claude-text-secondary leading-relaxed">
                   {(row as any).authors || (row as any).pubmedAuthors}
@@ -3182,14 +3232,14 @@ export default function PdbTracker() {
             {/* Organism */}
             {(row as any).organism && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Organism</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '物种' : 'Organism'}</div>
                 <div className="text-sm text-claude-text">{(row as any).organism}</div>
               </div>
             )}
 
             {/* Journal & IF */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Journal</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '期刊' : 'Journal'}</div>
               <div className="text-sm text-claude-text">{row.journal || '—'}</div>
               {row.journalIf != null && (
                 <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
@@ -3206,7 +3256,7 @@ export default function PdbTracker() {
             {/* Release Date */}
             {(row as any).releaseDate && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Release Date</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '发布日期' : 'Release Date'}</div>
                 <div className="text-sm text-claude-text">{formatDate((row as any).releaseDate)}</div>
               </div>
             )}
@@ -3232,7 +3282,7 @@ export default function PdbTracker() {
             {/* Ligands */}
             {ligandList.length > 0 && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Ligands</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '配体' : 'Ligands'}</div>
                 <div className="flex flex-wrap gap-1">
                   {ligandList.map((lig, i) => (
                     <span key={i} className="ligand-chip">{lig}</span>
@@ -3248,7 +3298,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <BookOpen className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Title</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 标题' : 'PubMed Title'}</span>
                     </div>
                     <div className="text-xs text-claude-text font-medium leading-snug pl-4">
                       {(row as any).pubmedTitle}
@@ -3259,7 +3309,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <Users className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Authors</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 作者' : 'PubMed Authors'}</span>
                     </div>
                     <div className="text-[10px] text-claude-text-muted leading-relaxed pl-4">
                       {(row as any).pubmedAuthors}
@@ -3270,7 +3320,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <FileText className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Abstract</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 摘要' : 'PubMed Abstract'}</span>
                     </div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                       {(row as any).pubmedAbstract}
@@ -3318,68 +3368,373 @@ export default function PdbTracker() {
       return renderDetailPanelWrapper(evalStructureDetailContent, () => { setSelectedEvalStructure(null); setDetailPanelOpen(false); });
     }
 
-    // Evaluation detail — tabbed panel
-    if (mode === 'evaluation' && selectedEval) {
-      const evalTabNames = ['Summary', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Report'] as const;
+    // Batch detail — show batch's combined report in the right panel (same as
+    // single eval, but with batch-level info instead of per-target info).
+    if (mode === 'evaluation' && selectedBatchId && !selectedEvalId) {
+      const batch = evalBatches.find(b => b.batchId === selectedBatchId);
+      const subTargets = batchSubTargets[selectedBatchId] || [];
+      const commonPdbIds = (() => {
+        if (!batch?.commonPdbIds) return [];
+        try { const p = JSON.parse(batch.commonPdbIds); return Array.isArray(p) ? p.filter(Boolean) : []; }
+        catch { return batch.commonPdbIds.split(/[\s,]+/).filter(Boolean); }
+      })();
+      const combinedReport = batch?.combinedReport || '';
+      const crossOk = batch?.crossReportOk;
 
-      // Inline Structures tab content
-      const evalStructuresTab = (
-        <div className="space-y-2 max-h-full overflow-y-auto preview-scroll pr-1">
-          {(selectedEval.pdbStructures || []).length === 0 ? (
-            <div className="text-xs text-claude-text-muted py-4 text-center">No PDB structures found</div>
-          ) : (
-            (selectedEval.pdbStructures || []).map((s) => {
-              const methodStyle = getMethodColor(s.method || '');
-              const resDotColor = s.resolution != null
-                ? s.resolution < 2.5 ? 'bg-emerald-500'
-                  : s.resolution < 3.5 ? 'bg-amber-500'
-                  : 'bg-red-500'
-                : null;
-              return (
-                <div key={s.id} className="p-2.5 rounded-lg border border-claude-border/60 dark:border-[#3d3832]/60 bg-claude-border-light/30 dark:bg-[#1a1917]/30 hover:bg-claude-border-light/60 dark:hover:bg-[#2b2926]/60 transition-colors cursor-pointer"
-                  onClick={() => {
-                    setSelectedEvalStructure({ ...s, _type: 'structure' as const });
-                  }}>
-                  <div className="flex items-center gap-2 mb-1">
-                    {resDotColor && (
-                      <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                        s.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                        s.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                        'Low resolution (≥3.5Å)'
-                      } />
-                    )}
-                    <a href={`https://www.rcsb.org/structure/${s.pdbId}`} target="_blank" rel="noopener noreferrer"
-                      className="text-xs font-mono font-bold text-claude-accent dark:text-claude-accent-hover hover:underline"
-                      onClick={(e) => e.stopPropagation()}>
-                      {s.pdbId}
-                    </a>
-                    <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium ${methodStyle.bg} ${methodStyle.text} ${methodStyle.border} border`}>
-                      {getMethodLabel(s.method || '')}
-                    </span>
-                    {s.resolution != null && (
-                      <span className="text-[10px] text-claude-text-muted font-mono ml-auto">
-                        {s.resolution.toFixed(2)}Å
-                      </span>
-                    )}
-                  </div>
-                  {s.title && (
-                    <div className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2">{s.title}</div>
-                  )}
-                  {s.organism && (
-                    <div className="text-[10px] text-claude-text-muted mt-1">{s.organism}</div>
-                  )}
+      // Fetch full Evaluation objects for each sub-target (for charts, tables, etc.)
+      const subTargetEvals = subTargets
+        .map(st => allEvaluations.find(e => e.uniprotId === st.uniprotId))
+        .filter((e): e is Evaluation => !!e);
+
+      // Build a synthetic aggregate Evaluation for chart components that expect a single eval.
+      // We average coverage, sum PDB/BLAST counts, and merge arrays.
+      const aggregateEval: Evaluation | null = subTargetEvals.length > 0 ? (() => {
+        const avgCoverage = subTargetEvals.reduce((s, e) => s + (e.coverage || 0), 0) / subTargetEvals.length;
+        const allStructures = subTargetEvals.flatMap(e => e.pdbStructures || []);
+        const allBlast = subTargetEvals.flatMap(e => e.blastResults || []);
+        // Average scores across sub-targets
+        const scoreAgg: Record<string, { score: number; max: number; rating: string }> = {};
+        for (const e of subTargetEvals) {
+          if (!e.scores) continue;
+          try {
+            const parsed = JSON.parse(e.scores);
+            for (const [k, v] of Object.entries(parsed)) {
+              const sv = v as { score: number; max: number; rating: string };
+              if (!scoreAgg[k]) scoreAgg[k] = { score: 0, max: sv.max || 10, rating: sv.rating || '', count: 0 };
+              scoreAgg[k].score += sv.score || 0;
+              (scoreAgg[k] as any).count = ((scoreAgg[k] as any).count || 0) + 1;
+            }
+          } catch { /* ignore parse errors */ }
+        }
+        for (const k of Object.keys(scoreAgg)) {
+          const cnt = (scoreAgg[k] as any).count || 1;
+          scoreAgg[k].score = scoreAgg[k].score / cnt;
+        }
+        return {
+          uniprotId: 'BATCH_AGGREGATE',
+          entryName: batch?.title || 'Batch Aggregate',
+          proteinName: batch?.title || 'Batch Aggregate',
+          geneNames: subTargets.map(s => s.geneName).filter(Boolean).join(', '),
+          organism: 'Multiple',
+          sequenceLength: Math.round(subTargetEvals.reduce((s, e) => s + (e.sequenceLength || 0), 0) / subTargetEvals.length),
+          coverage: avgCoverage,
+          scores: Object.keys(scoreAgg).length > 0 ? JSON.stringify(scoreAgg) : null,
+          report: combinedReport,
+          batchId: selectedBatchId,
+          createdAt: batch?.createdAt || new Date().toISOString(),
+          updatedAt: batch?.createdAt || new Date().toISOString(),
+          pdbStructures: allStructures,
+          blastResults: allBlast,
+        } as Evaluation;
+      })() : null;
+
+      const batchDetailContent = (<>
+        <div className="glass-detail-panel-accent" />
+        <div className="glass-noise-overlay" />
+        {/* Header */}
+        <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] flex items-center justify-between relative z-[1]">
+          <div className="flex items-center gap-2 min-w-0">
+            <Layers className="h-4 w-4 text-violet-500 dark:text-violet-300 flex-shrink-0" />
+            <div className="min-w-0">
+              <span className="text-sm font-semibold text-claude-text truncate block">{batch?.title || 'Batch'}</span>
+              <span className="text-[10px] text-claude-text-muted font-mono">{selectedBatchId}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {crossOk !== null && crossOk !== undefined && (
+              <Badge variant="outline" className={`text-[9px] font-semibold h-5 ${crossOk ? 'bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-800/40' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800/40'}`}>
+                {crossOk ? <CheckCircle2 className="h-2.5 w-2.5" /> : <Info className="h-2.5 w-2.5" />}
+                {crossOk ? 'OK' : 'Failed'}
+              </Badge>
+            )}
+            <Button variant="ghost" size="sm" onClick={() => handleDeleteBatch(selectedBatchId)} className="h-7 w-7 p-0 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200" title="Delete batch">
+              <Trash2 className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedBatchId(null); }} className="h-7 w-7 p-0 rounded-full bg-claude-border-light/80 dark:bg-[#2b2926]/80 hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200">
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Tab buttons — Report moved into Summary as a button */}
+        <div className="flex border-b border-claude-border dark:border-[#3d3832] overflow-x-auto">
+          {(['Summary', 'Targets', 'Structures', 'BLAST', 'Analysis', 'Breakdown', 'Compare'] as const).map(tab => {
+            const tabLabel = tab === 'Summary' ? t.tabSummary : tab === 'Targets' ? t.tabTargets : tab === 'Structures' ? t.tabStructures : tab === 'BLAST' ? t.tabBLAST : tab === 'Analysis' ? t.tabAnalysis : tab === 'Breakdown' ? t.tabBreakdown : t.tabCompare;
+            return (
+            <button
+              key={tab}
+              onClick={() => setEvalDetailTab(tab)}
+              className={`px-3 py-2 text-[11px] font-medium transition-colors whitespace-nowrap ${
+                evalDetailTab === tab
+                  ? 'text-claude-accent border-b-2 border-claude-accent'
+                  : 'text-claude-text-muted hover:text-claude-text-secondary'
+              }`}
+            >
+              {tabLabel}
+            </button>
+          );
+          })}
+        </div>
+
+        {/* Tab content */}
+        <div className="flex-1 overflow-y-auto preview-scroll p-4">
+          {evalDetailTab === 'Summary' && (
+            <div className="space-y-3">
+              {/* Report button — at top, opens modal with combined report */}
+              {combinedReport && (
+                <button
+                  onClick={() => handleOpenBatchReport(selectedBatchId, batch?.title || 'Batch')}
+                  className="w-full flex items-center gap-2 px-3 h-9 rounded-lg text-xs font-semibold border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
+                >
+                  <FileText className="h-4 w-4" /> View Report
+                  <Maximize2 className="h-3.5 w-3.5 ml-auto opacity-50" />
+                </button>
+              )}
+              {/* Stat cards row */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Targets</div>
+                  <div className="text-lg font-bold text-claude-text">{subTargets.length}</div>
                 </div>
-              );
-            })
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Shared PDB</div>
+                  <div className="text-lg font-bold text-claude-text">{commonPdbIds.length}</div>
+                </div>
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Total PDB</div>
+                  <div className="text-lg font-bold text-claude-text">{subTargets.reduce((s, st) => s + st.pdbCount, 0)}</div>
+                </div>
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-1">Total BLAST</div>
+                  <div className="text-lg font-bold text-claude-text">{subTargets.reduce((s, st) => s + st.blastCount, 0)}</div>
+                </div>
+              </div>
+              {/* Avg coverage bar */}
+              {aggregateEval && (
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] text-claude-text-muted uppercase tracking-wider">Avg Coverage</span>
+                    <span className="text-xs font-bold text-claude-text">{(aggregateEval.coverage || 0).toFixed(1)}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-claude-border-light/60 dark:bg-[#2b2926] overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-claude-accent/60 to-claude-accent" style={{ width: `${Math.min(100, aggregateEval.coverage || 0)}%` }} />
+                  </div>
+                </div>
+              )}
+              {/* Common PDB IDs */}
+              <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">Common PDB IDs</div>
+                {commonPdbIds.length === 0 ? (
+                  <p className="text-xs text-claude-text-muted italic">{t.noSharedStructures}</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1">
+                    {commonPdbIds.map(id => (
+                      <a key={id} href={`https://www.rcsb.org/structure/${id}`} target="_blank" rel="noopener noreferrer"
+                        className="text-[10px] font-mono font-bold text-claude-accent hover:underline px-1.5 py-0.5 rounded bg-claude-accent/5">
+                        {id}
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {/* Score comparison radar — uses EvalScoreRadar with aggregate as primary + sub-targets as comparisons */}
+              {aggregateEval && subTargetEvals.length > 0 && (
+                <div className="rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-border-light/30 dark:bg-[#1a1917]/30 p-3">
+                  <div className="text-[10px] text-claude-text-muted uppercase tracking-wider mb-2">{t.batchAvgVsTargets}</div>
+                  <EvalScoreRadar evaluation={aggregateEval} comparisonEvaluations={subTargetEvals.slice(0, 4)} size={200} />
+                </div>
+              )}
+            </div>
+          )}
+          {evalDetailTab === 'Targets' && (
+            <div className="space-y-1.5">
+              {subTargets.length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noSubTargets}</p>
+              ) : (
+                subTargets.map(sub => (
+                  <button
+                    key={sub.uniprotId}
+                    onClick={() => handleSelectSubTarget(sub.uniprotId)}
+                    className="w-full flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 hover:border-claude-accent/20 transition-all text-left"
+                  >
+                    <div className="h-8 w-8 rounded-md bg-gradient-to-br from-claude-accent/15 to-claude-accent/5 border border-claude-accent/20 flex items-center justify-center flex-shrink-0">
+                      <span className="text-[9px] font-mono font-bold text-claude-accent">{sub.uniprotId.slice(0, 2)}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-mono font-semibold text-claude-text">{sub.uniprotId}</span>
+                        <span className="text-[10px] text-claude-text-muted">{sub.geneName || sub.proteinName}</span>
+                      </div>
+                      <div className="text-[10px] text-claude-text-muted">{sub.pdbCount} PDB · {sub.blastCount} BLAST</div>
+                    </div>
+                    <div className="flex flex-col items-end flex-shrink-0">
+                      <span className="text-[10px] text-claude-text-muted">Score</span>
+                      <span className={`text-sm font-bold ${sub.bestScore >= 7 ? 'text-emerald-600 dark:text-emerald-400' : sub.bestScore >= 4 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {sub.bestScore.toFixed(1)}
+                      </span>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
+          {evalDetailTab === 'Structures' && (
+            <div className="space-y-2">
+              {subTargetEvals.length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noStructureData}</p>
+              ) : subTargetEvals.flatMap(e => e.pdbStructures || []).length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noStructuresInBatch}</p>
+              ) : (() => {
+                const allStructures = subTargetEvals.flatMap(e => (e.pdbStructures || []).map(s => ({ ...s, _uniprotId: e.uniprotId, _type: 'structure' as const })));
+                const showThumbnails = allStructures.length <= 10;
+                return allStructures.map((s, i) => {
+                  const methodStyle = getMethodColor(s.method || '');
+                  return (
+                    <div key={`${s.pdbId}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors">
+                      {showThumbnails && (
+                        <div className="flex-shrink-0 w-[70px]">
+                          <PdbThumbnailPreview pdbId={s.pdbId} title={s.title ?? undefined} thumbHeight={70} hideInfoBar onClick={() => { setViewerModalPdbId(s.pdbId); setViewerModalOpen(true); }} />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                          <span className="font-mono font-bold text-xs text-claude-accent">{s.pdbId}</span>
+                          <span className="text-[9px] font-mono text-claude-text-muted bg-claude-border-light/60 dark:bg-[#2b2926] px-1 rounded">{s._uniprotId}</span>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded ${methodStyle}`}>{s.method || '—'}</span>
+                          {s.resolution != null && (
+                            <span className={`text-[9px] font-mono ${s.resolution < 2.5 ? 'text-emerald-600 dark:text-emerald-400' : s.resolution < 3.5 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{s.resolution.toFixed(1)}Å</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-claude-text-secondary truncate">{s.title || '—'}</p>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          )}
+          {evalDetailTab === 'BLAST' && (
+            <div className="space-y-2">
+              {subTargetEvals.length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noBlastData}</p>
+              ) : subTargetEvals.flatMap(e => e.blastResults || []).length === 0 ? (
+                <p className="text-xs text-claude-text-muted py-4 text-center">{t.noBlastInBatch}</p>
+              ) : (
+                subTargetEvals.flatMap(e => (e.blastResults || []).map(b => ({ ...b, _uniprotId: e.uniprotId }))).map((b, i) => (
+                  <div key={`${b.pdbId}-${i}`} className="flex items-center gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="font-mono font-bold text-xs text-claude-accent">{b.pdbId}</span>
+                        <span className="text-[9px] font-mono text-claude-text-muted bg-claude-border-light/60 dark:bg-[#2b2926] px-1 rounded">{b._uniprotId}</span>
+                        {b.identity != null && (
+                          <span className={`text-[9px] font-mono ${b.identity >= 95 ? 'text-emerald-600 dark:text-emerald-400' : b.identity >= 70 ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>{b.identity.toFixed(0)}%</span>
+                        )}
+                        {b.queryCoverage != null && (
+                          <span className="text-[9px] text-claude-text-muted">cov {b.queryCoverage.toFixed(0)}%</span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-claude-text-secondary truncate">{b.description || b.title || '—'}</p>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+          {evalDetailTab === 'Analysis' && aggregateEval && (
+            <div className="space-y-4">
+              <EvalScoreRadarChart evaluation={aggregateEval} />
+            </div>
+          )}
+          {evalDetailTab === 'Breakdown' && aggregateEval && (
+            <EvalScoreBreakdown evaluation={aggregateEval} allEvaluations={subTargetEvals} />
+          )}
+          {evalDetailTab === 'Compare' && (
+            <EvalBatchCompare
+              evaluations={allEvaluations}
+              batches={batch ? [batch] : []}
+              batchSubTargets={{ [selectedBatchId]: subTargets }}
+              selectedBatchId={selectedBatchId}
+            />
           )}
         </div>
-      );
+      </>);
+
+      return renderDetailPanelWrapper(batchDetailContent, () => { setDetailPanelOpen(false); });
+    }
+
+    // Evaluation detail — tabbed panel
+    if (mode === 'evaluation' && selectedEval) {
+      const evalTabNames = ['Summary', 'Structures', 'BLAST', 'Analysis', 'Breakdown'] as const;
+
+      // Inline Structures tab content
+      const evalStructuresTab = (() => {
+        const structures = selectedEval.pdbStructures || [];
+        const showThumbnails = structures.length <= 10;
+        return (
+          <div className="space-y-2 max-h-full overflow-y-auto preview-scroll pr-1">
+            {structures.length === 0 ? (
+              <div className="text-xs text-claude-text-muted py-4 text-center">{t.noStructures}</div>
+            ) : (
+              structures.map((s) => {
+                const methodStyle = getMethodColor(s.method || '');
+                const resDotColor = s.resolution != null
+                  ? s.resolution < 2.5 ? 'bg-emerald-500'
+                    : s.resolution < 3.5 ? 'bg-amber-500'
+                    : 'bg-red-500'
+                  : null;
+                return (
+                  <div key={s.id} className="flex items-start gap-2 p-2 rounded-lg border border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 transition-colors cursor-pointer"
+                    onClick={() => {
+                      setSelectedEvalStructure({ ...s, _type: 'structure' as const });
+                    }}>
+                    {showThumbnails && (
+                      <div className="flex-shrink-0 w-[70px]">
+                        <PdbThumbnailPreview pdbId={s.pdbId} title={s.title ?? undefined} thumbHeight={70} hideInfoBar onClick={() => { setViewerModalPdbId(s.pdbId); setViewerModalOpen(true); }} />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                        {resDotColor && (
+                          <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
+                            s.resolution! < 2.5 ? (locale === 'zh' ? '高分辨率 (<2.5Å)' : 'High resolution (<2.5Å)') :
+                            s.resolution! < 3.5 ? (locale === 'zh' ? '中分辨率 (<3.5Å)' : 'Medium resolution (<3.5Å)') :
+                            (locale === 'zh' ? '低分辨率 (≥3.5Å)' : 'Low resolution (≥3.5Å)')
+                          } />
+                        )}
+                        <a href={`https://www.rcsb.org/structure/${s.pdbId}`} target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-mono font-bold text-claude-accent dark:text-claude-accent-hover hover:underline"
+                          onClick={(e) => e.stopPropagation()}>
+                          {s.pdbId}
+                        </a>
+                        <span className={`inline-flex px-1.5 py-0.5 rounded text-[9px] font-medium ${methodStyle.bg} ${methodStyle.text} ${methodStyle.border} border`}>
+                          {getMethodLabel(s.method || '')}
+                        </span>
+                        {s.resolution != null && (
+                          <span className="text-[10px] text-claude-text-muted font-mono ml-auto">
+                            {s.resolution.toFixed(2)}Å
+                          </span>
+                        )}
+                      </div>
+                      {s.title && (
+                        <div className="text-[11px] text-claude-text-secondary leading-snug line-clamp-2">{s.title}</div>
+                      )}
+                      {s.organism && (
+                        <div className="text-[10px] text-claude-text-muted mt-0.5">{s.organism}</div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        );
+      })();
 
       // Inline BLAST tab content
       const evalBlastTab = (
         <div className="space-y-2">
           {(selectedEval.blastResults || []).length === 0 ? (
-            <div className="text-xs text-claude-text-muted py-4 text-center">No BLAST results found</div>
+            <div className="text-xs text-claude-text-muted py-4 text-center">{t.noBlastResults}</div>
           ) : (
             (selectedEval.blastResults || []).map((b) => {
               const methodStyle = getMethodColor(b.method || '');
@@ -3442,23 +3797,24 @@ export default function PdbTracker() {
         </div>
       );
 
-      // Inline Report tab content
+      // Inline Report tab content — no max-h cap so it fills the available
+      // detail panel height (parent flex-1 overflow-y-auto handles scroll).
       const evalReportTab = (
         <div className="space-y-3">
           {evalReportContent ? (
-            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50 max-h-[36rem] overflow-y-auto thin-scroll">
+            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
               <div className="markdown-content">
                 <LazyMarkdown>{evalReportContent}</LazyMarkdown>
               </div>
             </div>
           ) : selectedEval.report ? (
-            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50 max-h-[36rem] overflow-y-auto thin-scroll">
+            <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
               <div className="markdown-content">
                 <LazyMarkdown>{selectedEval.report}</LazyMarkdown>
               </div>
             </div>
           ) : (
-            <div className="text-xs text-claude-text-muted py-4 text-center">No report available</div>
+            <div className="text-xs text-claude-text-muted py-4 text-center">{t.noReport}</div>
           )}
         </div>
       );
@@ -3470,18 +3826,25 @@ export default function PdbTracker() {
           <div className="glass-noise-overlay" />
           {/* Header */}
           <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] flex items-center justify-between relative z-[1]">
-            <div className="flex items-center gap-2">
-              <FlaskConical className="h-4 w-4 text-claude-accent" />
-              <span className="font-mono font-bold text-sm text-claude-accent">{selectedEval.uniprotId}</span>
+            <div className="flex items-center gap-2 min-w-0">
+              <FlaskConical className="h-4 w-4 text-claude-accent flex-shrink-0" />
+              <span className="font-mono font-bold text-sm text-claude-accent truncate">{selectedEval.uniprotId}</span>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-7 w-7 p-0 rounded-full bg-claude-border-light/80 dark:bg-[#2b2926]/80 hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200">
-              <X className="h-4 w-4" />
-            </Button>
+            <div className="flex items-center gap-1 flex-shrink-0">
+              <Button variant="ghost" size="sm" onClick={() => handleDeleteEval(selectedEval.uniprotId)} className="h-7 w-7 p-0 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200" title="Delete evaluation">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => { setDetailPanelOpen(false); setSelectedEvalStructure(null); }} className="h-7 w-7 p-0 rounded-full bg-claude-border-light/80 dark:bg-[#2b2926]/80 hover:bg-red-100 dark:hover:bg-red-900/30 text-claude-text-muted hover:text-red-500 transition-all duration-200">
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* Tab buttons */}
           <div className="flex border-b border-claude-border dark:border-[#3d3832]">
-            {evalTabNames.map(tab => (
+            {evalTabNames.map(tab => {
+              const tabLabel = tab === 'Summary' ? t.tabSummary : tab === 'Structures' ? t.tabStructures : tab === 'BLAST' ? t.tabBLAST : tab === 'Analysis' ? t.tabAnalysis : t.tabBreakdown;
+              return (
               <button
                 key={tab}
                 onClick={() => setEvalDetailTab(tab)}
@@ -3491,14 +3854,35 @@ export default function PdbTracker() {
                     : 'text-claude-text-muted hover:text-claude-text-secondary'
                 }`}
               >
-                {tab}
+                {tabLabel}
               </button>
-            ))}
+              );
+            })}
           </div>
 
           {/* Tab content */}
           <div className="flex-1 overflow-y-auto preview-scroll p-4">
-            {evalDetailTab === 'Summary' && <EvalSummary evaluation={selectedEval} comparisonEvaluations={allEvaluations.filter(e => e.uniprotId !== selectedEval.uniprotId)} />}
+            {evalDetailTab === 'Summary' && (
+              <div className="space-y-3">
+                {/* Report button — at top, opens modal with full report */}
+                {(evalReportContent || selectedEval.report) && (
+                  <button
+                    onClick={() => {
+                      setSelectedReport({
+                        title: `${selectedEval.uniprotId} — Evaluation Report`,
+                        content: evalReportContent || selectedEval.report || '',
+                      });
+                      setReportModalOpen(true);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 h-9 rounded-lg text-xs font-semibold border border-claude-accent/20 bg-claude-accent/5 text-claude-accent hover:bg-claude-accent/10 transition-colors"
+                  >
+                    <FileText className="h-4 w-4" /> View Report
+                    <Maximize2 className="h-3.5 w-3.5 ml-auto opacity-50" />
+                  </button>
+                )}
+                <EvalSummary evaluation={selectedEval} comparisonEvaluations={allEvaluations.filter(e => e.uniprotId !== selectedEval.uniprotId)} />
+              </div>
+            )}
             {evalDetailTab === 'Structures' && evalStructuresTab}
             {evalDetailTab === 'BLAST' && evalBlastTab}
             {evalDetailTab === 'Analysis' && (
@@ -3509,7 +3893,6 @@ export default function PdbTracker() {
             {evalDetailTab === 'Breakdown' && (
               <EvalScoreBreakdown evaluation={selectedEval} allEvaluations={allEvaluations} />
             )}
-            {evalDetailTab === 'Report' && evalReportTab}
           </div>
       </>);
 
@@ -3560,7 +3943,7 @@ export default function PdbTracker() {
 
             {/* Title */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Title</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '标题' : 'Title'}</div>
               <div className="text-sm text-claude-text font-medium leading-snug">
                 {selectedEntry.title || '—'}
               </div>
@@ -3568,7 +3951,7 @@ export default function PdbTracker() {
 
             {/* Quality Score Breakdown */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-2">Quality Score</div>
+              <div className="text-xs text-claude-text-muted mb-2">{locale === 'zh' ? '质量评分' : 'Quality Score'}</div>
               <div className="flex items-center gap-4">
                 <div className="relative score-ring-glow">
                   <QualityRing score={qualityScore.score} size={56} />
@@ -3578,21 +3961,21 @@ export default function PdbTracker() {
                 </div>
                 <div className="flex-1 space-y-1.5">
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Resolution</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '分辨率' : 'Resolution'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.resolution}/35</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.resolution / 35) * 100}%`, backgroundColor: qualityScore.resolution >= 25 ? '#2d8f8f' : qualityScore.resolution >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Method</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '方法' : 'Method'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }}>{qualityScore.method}/25</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500" style={{ width: `${(qualityScore.method / 25) * 100}%`, backgroundColor: qualityScore.method >= 20 ? '#2d8f8f' : qualityScore.method >= 15 ? '#c9872e' : '#e55a4f' }} />
                   </div>
                   <div className="flex items-center justify-between text-[10px]">
-                    <span className="text-claude-text-muted">Impact</span>
+                    <span className="text-claude-text-muted">{locale === 'zh' ? '影响力' : 'Impact'}</span>
                     <span className="font-mono font-medium" style={{ color: qualityScore.impact >= 20 ? '#2d8f8f' : qualityScore.impact >= 10 ? '#c9872e' : '#e55a4f' }}>{qualityScore.impact}/30</span>
                   </div>
                   <div className="h-1.5 bg-claude-border-light dark:bg-[#2b2926] rounded-full overflow-hidden">
@@ -3605,13 +3988,13 @@ export default function PdbTracker() {
             {/* Method & Resolution */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Method</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '方法' : 'Method'}</div>
                 <span className={`method-badge inline-flex px-2 py-0.5 rounded text-[11px] font-medium border ${selectedEntry.isCryoem ? 'method-badge-cryoem bg-claude-cryoem-bg text-claude-cryoem border-claude-cryoem/30' : selectedEntry.isXray ? 'method-badge-xray bg-claude-xray-bg text-claude-xray border-claude-xray/30' : 'method-badge-nmr bg-claude-nmr-bg text-claude-nmr border-claude-nmr/30'}`}>
                   {getMethodLabel(selectedEntry.method || '')}
                 </span>
               </div>
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Resolution</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className="flex items-center gap-1.5">
                   {selectedEntry.resolution != null && selectedEntry.resolution < 2.5 ? <span className="inline-block h-2 w-2 rounded-full flex-shrink-0 bg-emerald-500" title="High resolution (<2.5Å)" /> : null}
                   {selectedEntry.resolution != null && selectedEntry.resolution >= 2.5 && selectedEntry.resolution < 3.5 ? <span className="inline-block h-2 w-2 rounded-full flex-shrink-0 bg-amber-500" title="Medium resolution (<3.5Å)" /> : null}
@@ -3628,7 +4011,7 @@ export default function PdbTracker() {
               <div>
                 <div className="flex items-center gap-1 mb-1">
                   <Users className="h-3 w-3 text-claude-text-muted" />
-                  <span className="text-xs text-claude-text-muted">Authors</span>
+                  <span className="text-xs text-claude-text-muted">{locale === 'zh' ? '作者' : 'Authors'}</span>
                 </div>
                 <div className="text-xs text-claude-text-secondary leading-relaxed">
                   {selectedEntry.authors}
@@ -3639,14 +4022,14 @@ export default function PdbTracker() {
             {/* Organism */}
             {selectedEntry.organisms && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Organism</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '物种' : 'Organism'}</div>
                 <div className="text-sm text-claude-text">{selectedEntry.organisms}</div>
               </div>
             )}
 
             {/* Journal & IF */}
             <div>
-              <div className="text-xs text-claude-text-muted mb-1">Journal</div>
+              <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '期刊' : 'Journal'}</div>
               <div className="text-sm text-claude-text">{selectedEntry.journal || '—'}</div>
               {selectedEntry.journalIf != null && (
                 <span className={`inline-flex mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${selectedEntry.ifTier === 'top' ? 'bg-claude-top-bg text-claude-top' : selectedEntry.ifTier === 'high' ? 'bg-claude-high-bg text-claude-high' : selectedEntry.ifTier === 'mid' ? 'bg-claude-mid-bg text-claude-mid' : 'bg-claude-low-bg text-claude-low'}`}>
@@ -3658,7 +4041,7 @@ export default function PdbTracker() {
             {/* Release Date */}
             {selectedEntry.releaseDate && (
               <div>
-                <div className="text-xs text-claude-text-muted mb-1">Release Date</div>
+                <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '发布日期' : 'Release Date'}</div>
                 <div className="text-sm text-claude-text">{formatDate(selectedEntry.releaseDate)}</div>
               </div>
             )}
@@ -3687,7 +4070,7 @@ export default function PdbTracker() {
               if (ligandList.length === 0) return null;
               return (
                 <div>
-                  <div className="text-xs text-claude-text-muted mb-1">Ligands</div>
+                  <div className="text-xs text-claude-text-muted mb-1">{locale === 'zh' ? '配体' : 'Ligands'}</div>
                   <div className="flex flex-wrap gap-1">
                     {ligandList.map((lig, i) => (
                       <span key={i} className="ligand-chip">{lig}</span>
@@ -3704,7 +4087,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <BookOpen className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Title</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 标题' : 'PubMed Title'}</span>
                     </div>
                     <div className="text-xs text-claude-text font-medium leading-snug pl-4">
                       {selectedEntry.pubmedTitle}
@@ -3715,7 +4098,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <Users className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Authors</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 作者' : 'PubMed Authors'}</span>
                     </div>
                     <div className="text-[10px] text-claude-text-muted leading-relaxed pl-4">
                       {selectedEntry.pubmedAuthors}
@@ -3726,7 +4109,7 @@ export default function PdbTracker() {
                   <div>
                     <div className="flex items-center gap-1 mb-0.5">
                       <FileText className="h-3 w-3 text-claude-text-muted" />
-                      <span className="text-[10px] text-claude-text-muted font-medium">PubMed Abstract</span>
+                      <span className="text-[10px] text-claude-text-muted font-medium">{locale === 'zh' ? 'PubMed 摘要' : 'PubMed Abstract'}</span>
                     </div>
                     <div className="text-xs text-claude-text-secondary leading-relaxed p-3 rounded-lg bg-claude-border-light/50 dark:bg-[#1a1917]/50 border border-claude-border/50 dark:border-[#3d3832]/50">
                       {selectedEntry.pubmedAbstract}
@@ -3806,7 +4189,7 @@ export default function PdbTracker() {
                   <Menu className="h-4 w-4" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p>Menu</p></TooltipContent>
+              <TooltipContent side="bottom"><p>{t.menu}</p></TooltipContent>
             </Tooltip>
             <div className="header-icon-wrap h-8 w-8 rounded-lg bg-gradient-to-br from-claude-accent via-[#d4784f] to-[#c9872e] flex items-center justify-center shadow-md shadow-claude-accent/25 ring-1 ring-claude-accent/20">
               <Atom className="h-4.5 w-4.5 text-white header-icon-spin" />
@@ -3820,7 +4203,7 @@ export default function PdbTracker() {
                   </span>
                 )}
               </h1>
-              <p className="text-[10px] text-claude-text-muted leading-none mt-0.5">Protein Data Bank Weekly Monitor</p>
+              <p className="text-[10px] text-claude-text-muted leading-none mt-0.5">{t.proteinDataBank}</p>
             </div>
           </div>
 
@@ -3850,8 +4233,8 @@ export default function PdbTracker() {
                 }`}
                 title={`${tab.label} (${tab.shortcut})`}
               >
-                <span className="hidden sm:inline">{tab.label}</span>
-                <span className="sm:hidden text-[11px]">{tab.labelCn}</span>
+                <span className="hidden sm:inline">{tab.mode === 'weekly' ? t.modeWeeklyFull : tab.mode === 'evaluation' ? t.modeEvaluationFull : t.modeLiteratureFull}</span>
+                <span className="sm:hidden text-[11px]">{tab.mode === 'weekly' ? t.modeWeeklyShort : tab.mode === 'evaluation' ? t.modeEvaluationShort : t.modeLiteratureShort}</span>
               </button>
             ))}
           </div>
@@ -3865,9 +4248,9 @@ export default function PdbTracker() {
               ref={searchInputRef}
               type="text"
               placeholder={
-                mode === 'evaluation' ? 'Search evaluations...' :
-                mode === 'literature' ? 'Search literature...' :
-                'Search structures...'
+                mode === 'evaluation' ? t.searchEvaluations :
+                mode === 'literature' ? 'Search literature…' :
+                t.searchStructures
               }
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
@@ -3896,7 +4279,7 @@ export default function PdbTracker() {
                 <Search className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Search</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.search}</p></TooltipContent>
           </Tooltip>
 
           {mode === 'weekly' && (
@@ -3908,7 +4291,7 @@ export default function PdbTracker() {
                     <BarChart3 className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom"><p>Dashboard Charts</p></TooltipContent>
+                <TooltipContent side="bottom"><p>{t.dashboardCharts}</p></TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3916,7 +4299,7 @@ export default function PdbTracker() {
                     <TrendingUp className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom"><p>Trends</p></TooltipContent>
+                <TooltipContent side="bottom"><p>{t.trends}</p></TooltipContent>
               </Tooltip>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -3925,7 +4308,7 @@ export default function PdbTracker() {
                     <ArrowRightLeft className="h-3.5 w-3.5" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent side="bottom"><p>Compare Weeks</p></TooltipContent>
+                <TooltipContent side="bottom"><p>{t.compareWeeks}</p></TooltipContent>
               </Tooltip>
             </div>
           )}
@@ -3939,7 +4322,7 @@ export default function PdbTracker() {
                   <BarChart3 className="h-3.5 w-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p>Literature Charts</p></TooltipContent>
+              <TooltipContent side="bottom"><p>{t.literatureCharts}</p></TooltipContent>
             </Tooltip>
           )}
 
@@ -3953,7 +4336,7 @@ export default function PdbTracker() {
                 <Download className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Export Data (E)</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.exportData}</p></TooltipContent>
           </Tooltip>
 
           {/* Import Button */}
@@ -3966,7 +4349,7 @@ export default function PdbTracker() {
                 <Upload className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Import Data</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.importData}</p></TooltipContent>
           </Tooltip>
 
           {/* Refresh Data Button */}
@@ -3980,7 +4363,7 @@ export default function PdbTracker() {
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} style={isRefreshing ? { animationDuration: '1s' } : undefined} />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Refresh Data</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.refreshData}</p></TooltipContent>
           </Tooltip>
 
           {/* Notification Bell */}
@@ -3993,6 +4376,8 @@ export default function PdbTracker() {
             onOpenChange={(open) => { if (!open && tourActive) return; setRunCenterOpen(open); }}
             activeTab={runCenterTab}
             onTabChange={setRunCenterTab}
+            contentRef={runCenterContentRef}
+            tabContentRef={tabContentRef}
           />
 
           {/* Settings Button */}
@@ -4003,7 +4388,7 @@ export default function PdbTracker() {
                 <Settings className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>Settings</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.settingsTitle}</p></TooltipContent>
           </Tooltip>
 
           {/* Help / Restart Onboarding Tour Button */}
@@ -4014,12 +4399,12 @@ export default function PdbTracker() {
                 size="sm"
                 onClick={startTour}
                 className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-accent active:scale-95 transition-transform duration-100"
-                aria-label="帮助 · 重新查看引导"
+                aria-label={t.helpBtn}
               >
                 <HelpCircle className="h-3.5 w-3.5" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent side="bottom"><p>帮助 · 重新查看引导</p></TooltipContent>
+            <TooltipContent side="bottom"><p>{t.helpBtn}</p></TooltipContent>
           </Tooltip>
 
           {mounted && (
@@ -4030,7 +4415,7 @@ export default function PdbTracker() {
                   {isDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
                 </Button>
               </TooltipTrigger>
-              <TooltipContent side="bottom"><p>{isDark ? 'Light Mode' : 'Dark Mode'}</p></TooltipContent>
+              <TooltipContent side="bottom"><p>{isDark ? (locale === 'zh' ? '浅色模式' : 'Light Mode') : (locale === 'zh' ? '深色模式' : 'Dark Mode')}</p></TooltipContent>
             </Tooltip>
           )}
         </div>
@@ -4140,9 +4525,9 @@ export default function PdbTracker() {
                   autoFocus
                   type="text"
                   placeholder={
-                    mode === 'evaluation' ? 'Search evaluations...' :
-                    mode === 'literature' ? 'Search literature...' :
-                    'Search structures...'
+                    mode === 'evaluation' ? t.searchEvaluations :
+                    mode === 'literature' ? 'Search literature…' :
+                    t.searchStructures
                   }
                   value={searchQuery}
                   onChange={e => setSearchQuery(e.target.value)}
@@ -4159,31 +4544,31 @@ export default function PdbTracker() {
           </>
         )}
 
-        {/* Error Banner — shown when API fetch fails */}
-        {fetchError && (
+        {/* Error Banner — shown when API fetch fails (hidden when DB wizard is open) */}
+        {fetchError && !dbWizardOpen && (
           <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs flex-shrink-0">
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="font-medium">{fetchError === dbErrorMsg ? '数据库未配置' : '数据加载失败'}</span>
+            <span className="font-medium">{fetchError === dbErrorMsg ? t.dbNotConfiguredShort : t.dataLoadFailed}</span>
             <span className="text-rose-600 dark:text-rose-400">— {fetchError}</span>
             {fetchError === dbErrorMsg ? (
               <button
                 onClick={() => { setFetchError(null); setRunCenterOpen(true); }}
                 className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
               >
-                打开运行中心
+                {t.openRunCenter}
               </button>
             ) : (
               <button
                 onClick={() => { setFetchError(null); fetchSnapshots(); fetchEntries(); }}
                 className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
               >
-                重试
+                {t.retry}
               </button>
             )}
             <button
               onClick={() => setFetchError(null)}
               className="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
-              aria-label="Dismiss banner"
+              aria-label={locale === "zh" ? "关闭横幅" : "Dismiss banner"}
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -4236,9 +4621,9 @@ export default function PdbTracker() {
               >
                 {showDashboard ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                 <LayoutDashboard className="h-3 w-3" />
-                Dashboard Charts
+                {t.dashboardCharts}
                 <span className="ml-1 text-[10px] text-claude-text-muted">
-                  · {entries.length} structures
+                  · {entries.length} {locale === 'zh' ? '个结构' : 'structures'}
                 </span>
               </button>
               <div
@@ -4540,16 +4925,18 @@ export default function PdbTracker() {
       <DbSetupWizard
         open={dbWizardOpen}
         allowSkip={dbWizardAllowSkip}
+        contentRef={dbWizardContentRef}
         onClose={() => setDbWizardOpen(false)}
         onComplete={() => {
           setDbWizardOpen(false);
+          setFetchError(null); // Auto-dismiss error banner when DB is restored
           // Re-fetch all data so the UI reflects the newly-active DB.
           (async () => {
             await fetchSnapshots();
             await fetchEntries();
             fetchedModesRef.current.delete('evaluation');
             fetchedModesRef.current.delete('literature');
-            toast.success('数据库已就绪，运行中心与三大模块已同步');
+            toast.success(t.dbReadyToast);
           })();
         }}
       />

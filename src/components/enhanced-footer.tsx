@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { ExternalLink, Database, RefreshCw } from 'lucide-react';
 import { formatCacheSize, getCacheSize } from '@/lib/cache-utils';
 import type { CacheDataSource } from '@/components/cache-status-indicator';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -81,6 +82,7 @@ export function EnhancedFooter({
   cacheDataSource,
   isCacheRefreshing,
 }: EnhancedFooterProps) {
+  const { t, locale } = useI18n();
   // Live relative time update every 30s
   const [, setTick] = useState(0);
   const [cacheSize, setCacheSize] = useState(0);
@@ -195,8 +197,8 @@ export function EnhancedFooter({
               onClick={onRefresh}
               disabled={isRefreshing}
               className="ml-1 h-5 w-5 rounded flex items-center justify-center text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Refresh data"
-              aria-label="Refresh data"
+              title={t.refreshDataBtn}
+              aria-label={t.refreshDataBtn}
             >
               <RefreshCw
                 className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`}

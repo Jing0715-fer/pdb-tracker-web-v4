@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { RefreshCw, Wifi, WifiOff, HardDrive, Trash2 } from 'lucide-react';
 import { formatCacheSize, getCacheSize, clearAllCache, useOnlineStatus } from '@/lib/cache-utils';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,7 @@ export function CacheStatusIndicator({
   compact = false,
   className = '',
 }: CacheStatusIndicatorProps) {
+  const { t, locale } = useI18n();
   const isOnline = useOnlineStatus();
   const [cacheSize, setCacheSize] = useState(0);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -94,7 +96,7 @@ export function CacheStatusIndicator({
       dotClass: 'bg-amber-500',
       label: 'Cached',
       icon: <HardDrive className="h-3 w-3 text-amber-500" />,
-      title: 'Showing cached data — background refresh in progress',
+      title: locale === 'zh' ? '显示缓存数据 — 后台刷新中' : 'Showing cached data — background refresh in progress',
     },
     offline: {
       dotClass: 'bg-red-500',
@@ -166,8 +168,8 @@ export function CacheStatusIndicator({
           }}
           disabled={refreshing || !isOnline}
           className="ml-0.5 h-4 w-4 rounded flex items-center justify-center text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          title="Refresh data"
-          aria-label="Refresh data"
+          title={t.refreshDataBtn}
+          aria-label={t.refreshDataBtn}
         >
           <RefreshCw
             className={`h-2.5 w-2.5 ${refreshing ? 'animate-spin' : ''}`}
@@ -188,8 +190,8 @@ export function CacheStatusIndicator({
               ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20'
               : 'text-claude-text-muted hover:text-claude-accent hover:bg-claude-accent/10'
           }`}
-          title={showClearConfirm ? 'Click again to confirm clear' : `Clear cache (${formatCacheSize(cacheSize)})`}
-          aria-label={showClearConfirm ? 'Confirm clear cache' : 'Clear cache'}
+          title={showClearConfirm ? (locale === 'zh' ? '再次点击确认清除' : 'Click again to confirm clear') : (locale === 'zh' ? `清除缓存 (${formatCacheSize(cacheSize)})` : `Clear cache (${formatCacheSize(cacheSize)})`)}
+          aria-label={showClearConfirm ? (locale === 'zh' ? '确认清除缓存' : 'Confirm clear cache') : (locale === 'zh' ? '清除缓存' : 'Clear cache')}
         >
           <Trash2 className="h-2.5 w-2.5" />
         </button>

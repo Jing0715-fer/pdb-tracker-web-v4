@@ -21,6 +21,7 @@ import { EvalScoreEvolution } from '@/components/eval-score-evolution';
 import { DistributionBar, type DistributionSegment } from '@/components/ui/distribution-bar';
 import { EvalBatchProgressTracker } from '@/components/EvalBatchProgressTracker';
 import type { Evaluation, EvalBatch, EvalBatchSubTarget } from '@/lib/pdb-types';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Score Parsing ──────────────────────────────────────────────────────────────
 
@@ -378,6 +379,7 @@ function PriorityItem({
   priority: number;
   reason: string;
 }) {
+  const { locale } = useI18n();
   const coverage = evaluation.coverage ?? 0;
   const diseaseRelevance = getScoreValue(evaluation.scores, 'disease_relevance');
 
@@ -406,13 +408,13 @@ function PriorityItem({
       </div>
       <div className="flex items-center gap-2 flex-shrink-0">
         <div className="text-right">
-          <div className="text-[10px] text-claude-text-muted">Coverage</div>
+          <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '覆盖度' : 'Coverage'}</div>
           <div className="text-xs font-mono font-semibold" style={{ color: getScoreColor(coverage / 10) }}>
             {coverage.toFixed(0)}%
           </div>
         </div>
         <div className="text-right">
-          <div className="text-[10px] text-claude-text-muted">Disease</div>
+          <div className="text-[10px] text-claude-text-muted">{locale === 'zh' ? '疾病' : 'Disease'}</div>
           <div className="text-xs font-mono font-semibold" style={{ color: getScoreColor(diseaseRelevance) }}>
             {diseaseRelevance.toFixed(1)}
           </div>
@@ -502,11 +504,11 @@ function BatchSummaryCard({ batch, subTargets, evaluations, onView, index }: Bat
                   status === 'in-progress' ? '#c9872e' :
                   '#6b7280',
               }}
-              title={status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In Progress' : 'Not Started'}
+              title={status === 'complete' ? (locale === 'zh' ? '已完成' : 'Complete') : status === 'in-progress' ? (locale === 'zh' ? '进行中' : 'In Progress') : (locale === 'zh' ? '未开始' : 'Not Started')}
             />
           ))}
           <span className="text-[9px] text-claude-text-muted ml-1">
-            {dots.filter(d => d === 'complete').length}/{dots.length} complete
+            {dots.filter(d => d === 'complete').length}/{dots.length} {locale === 'zh' ? '完成' : 'complete'}
           </span>
         </div>
       )}
@@ -576,6 +578,7 @@ interface EvalDashboardProps {
 
 export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {}, onViewBatch }: EvalDashboardProps) {
   const { theme } = useTheme();
+  const { locale } = useI18n();
   const isDark = theme === 'dark';
 
   // ─── Enhanced Summary Stats ─────────────────────────────────────────────
@@ -759,13 +762,13 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         const needsAttention = (1 - coverage / 100) * diseaseRelevance;
         let reason = '';
         if (diseaseRelevance > 0.9 && coverage < 50) {
-          reason = 'High disease relevance but low structural coverage';
+          reason = locale === 'zh' ? '疾病相关性高但结构覆盖度低' : 'High disease relevance but low structural coverage';
         } else if (coverage < 30) {
-          reason = 'Very low structural coverage';
+          reason = locale === 'zh' ? '结构覆盖度极低' : 'Very low structural coverage';
         } else if (diseaseRelevance > 0.9 && structuralCoverage < 0.5) {
-          reason = 'High disease relevance, limited structural data';
+          reason = locale === 'zh' ? '疾病相关性高，结构数据有限' : 'High disease relevance, limited structural data';
         } else {
-          reason = 'Moderate priority for further study';
+          reason = locale === 'zh' ? '中等优先级，建议进一步研究' : 'Moderate priority for further study';
         }
 
         return { evaluation: e, needsAttention, reason };
@@ -800,9 +803,9 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
     return (
       <div className="flex flex-col items-center justify-center h-full min-h-[300px] px-4 sparkline-fade-in">
         <LayoutDashboard className="h-12 w-12 text-claude-text-muted mb-3" />
-        <h3 className="text-base font-semibold text-claude-text mb-1">No Evaluations Yet</h3>
+        <h3 className="text-base font-semibold text-claude-text mb-1">{locale === 'zh' ? '暂无评估' : 'No Evaluations Yet'}</h3>
         <p className="text-sm text-claude-text-secondary text-center">
-          Evaluation data will appear here once evaluations are loaded.
+          {locale === 'zh' ? '评估数据加载后将在此处显示。' : 'Evaluation data will appear here once evaluations are loaded.'}
         </p>
       </div>
     );
@@ -814,9 +817,9 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
       <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] flex-shrink-0">
         <div className="flex items-center gap-2">
           <LayoutDashboard className="h-4 w-4 text-claude-accent" />
-          <h2 className="text-sm font-bold text-claude-text">Evaluation Dashboard</h2>
+          <h2 className="text-sm font-bold text-claude-text">{locale === 'zh' ? '评估看板' : 'Evaluation Dashboard'}</h2>
           <span className="text-[10px] text-claude-text-muted font-medium ml-auto">
-            {evaluations.length} evaluations
+            {evaluations.length} {locale === 'zh' ? '项评估' : 'evaluations'}
           </span>
         </div>
       </div>
@@ -826,12 +829,12 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 [grid-auto-rows:1fr]">
           {/* Total Evaluations */}
           <EnhancedStatCard
-            title="Total Evaluations"
+            title={locale === "zh" ? "评估总数" : "Total Evaluations"}
             value={stats.total}
             icon={<Activity className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#2d8f8f] to-[#1a6b6b]"
             glowColor="#2d8f8f"
-            subtitle={stats.recentTrend === 'up' ? 'Coverage trending up' : stats.recentTrend === 'down' ? 'Coverage trending down' : 'Coverage stable'}
+            subtitle={stats.recentTrend === 'up' ? (locale === 'zh' ? '覆盖率上升趋势' : 'Coverage trending up') : stats.recentTrend === 'down' ? (locale === 'zh' ? '覆盖率下降趋势' : 'Coverage trending down') : (locale === 'zh' ? '覆盖率稳定' : 'Coverage stable')}
             delay={0}
             borderColor="#2d8f8f"
             sparklineData={evalSparklines.total}
@@ -846,14 +849,14 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
           {/* Avg Coverage */}
           <EnhancedStatCard
-            title="Avg Coverage"
+            title={locale === "zh" ? "平均覆盖率" : "Avg Coverage"}
             value={stats.avgCoverage}
             suffix="%"
             decimals={1}
             icon={<Target className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#7c5cbf] to-[#5a3d99]"
             glowColor="#7c5cbf"
-            subtitle={`across ${stats.total} evaluations`}
+            subtitle={locale === 'zh' ? `共 ${stats.total} 个评估` : `across ${stats.total} evaluations`}
             delay={80}
             borderColor="#7c5cbf"
             sparklineData={evalSparklines.coverage}
@@ -865,14 +868,14 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
           {/* Top Score */}
           <EnhancedStatCard
-            title="Top Score"
+            title={locale === "zh" ? "最高评分" : "Top Score"}
             value={stats.topScore * 100}
             suffix="%"
             decimals={0}
             icon={<Trophy className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#c9872e] to-[#a06b1a]"
             glowColor="#c9872e"
-            subtitle="Highest combined score"
+            subtitle={locale === "zh" ? "最高综合评分" : "Highest combined score"}
             delay={160}
             borderColor="#c9872e"
             sparklineData={evalSparklines.score}
@@ -890,7 +893,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
           {/* Completion Rate */}
           <EnhancedStatCard
-            title="Completion Rate"
+            title={locale === "zh" ? "完成率" : "Completion Rate"}
             value={stats.completionRate}
             suffix="%"
             decimals={0}
@@ -904,7 +907,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
               stats.completionRate >= 75 ? '#16a34a' :
               stats.completionRate >= 50 ? '#c9872e' : '#dc2626'
             }
-            subtitle={`${stats.completedCount ?? 0} of ${stats.total} complete`}
+            subtitle={locale === 'zh' ? `${stats.completedCount ?? 0} / ${stats.total} 已完成` : `${stats.completedCount ?? 0} of ${stats.total} complete`}
             delay={240}
             borderColor={
               stats.completionRate >= 75 ? '#16a34a' :
@@ -979,7 +982,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
 
         {/* ── Coverage Distribution Chart (preserved) ──────────────────────── */}
         <div className="space-y-2">
-          <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider">Coverage Distribution</h4>
+          <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider">{locale === 'zh' ? '覆盖度分布' : 'Coverage Distribution'}</h4>
           <div className="chart-container chart-inner-shadow rounded-lg p-3 bg-claude-surface dark:bg-[#242220] border border-claude-border-light dark:border-[#2b2926]">
             <ResponsiveContainer width="100%" height={200}>
               <BarChart data={coverageDistribution} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
@@ -1078,7 +1081,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
             <AlertTriangle className="h-3 w-3 text-claude-accent" />
-            Priority Recommendations
+            {locale === 'zh' ? '优先推荐' : 'Priority Recommendations'}
           </h4>
           <div className="space-y-1.5 max-h-64 overflow-y-auto custom-scrollbar">
             {priorities.map((p, idx) => (
@@ -1096,7 +1099,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3 w-3 text-claude-accent" />
-            Recent Activity
+            {locale === 'zh' ? '最近活动' : 'Recent Activity'}
           </h4>
           <div className="space-y-1.5">
             {recentActivity.map((evaluation, idx) => (
@@ -1113,7 +1116,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         <div className="space-y-2">
           <h4 className="text-[11px] font-semibold text-claude-text uppercase tracking-wider flex items-center gap-1.5">
             <Clock className="h-3 w-3 text-claude-accent" />
-            Progress Timeline
+            {locale === 'zh' ? '进度时间线' : 'Progress Timeline'}
           </h4>
           <div className="relative pl-6 space-y-0">
             {/* Vertical line */}

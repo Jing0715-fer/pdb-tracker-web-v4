@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React from 'react';
 import { motion } from 'framer-motion';
@@ -90,7 +91,7 @@ function ComparisonSparkline({ data }: { data: number[] }) {
   );
 }
 
-// ─── Method Distribution Mini Bar ──────────────────────────────────────────
+// ─── {locale === 'zh' ? '方法分布' : 'Method Distribution'} Mini Bar ──────────────────────────────────────────
 
 function MethodMiniBar({ current, previous }: { current: WeeklySnapshot; previous: WeeklySnapshot }) {
   const barWidth = 60;
@@ -155,6 +156,7 @@ interface WeekComparisonProps {
 }
 
 export function WeekComparison({ current, previous, snapshots }: WeekComparisonProps) {
+  const { locale } = useI18n();
   if (!previous) {
     return (
       <div className="text-[10px] text-claude-text-muted text-center py-2">
@@ -205,7 +207,7 @@ export function WeekComparison({ current, previous, snapshots }: WeekComparisonP
 
       {/* Method distribution label and bars - ABOVE the border */}
       <div className="text-[9px] font-semibold text-claude-text-muted uppercase tracking-wider mb-1">
-        Method Distribution
+        {locale === 'zh' ? '方法分布' : 'Method Distribution'}
       </div>
       <div className="mb-2">
         <MethodMiniBar current={current} previous={previous} />

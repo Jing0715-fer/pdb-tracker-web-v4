@@ -1,5 +1,6 @@
 'use client';
 
+import { useI18n } from '@/lib/i18n';
 import React from 'react';
 import dynamic from 'next/dynamic';
 import { Calendar, TrendingUp, Activity, BarChart3, GitCompareArrows } from 'lucide-react';
@@ -73,6 +74,7 @@ export function WeeklyView({
   onSetCurrentPage,
   onSetPageSize,
 }: WeeklyViewProps) {
+  const { t, locale } = useI18n();
   const {
     columnVisibility,
     toggleColumn,
@@ -108,7 +110,7 @@ export function WeeklyView({
           className={`h-7 px-2.5 text-[11px] filter-chip ${showTrend ? 'active' : ''}`}
         >
           <TrendingUp className="h-3 w-3 mr-1" />
-          {showTrend ? 'Hide Trends' : 'Trend Analysis'}
+          {showTrend ? (locale === 'zh' ? '隐藏趋势' : 'Hide Trends') : (locale === 'zh' ? '趋势分析' : 'Trend Analysis')}
         </Button>
         <Button
           variant="ghost"
@@ -117,7 +119,7 @@ export function WeeklyView({
           className={`h-7 px-2.5 text-[11px] filter-chip ${showTimeline ? 'active' : ''}`}
         >
           <Activity className="h-3 w-3 mr-1" />
-          {showTimeline ? 'Hide Timeline' : 'Stats Timeline'}
+          {showTimeline ? (locale === 'zh' ? '隐藏时间线' : 'Hide Timeline') : (locale === 'zh' ? '统计时间线' : 'Stats Timeline')}
         </Button>
         <Button
           variant="ghost"
@@ -126,7 +128,7 @@ export function WeeklyView({
           className={`h-7 px-2.5 text-[11px] filter-chip ${showQualityDist ? 'active' : ''}`}
         >
           <BarChart3 className="h-3 w-3 mr-1" />
-          {showQualityDist ? 'Hide Quality Dist' : 'Quality Distribution'}
+          {showQualityDist ? (locale === 'zh' ? '隐藏质量分布' : 'Hide Quality Dist') : (locale === 'zh' ? '质量分布' : 'Quality Distribution')}
         </Button>
         <Button
           variant="ghost"

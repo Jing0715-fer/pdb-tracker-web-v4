@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { X, ExternalLink } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 interface LiteratureDetail {
   pubmedId: string;
@@ -19,6 +20,8 @@ interface LiteratureDetailModalProps {
 }
 
 export function LiteratureDetailModal({ literature, onClose }: LiteratureDetailModalProps) {
+  const { t, locale } = useI18n();
+
   // Close on Escape
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -65,7 +68,7 @@ export function LiteratureDetailModal({ literature, onClose }: LiteratureDetailM
         <div className="px-4 py-2.5 border-b border-claude-border/50 dark:border-[#3d3832]/50">
           <p className="text-[10px] text-claude-text-muted mb-1">Authors</p>
           <p className="text-[11px] text-claude-text-secondary leading-relaxed">
-            {literature.authors || 'Authors not available'}
+            {literature.authors || (locale === 'zh' ? '作者信息不可用' : 'Authors not available')}
           </p>
         </div>
 

@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -64,6 +65,7 @@ export function EvalReportGenerator({
   isOpen,
   onClose,
 }: EvalReportGeneratorProps) {
+  const { locale } = useI18n();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
   const previewRef = useRef<HTMLDivElement>(null);
@@ -550,7 +552,7 @@ export function EvalReportGenerator({
                         srcDoc={reportHtml}
                         className="w-full border-0 bg-white"
                         style={{ height: '600px', borderRadius: '8px' }}
-                        title="Report Preview"
+                        title={locale === "zh" ? "报告预览" : "Report Preview"}
                         sandbox="allow-same-origin"
                       />
                     </div>

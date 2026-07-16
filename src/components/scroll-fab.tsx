@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,8 +32,8 @@ export default function ScrollFab({ scrollProgress, onScroll, visible }: ScrollF
           transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
           onClick={() => onScroll(true)}
           className="fixed bottom-20 right-6 z-50 w-12 h-12 rounded-full glass-enhanced shadow-lg hover:shadow-xl flex items-center justify-center hover:scale-110 transition-all duration-200 btn-press-subtle no-print cursor-pointer"
-          title="Scroll to top"
-          aria-label="Scroll to top"
+          title={locale === "zh" ? "回到顶部" : "Scroll to top"}
+          aria-label={locale === "zh" ? "回到顶部" : "Scroll to top"}
         >
           {/* SVG circular progress ring */}
           <svg

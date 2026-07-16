@@ -9,6 +9,7 @@ import {
 import { PdbStructureViewer } from '@/components/PdbStructureViewer';
 import { X, Loader2, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useI18n } from '@/lib/i18n';
 
 interface PdbViewerModalProps {
   pdbId: string | null;
@@ -92,9 +93,16 @@ interface PdbThumbnailPreviewProps {
   pdbId: string;
   title?: string;
   onClick: () => void;
+  /** Thumbnail height in px. Default 180. Use smaller values (e.g. 80) for
+   * compact list layouts. */
+  thumbHeight?: number;
+  /** When true, hides the info bar at the bottom (useful in compact mode where
+   * the PDB ID is already shown elsewhere). */
+  hideInfoBar?: boolean;
 }
 
-export function PdbThumbnailPreview({ pdbId, title, onClick }: PdbThumbnailPreviewProps) {
+export function PdbThumbnailPreview({ pdbId, title, onClick, thumbHeight = 180, hideInfoBar = false }: PdbThumbnailPreviewProps) {
+  const { t, locale } = useI18n();
   const [imgSrc, setImgSrc] = useState<string | null>(null);
   const [imgLoaded, setImgLoaded] = useState(false);
   const [imgError, setImgError] = useState(false);
@@ -134,7 +142,7 @@ export function PdbThumbnailPreview({ pdbId, title, onClick }: PdbThumbnailPrevi
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
     >
       {/* Thumbnail area */}
-      <div className="relative h-[180px] bg-gradient-to-br from-claude-border-light dark:from-[#2b2926] to-[#e8e5df] dark:to-[#1a1917] flex items-center justify-center overflow-hidden">
+      <div className="relative bg-gradient-to-br from-claude-border-light dark:from-[#2b2926] to-[#e8e5df] dark:to-[#1a1917] flex items-center justify-center overflow-hidden" style={{ height: thumbHeight }}>
         {/* RCSB thumbnail image */}
         {imgSrc && !imgError && (
           <img
@@ -173,14 +181,16 @@ export function PdbThumbnailPreview({ pdbId, title, onClick }: PdbThumbnailPrevi
       </div>
 
       {/* Info bar */}
+      {!hideInfoBar && (
       <div className="px-3 py-2 bg-claude-surface/80 dark:bg-[#242220]/80 border-t border-claude-border/40 dark:border-[#3d3832]/40">
         <div className="flex items-center justify-between">
           <span className="font-mono text-[11px] font-bold text-claude-accent">{pdbId}</span>
           <span className="text-[10px] text-claude-text-muted">
-            {title ? (title.length > 30 ? title.slice(0, 30) + '…' : title) : 'Click to view 3D'}
+            {title ? (title.length > 30 ? title.slice(0, 30) + '…' : title) : (locale === 'zh' ? '点击查看 3D' : 'Click to view 3D')}
           </span>
         </div>
       </div>
+      )}
     </div>
   );
 }

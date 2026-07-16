@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Keyboard, X, Navigation, Search, PanelTopClose, List, Zap } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Shortcut Definitions ────────────────────────────────────────────────────
 
@@ -16,41 +17,41 @@ interface ShortcutCategory {
   shortcuts: ShortcutItem[];
 }
 
-const SHORTCUT_CATEGORIES: ShortcutCategory[] = [
+const buildShortcutCategories = (locale: 'en' | 'zh'): ShortcutCategory[] => [
   {
-    label: 'Navigation',
+    label: locale === 'zh' ? '导航' : 'Navigation',
     icon: <Navigation className="h-3.5 w-3.5" />,
     shortcuts: [
-      { keys: ['1'], description: 'Switch to Weekly mode' },
-      { keys: ['2'], description: 'Switch to Evaluation mode' },
-      { keys: ['3'], description: 'Switch to Literature mode' },
-      { keys: ['↑', '↓'], description: 'Navigate table rows' },
-      { keys: ['Enter'], description: 'Open highlighted row detail' },
+      { keys: ['1'], description: locale === 'zh' ? '切换到周报模式' : 'Switch to Weekly mode' },
+      { keys: ['2'], description: locale === 'zh' ? '切换到评估模式' : 'Switch to Evaluation mode' },
+      { keys: ['3'], description: locale === 'zh' ? '切换到文献模式' : 'Switch to Literature mode' },
+      { keys: ['↑', '↓'], description: locale === 'zh' ? '在表格行间导航' : 'Navigate table rows' },
+      { keys: ['Enter'], description: locale === 'zh' ? '打开高亮行详情' : 'Open highlighted row detail' },
     ],
   },
   {
-    label: 'Search & Commands',
+    label: locale === 'zh' ? '搜索与命令' : 'Search & Commands',
     icon: <Search className="h-3.5 w-3.5" />,
     shortcuts: [
-      { keys: ['⌘', 'K'], description: 'Command palette' },
-      { keys: ['/'], description: 'Focus search input' },
+      { keys: ['⌘', 'K'], description: locale === 'zh' ? '命令面板' : 'Command palette' },
+      { keys: ['/'], description: locale === 'zh' ? '聚焦搜索输入框' : 'Focus search input' },
     ],
   },
   {
-    label: 'Actions',
+    label: locale === 'zh' ? '操作' : 'Actions',
     icon: <Zap className="h-3.5 w-3.5" />,
     shortcuts: [
-      { keys: ['B'], description: 'Toggle bookmark on row' },
-      { keys: ['E'], description: 'Export current view' },
-      { keys: ['T'], description: 'Toggle theme' },
+      { keys: ['B'], description: locale === 'zh' ? '在行上切换收藏' : 'Toggle bookmark on row' },
+      { keys: ['E'], description: locale === 'zh' ? '导出当前视图' : 'Export current view' },
+      { keys: ['T'], description: locale === 'zh' ? '切换主题' : 'Toggle theme' },
     ],
   },
   {
-    label: 'View',
+    label: locale === 'zh' ? '视图' : 'View',
     icon: <PanelTopClose className="h-3.5 w-3.5" />,
     shortcuts: [
-      { keys: ['Esc'], description: 'Close panel / dialog' },
-      { keys: ['?'], description: 'Show this help' },
+      { keys: ['Esc'], description: locale === 'zh' ? '关闭面板 / 对话框' : 'Close panel / dialog' },
+      { keys: ['?'], description: locale === 'zh' ? '显示本帮助' : 'Show this help' },
     ],
   },
 ];
@@ -75,6 +76,7 @@ interface KeyboardHintsProps {
 }
 
 export function KeyboardHints({ open: externalOpen, onClose }: KeyboardHintsProps) {
+  const { locale } = useI18n();
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = externalOpen ?? internalOpen;
 
@@ -107,6 +109,8 @@ export function KeyboardHints({ open: externalOpen, onClose }: KeyboardHintsProp
 
   if (!isOpen) return null;
 
+  const SHORTCUT_CATEGORIES = buildShortcutCategories(locale);
+
   return (
     <>
       {/* Backdrop with blur */}
@@ -124,7 +128,7 @@ export function KeyboardHints({ open: externalOpen, onClose }: KeyboardHintsProp
               <div className="w-7 h-7 rounded-lg bg-claude-accent/10 flex items-center justify-center">
                 <Keyboard className="h-4 w-4 text-claude-accent" />
               </div>
-              <h3 className="text-sm font-semibold text-claude-text">Keyboard Shortcuts</h3>
+              <h3 className="text-sm font-semibold text-claude-text">{locale === 'zh' ? '键盘快捷键' : 'Keyboard Shortcuts'}</h3>
             </div>
             <button
               onClick={close}
@@ -173,7 +177,11 @@ export function KeyboardHints({ open: externalOpen, onClose }: KeyboardHintsProp
           {/* Footer hint */}
           <div className="px-5 py-2.5 border-t border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-bg/50 dark:bg-[#1a1917]/50">
             <p className="text-[10px] text-claude-text-muted text-center flex items-center justify-center gap-1.5">
-              Press <KbdBadge small>?</KbdBadge> or <KbdBadge small>Esc</KbdBadge> to close
+              {locale === 'zh' ? '按 ' : 'Press '}
+              <KbdBadge small>?</KbdBadge>
+              {locale === 'zh' ? ' 或 ' : ' or '}
+              <KbdBadge small>Esc</KbdBadge>
+              {locale === 'zh' ? ' 关闭' : ' to close'}
             </p>
           </div>
         </div>

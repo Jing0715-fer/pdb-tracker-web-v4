@@ -42,6 +42,7 @@ import {
   type UserPreferences,
   DEFAULT_PREFERENCES,
 } from '@/hooks/use-user-preferences';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -132,27 +133,28 @@ export function PreferencesDialog({
   resetPreferences,
   resetColumnOrder,
 }: PreferencesDialogProps) {
+  const { locale } = useI18n();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[520px] max-h-[85vh] overflow-y-auto bg-white dark:bg-[#1e1d1b] border border-claude-border dark:border-[#3d3832]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-claude-text dark:text-[#e8e4dd]">
             <Settings className="h-4 w-4 text-claude-accent" />
-            Preferences
+            {locale === 'zh' ? '偏好设置' : 'Preferences'}
           </DialogTitle>
           <DialogDescription className="text-claude-text-muted dark:text-[#9b9590]">
-            Customize your PDB Structure Tracker experience. Changes are saved automatically.
+            {locale === 'zh' ? '定制你的 PDB 结构追踪体验。更改会自动保存。' : 'Customize your PDB Structure Tracker experience. Changes are saved automatically.'}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
           {/* ── Table ─────────────────────────── */}
           <section>
-            <SectionHeader icon={Table2} title="Table" />
+            <SectionHeader icon={Table2} title={locale === 'zh' ? '表格' : 'Table'} />
             <div className="space-y-1 pl-8">
               <PreferenceRow
-                label="Default Sort Field"
-                description="Which column to sort by when loading a new week"
+                label={locale === 'zh' ? '默认排序字段' : 'Default Sort Field'}
+                description={locale === 'zh' ? '加载新周时按哪个列排序' : 'Which column to sort by when loading a new week'}
               >
                 <Select
                   value={preferences.defaultSortField}
@@ -162,17 +164,17 @@ export function PreferencesDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
-                    <SelectItem value="pdb_id">PDB ID</SelectItem>
-                    <SelectItem value="resolution">Resolution</SelectItem>
-                    <SelectItem value="release_date">Release Date</SelectItem>
-                    <SelectItem value="journal_if">Impact Factor</SelectItem>
+                    <SelectItem value="pdb_id">{locale === 'zh' ? 'PDB ID' : 'PDB ID'}</SelectItem>
+                    <SelectItem value="resolution">{locale === 'zh' ? '分辨率' : 'Resolution'}</SelectItem>
+                    <SelectItem value="release_date">{locale === 'zh' ? '发布日期' : 'Release Date'}</SelectItem>
+                    <SelectItem value="journal_if">{locale === 'zh' ? '影响因子' : 'Impact Factor'}</SelectItem>
                   </SelectContent>
                 </Select>
               </PreferenceRow>
 
               <PreferenceRow
-                label="Default Sort Order"
-                description="Direction for the default sort"
+                label={locale === 'zh' ? '默认排序顺序' : 'Default Sort Order'}
+                description={locale === 'zh' ? '默认排序的方向' : 'Direction for the default sort'}
               >
                 <Select
                   value={preferences.defaultSortDesc ? 'desc' : 'asc'}
@@ -182,15 +184,15 @@ export function PreferencesDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
-                    <SelectItem value="desc">Descending</SelectItem>
-                    <SelectItem value="asc">Ascending</SelectItem>
+                    <SelectItem value="desc">{locale === 'zh' ? '降序' : 'Descending'}</SelectItem>
+                    <SelectItem value="asc">{locale === 'zh' ? '升序' : 'Ascending'}</SelectItem>
                   </SelectContent>
                 </Select>
               </PreferenceRow>
 
               <PreferenceRow
-                label="Page Size"
-                description="Number of entries per page"
+                label={locale === 'zh' ? '每页条数' : 'Page Size'}
+                description={locale === 'zh' ? '每页显示的条目数' : 'Number of entries per page'}
               >
                 <Select
                   value={String(preferences.defaultPageSize)}
@@ -210,10 +212,10 @@ export function PreferencesDialog({
               {/* Table Density */}
               <div className="py-2">
                 <Label className="text-sm font-medium text-claude-text dark:text-[#e8e4dd]">
-                  Table Density
+                  {locale === 'zh' ? '表格密度' : 'Table Density'}
                 </Label>
                 <p className="text-[11px] text-claude-text-muted dark:text-[#9b9590] mt-0.5 leading-relaxed">
-                  Row spacing in the data table
+                  {locale === 'zh' ? '数据表格的行间距' : 'Row spacing in the data table'}
                 </p>
                 <div className="flex gap-2 mt-2">
                   <button
@@ -229,7 +231,7 @@ export function PreferencesDialog({
                         <div className="w-10 h-[3px] bg-current opacity-30 rounded-sm" />
                       </div>
                     </div>
-                    <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">Compact</span>
+                    <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">{locale === 'zh' ? '紧凑' : 'Compact'}</span>
                   </button>
                   <button
                     type="button"
@@ -244,7 +246,7 @@ export function PreferencesDialog({
                         <div className="w-10 h-[4px] bg-current opacity-30 rounded-sm" />
                       </div>
                     </div>
-                    <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">Comfortable</span>
+                    <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">{locale === 'zh' ? '舒适' : 'Comfortable'}</span>
                   </button>
                   <button
                     type="button"
@@ -259,7 +261,7 @@ export function PreferencesDialog({
                         <div className="w-10 h-[5px] bg-current opacity-30 rounded-sm" />
                       </div>
                     </div>
-                    <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">Spacious</span>
+                    <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">{locale === 'zh' ? '宽松' : 'Spacious'}</span>
                   </button>
                 </div>
               </div>
@@ -269,10 +271,10 @@ export function PreferencesDialog({
                 <div className="flex items-center justify-between mb-1">
                   <div>
                     <Label className="text-sm font-medium text-claude-text dark:text-[#e8e4dd]">
-                      Column Visibility
+                      {locale === 'zh' ? '列可见性' : 'Column Visibility'}
                     </Label>
                     <p className="text-[11px] text-claude-text-muted dark:text-[#9b9590] mt-0.5 leading-relaxed">
-                      Choose which columns to display
+                      {locale === 'zh' ? '选择要显示的列' : 'Choose which columns to display'}
                     </p>
                   </div>
                   <div className="flex gap-1">
@@ -281,14 +283,14 @@ export function PreferencesDialog({
                       className="text-[10px] px-1.5 py-0.5 rounded text-claude-accent hover:bg-claude-accent/10 transition-colors"
                       onClick={() => updatePreference('visibleColumns', [...ALL_COLUMN_KEYS])}
                     >
-                      All
+                      {locale === 'zh' ? '全部' : 'All'}
                     </button>
                     <button
                       type="button"
                       className="text-[10px] px-1.5 py-0.5 rounded text-claude-text-muted hover:bg-claude-accent/10 hover:text-claude-accent transition-colors"
                       onClick={() => updatePreference('visibleColumns', [])}
                     >
-                      None
+                      {locale === 'zh' ? '无' : 'None'}
                     </button>
                   </div>
                 </div>
@@ -336,11 +338,11 @@ export function PreferencesDialog({
 
           {/* ── Display ────────────────────────── */}
           <section>
-            <SectionHeader icon={LayoutGrid} title="Display" />
+            <SectionHeader icon={LayoutGrid} title={locale === 'zh' ? '显示' : 'Display'} />
             <div className="space-y-1 pl-8">
               <PreferenceRow
-                label="Default View Mode"
-                description="Which view to show when switching weeks"
+                label={locale === 'zh' ? '默认视图模式' : 'Default View Mode'}
+                description={locale === 'zh' ? '切换周报时显示哪个视图' : 'Which view to show when switching weeks'}
               >
                 <Select
                   value={preferences.defaultViewMode}
@@ -350,15 +352,15 @@ export function PreferencesDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="text-xs">
-                    <SelectItem value="table">Table</SelectItem>
-                    <SelectItem value="literature">Literature</SelectItem>
+                    <SelectItem value="table">{locale === 'zh' ? '表格' : 'Table'}</SelectItem>
+                    <SelectItem value="literature">{locale === 'zh' ? '文献' : 'Literature'}</SelectItem>
                   </SelectContent>
                 </Select>
               </PreferenceRow>
 
               <PreferenceRow
-                label="Compact Table"
-                description="Use tighter row heights in the table"
+                label={locale === 'zh' ? '紧凑表格' : 'Compact Table'}
+                description={locale === 'zh' ? '在表格中使用更紧的行高' : 'Use tighter row heights in the table'}
               >
                 <Switch
                   checked={preferences.compactTable}
@@ -367,8 +369,8 @@ export function PreferencesDialog({
               </PreferenceRow>
 
               <PreferenceRow
-                label="Quality Score Dots"
-                description="Show colored quality dots next to PDB IDs"
+                label={locale === 'zh' ? '质量评分点' : 'Quality Score Dots'}
+                description={locale === 'zh' ? '在 PDB ID 旁显示彩色质量点' : 'Show colored quality dots next to PDB IDs'}
               >
                 <Switch
                   checked={preferences.showQualityDots}
@@ -377,8 +379,8 @@ export function PreferencesDialog({
               </PreferenceRow>
 
               <PreferenceRow
-                label="Hover Cards"
-                description="Show preview cards when hovering over PDB IDs"
+                label={locale === 'zh' ? '悬停卡片' : 'Hover Cards'}
+                description={locale === 'zh' ? '鼠标悬停在 PDB ID 上时显示预览卡片' : 'Show preview cards when hovering over PDB IDs'}
               >
                 <Switch
                   checked={preferences.showHoverCards}
@@ -387,8 +389,8 @@ export function PreferencesDialog({
               </PreferenceRow>
 
               <PreferenceRow
-                label="Show Row Numbers"
-                description="Display row index numbers in the table"
+                label={locale === 'zh' ? '显示行号' : 'Show Row Numbers'}
+                description={locale === 'zh' ? '在表格中显示行索引数字' : 'Display row index numbers in the table'}
               >
                 <Switch
                   checked={preferences.showRowNumbers}
@@ -397,8 +399,8 @@ export function PreferencesDialog({
               </PreferenceRow>
 
               <PreferenceRow
-                label="Show Ligand Chips"
-                description="Display ligand molecules as colored chips"
+                label={locale === 'zh' ? '显示配体标签' : 'Show Ligand Chips'}
+                description={locale === 'zh' ? '将配体分子显示为彩色标签' : 'Display ligand molecules as colored chips'}
               >
                 <Switch
                   checked={preferences.showLigandChips}
@@ -412,11 +414,11 @@ export function PreferencesDialog({
 
           {/* ── Sidebar ────────────────────────── */}
           <section>
-            <SectionHeader icon={Sidebar} title="Sidebar" />
+            <SectionHeader icon={Sidebar} title={locale === 'zh' ? '侧边栏' : 'Sidebar'} />
             <div className="space-y-1 pl-8">
               <PreferenceRow
-                label="Collapsed by Default"
-                description="Start with the sidebar collapsed"
+                label={locale === 'zh' ? '默认收起' : 'Collapsed by Default'}
+                description={locale === 'zh' ? '启动时收起侧边栏' : 'Start with the sidebar collapsed'}
               >
                 <Switch
                   checked={preferences.sidebarCollapsed}
@@ -430,11 +432,11 @@ export function PreferencesDialog({
 
           {/* ── Advanced ──────────────────────── */}
           <section>
-            <SectionHeader icon={Sparkles} title="Advanced" />
+            <SectionHeader icon={Sparkles} title={locale === 'zh' ? '高级' : 'Advanced'} />
             <div className="space-y-1 pl-8">
               <PreferenceRow
-                label="Show Notifications"
-                description="Display notification bell in the header"
+                label={locale === 'zh' ? '显示通知' : 'Show Notifications'}
+                description={locale === 'zh' ? '在顶栏显示通知铃铛' : 'Display notification bell in the header'}
               >
                 <Switch
                   checked={preferences.showNotifications}
@@ -443,8 +445,8 @@ export function PreferencesDialog({
               </PreferenceRow>
 
               <PreferenceRow
-                label="Enable Animations"
-                description="Disable for reduced motion preferences"
+                label={locale === 'zh' ? '启用动画' : 'Enable Animations'}
+                description={locale === 'zh' ? '为减少动态偏好关闭' : 'Disable for reduced motion preferences'}
               >
                 <Switch
                   checked={preferences.animationsEnabled}
@@ -455,10 +457,10 @@ export function PreferencesDialog({
               {/* Animation Speed */}
               <div className="py-2">
                 <Label className="text-sm font-medium text-claude-text dark:text-[#e8e4dd]">
-                  Animation Speed
+                  {locale === 'zh' ? '动画速度' : 'Animation Speed'}
                 </Label>
                 <p className="text-[11px] text-claude-text-muted dark:text-[#9b9590] mt-0.5 leading-relaxed">
-                  Speed for UI transitions and animations
+                  {locale === 'zh' ? 'UI 过渡和动画的速度' : 'Speed for UI transitions and animations'}
                 </p>
                 <div className="flex gap-2 mt-2">
                   {(['slow', 'normal', 'fast'] as const).map((speed) => (
@@ -469,8 +471,10 @@ export function PreferencesDialog({
                       onClick={() => updatePreference('animationSpeed', speed)}
                     >
                       <Gauge className="h-4 w-4" />
-                      <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590] capitalize">
-                        {speed}
+                      <span className="text-[10px] font-medium text-claude-text-secondary dark:text-[#9b9590]">
+                        {locale === 'zh'
+                          ? (speed === 'slow' ? '慢' : speed === 'normal' ? '正常' : '快')
+                          : speed}
                       </span>
                     </button>
                   ))}
@@ -483,11 +487,11 @@ export function PreferencesDialog({
 
           {/* ── Theme ──────────────────────────── */}
           <section>
-            <SectionHeader icon={Monitor} title="Theme" />
+            <SectionHeader icon={Monitor} title={locale === 'zh' ? '主题' : 'Theme'} />
             <div className="space-y-1 pl-8">
               <PreferenceRow
-                label="Color Theme"
-                description="Application color scheme"
+                label={locale === 'zh' ? '颜色主题' : 'Color Theme'}
+                description={locale === 'zh' ? '应用颜色方案' : 'Application color scheme'}
               >
                 <Select
                   value={preferences.theme}
@@ -500,19 +504,19 @@ export function PreferencesDialog({
                     <SelectItem value="system">
                       <span className="flex items-center gap-1.5">
                         <Monitor className="h-3 w-3" />
-                        System
+                        {locale === 'zh' ? '系统' : 'System'}
                       </span>
                     </SelectItem>
                     <SelectItem value="light">
                       <span className="flex items-center gap-1.5">
                         <Sun className="h-3 w-3" />
-                        Light
+                        {locale === 'zh' ? '浅色' : 'Light'}
                       </span>
                     </SelectItem>
                     <SelectItem value="dark">
                       <span className="flex items-center gap-1.5">
                         <Moon className="h-3 w-3" />
-                        Dark
+                        {locale === 'zh' ? '深色' : 'Dark'}
                       </span>
                     </SelectItem>
                   </SelectContent>
@@ -531,7 +535,7 @@ export function PreferencesDialog({
             className="text-xs gap-1.5 text-claude-accent hover:text-claude-accent-hover hover:bg-claude-accent-light dark:hover:bg-claude-accent/10 border-claude-border dark:border-[#3d3832]"
           >
             <RotateCcw className="h-3 w-3" />
-            Reset Column Order
+            {locale === 'zh' ? '重置列顺序' : 'Reset Column Order'}
           </Button>
           )}
           <Button
@@ -543,7 +547,7 @@ export function PreferencesDialog({
             className="text-xs gap-1.5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 border-red-200 dark:border-red-800/30"
           >
             <RotateCcw className="h-3 w-3" />
-            Reset to Defaults
+            {locale === 'zh' ? '恢复默认' : 'Reset to Defaults'}
           </Button>
         </DialogFooter>
       </DialogContent>

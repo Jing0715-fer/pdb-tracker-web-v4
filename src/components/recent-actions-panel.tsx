@@ -1,4 +1,5 @@
 'use client';
+import { useI18n } from '@/lib/i18n';
 
 import React, { useMemo } from 'react';
 import { Clock, Bookmark, StickyNote, Star, GitMerge, Layers, Download, Filter, CheckCircle, Trash2, X } from 'lucide-react';
@@ -112,7 +113,7 @@ export function RecentActionsPanel({ open, onClose, actions, onClear, onSelectEn
                   <button
                     onClick={onClear}
                     className="p-1 rounded text-claude-text-muted hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                    title="Clear all"
+                    title={locale === "zh" ? "全部清除" : "Clear all"}
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>

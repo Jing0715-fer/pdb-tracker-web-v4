@@ -11,6 +11,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
 import { useLocalStorageSet, useLocalStorage } from '@/hooks/use-local-storage';
+import { useI18n } from '@/lib/i18n';
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
@@ -50,52 +51,52 @@ const DEFAULT_PREFS: NotificationPreferences = {
 
 // ─── Category Config ────────────────────────────────────────────────────────
 
-const CATEGORY_CONFIG: Record<NotificationCategory, {
+const buildCategoryConfig = (locale: 'en' | 'zh'): Record<NotificationCategory, {
   icon: React.ElementType;
   label: string;
   emoji: string;
   cssClass: string;
-}> = {
+}> => ({
   new_structure: {
     icon: Microscope,
-    label: 'New Structure',
+    label: locale === 'zh' ? '新结构' : 'New Structure',
     emoji: '🔬',
     cssClass: 'new_structure',
   },
   evaluation: {
     icon: FlaskConical,
-    label: 'Evaluation',
+    label: locale === 'zh' ? '评估' : 'Evaluation',
     emoji: '📊',
     cssClass: 'evaluation',
   },
   literature: {
     icon: BookOpen,
-    label: 'Literature',
+    label: locale === 'zh' ? '文献' : 'Literature',
     emoji: '📄',
     cssClass: 'literature',
   },
   high_impact: {
     icon: Star,
-    label: 'High Impact',
+    label: locale === 'zh' ? '高影响力' : 'High Impact',
     emoji: '⭐',
     cssClass: 'high_impact',
   },
   report_published: {
     icon: TrendingUp,
-    label: 'Reports',
+    label: locale === 'zh' ? '报告' : 'Reports',
     emoji: '📄',
     cssClass: 'report_published',
   },
-};
+});
 
 // ─── Filter Tabs ────────────────────────────────────────────────────────────
 
-const FILTER_TABS: { key: NotifFilterTab; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'unread', label: 'Unread' },
-  { key: 'structures', label: 'Structures' },
-  { key: 'literature', label: 'Literature' },
-  { key: 'high_impact', label: 'High Impact' },
+const buildFilterTabs = (locale: 'en' | 'zh'): { key: NotifFilterTab; label: string }[] => [
+  { key: 'all', label: locale === 'zh' ? '全部' : 'All' },
+  { key: 'unread', label: locale === 'zh' ? '未读' : 'Unread' },
+  { key: 'structures', label: locale === 'zh' ? '结构' : 'Structures' },
+  { key: 'literature', label: locale === 'zh' ? '文献' : 'Literature' },
+  { key: 'high_impact', label: locale === 'zh' ? '高影响力' : 'High Impact' },
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -161,6 +162,7 @@ function getEffectiveCategory(item: ActivityItem): NotificationCategory {
 // ─── Notification Bell Component ─────────────────────────────────────────────
 
 export function NotificationBell() {
+  const { locale } = useI18n();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -284,8 +286,8 @@ export function NotificationBell() {
           variant="ghost"
           size="sm"
           className="h-7 w-7 p-0 text-claude-text-muted hover:text-claude-text relative active:scale-95 transition-transform duration-100"
-          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
-          title={unreadCount > 0 ? `${unreadCount} unread notifications` : 'No new notifications'}
+          aria-label={locale === 'zh' ? `通知${unreadCount > 0 ? ` (${unreadCount} 条未读)` : ''}` : `Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+          title={unreadCount > 0 ? (locale === 'zh' ? `${unreadCount} 条未读通知` : `${unreadCount} unread notifications`) : (locale === 'zh' ? '暂无新通知' : 'No new notifications')}
         >
           <div className={`relative ${bellWiggle ? 'notif-bell-wiggle' : ''}`}>
             <Bell className="h-3.5 w-3.5" />
@@ -306,7 +308,7 @@ export function NotificationBell() {
         <div className="flex items-center justify-between px-4 py-3 border-b border-claude-border dark:border-[#3d3832] bg-gradient-to-r from-[#faf7f4] to-[#f5f0ea] dark:from-[#242220] dark:to-[#2b2926]">
           <div className="flex items-center gap-2">
             <Bell className="h-3.5 w-3.5 text-claude-accent" />
-            <span className="text-xs font-semibold text-claude-text">Notifications</span>
+            <span className="text-xs font-semibold text-claude-text">{locale === 'zh' ? '通知' : 'Notifications'}</span>
             {unreadCount > 0 && (
               <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] rounded-full bg-[#c96442] text-white text-[9px] font-bold px-1 notif-badge-pulse">
                 {unreadCount}
@@ -320,7 +322,7 @@ export function NotificationBell() {
                 className="inline-flex items-center gap-1 text-[10px] font-medium text-claude-accent dark:text-claude-accent-hover hover:underline"
               >
                 <Check className="h-3 w-3" />
-                Mark all read
+                {locale === 'zh' ? '全部标记已读' : 'Mark all read'}
               </button>
             )}
             <Separator orientation="vertical" className="h-4 mx-1" />
@@ -331,8 +333,8 @@ export function NotificationBell() {
                   ? 'bg-claude-accent-light dark:bg-claude-accent-light text-claude-accent'
                   : 'text-claude-text-muted hover:text-claude-text hover:bg-claude-border-light dark:hover:bg-[#2b2926]'
               }`}
-              aria-label="Notification preferences"
-              title="Notification preferences"
+              aria-label={locale === 'zh' ? '通知偏好设置' : 'Notification preferences'}
+              title={locale === 'zh' ? '通知偏好设置' : 'Notification preferences'}
             >
               <Settings className={`h-3.5 w-3.5 ${showPrefs ? 'animate-spin' : ''}`} style={{ animationDuration: showPrefs ? '0.5s' : undefined }} />
             </button>
@@ -342,34 +344,34 @@ export function NotificationBell() {
         {/* Preferences Panel (collapsible) */}
         {showPrefs && (
           <div className="px-4 py-3 border-b border-claude-border dark:border-[#3d3832] bg-claude-bg/50 dark:bg-[#1a1917]/50 notif-card-enter">
-            <h3 className="text-[11px] font-semibold text-claude-text mb-2">Notification Preferences</h3>
+            <h3 className="text-[11px] font-semibold text-claude-text mb-2">{locale === 'zh' ? '通知偏好设置' : 'Notification Preferences'}</h3>
             <div className="notif-prefs-section">
               <NotifPrefToggle
-                label="New structure notifications"
+                label={locale === 'zh' ? '新结构通知' : 'New structure notifications'}
                 emoji="🔬"
                 checked={prefs.showNewStructure}
                 onChange={(v) => setPrefs(p => ({ ...p, showNewStructure: v }))}
               />
               <NotifPrefToggle
-                label="Evaluation notifications"
+                label={locale === 'zh' ? '评估通知' : 'Evaluation notifications'}
                 emoji="📊"
                 checked={prefs.showEvaluation}
                 onChange={(v) => setPrefs(p => ({ ...p, showEvaluation: v }))}
               />
               <NotifPrefToggle
-                label="Literature notifications"
+                label={locale === 'zh' ? '文献通知' : 'Literature notifications'}
                 emoji="📄"
                 checked={prefs.showLiterature}
                 onChange={(v) => setPrefs(p => ({ ...p, showLiterature: v }))}
               />
               <NotifPrefToggle
-                label="High impact alerts"
+                label={locale === 'zh' ? '高影响力提醒' : 'High impact alerts'}
                 emoji="⭐"
                 checked={prefs.showHighImpact}
                 onChange={(v) => setPrefs(p => ({ ...p, showHighImpact: v }))}
               />
               <NotifPrefToggle
-                label="Report notifications"
+                label={locale === 'zh' ? '报告通知' : 'Report notifications'}
                 emoji="📄"
                 checked={prefs.showReports}
                 onChange={(v) => setPrefs(p => ({ ...p, showReports: v }))}
@@ -381,7 +383,7 @@ export function NotificationBell() {
         {/* Filter Tabs */}
         {activities.length > 0 && !showPrefs && (
           <div className="flex items-center gap-1 px-4 py-2 border-b border-claude-border dark:border-[#3d3832] overflow-x-auto scrollbar-hide">
-            {FILTER_TABS.map((tab) => (
+            {buildFilterTabs(locale).map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActiveFilter(tab.key)}
@@ -419,7 +421,7 @@ export function NotificationBell() {
             <div className="py-1">
               {filteredActivities.map((item, idx) => {
                 const category = getEffectiveCategory(item);
-                const config = CATEGORY_CONFIG[category];
+                const config = buildCategoryConfig(locale)[category];
                 const Icon = config.icon;
                 const isUnread = !readItems.has(item.id);
 
@@ -474,13 +476,15 @@ export function NotificationBell() {
         {/* Footer */}
         <div className="border-t border-claude-border dark:border-[#3d3832] px-4 py-2 bg-claude-bg/50 dark:bg-[#1a1917]/50 flex items-center justify-between">
           <span className="text-[10px] text-claude-text-muted">
-            {filteredActivities.length} of {activities.length} notification{activities.length !== 1 ? 's' : ''}
+            {locale === 'zh'
+              ? `${filteredActivities.length} / ${activities.length} 条通知`
+              : `${filteredActivities.length} of ${activities.length} notification${activities.length !== 1 ? 's' : ''}`}
           </span>
           <button
             className="text-[10px] font-medium text-claude-accent dark:text-claude-accent-hover hover:underline"
             onClick={() => setOpen(false)}
           >
-            View all activity →
+            {locale === 'zh' ? '查看全部活动 →' : 'View all activity →'}
           </button>
         </div>
       </PopoverContent>
@@ -525,13 +529,22 @@ function EmptyNotifState({
   hasFilter: boolean;
   filterKey: NotifFilterTab;
 }) {
-  const filterLabels: Record<NotifFilterTab, string> = {
+  const { locale } = useI18n();
+  const filterLabelsEn: Record<NotifFilterTab, string> = {
     all: 'notifications',
     unread: 'unread notifications',
     structures: 'structure notifications',
     literature: 'literature notifications',
     high_impact: 'high impact alerts',
   };
+  const filterLabelsZh: Record<NotifFilterTab, string> = {
+    all: '通知',
+    unread: '未读通知',
+    structures: '结构通知',
+    literature: '文献通知',
+    high_impact: '高影响力提醒',
+  };
+  const filterLabels = locale === 'zh' ? filterLabelsZh : filterLabelsEn;
 
   return (
     <div className="flex flex-col items-center justify-center py-12 px-6">
@@ -543,12 +556,12 @@ function EmptyNotifState({
         )}
       </div>
       <p className="text-xs font-medium text-claude-text mb-1">
-        {hasFilter ? `No ${filterLabels[filterKey]}` : 'All caught up!'}
+        {hasFilter ? (locale === 'zh' ? `暂无${filterLabels[filterKey]}` : `No ${filterLabels[filterKey]}`) : (locale === 'zh' ? '已全部处理！' : 'All caught up!')}
       </p>
       <p className="text-[10px] text-claude-text-muted text-center">
         {hasFilter
-          ? 'Try changing the filter to see more notifications'
-          : 'You have no pending notifications. New updates will appear here.'}
+          ? (locale === 'zh' ? '试试更改筛选条件以查看更多通知' : 'Try changing the filter to see more notifications')
+          : (locale === 'zh' ? '暂无未处理通知。新更新将出现在这里。' : 'You have no pending notifications. New updates will appear here.')}
       </p>
     </div>
   );
