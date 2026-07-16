@@ -116,9 +116,9 @@ export function WeeklyStructureCompare({
                 'bg-red-500'
               }`}
               title={
-                (value as number) <= 2.0 ? 'High resolution' :
-                (value as number) <= 3.5 ? 'Medium resolution' :
-                'Low resolution'
+                (value as number) <= 2.0 ? (locale === 'zh' ? '高分辨率' : 'High resolution') :
+                (value as number) <= 3.5 ? (locale === 'zh' ? '中分辨率' : 'Medium resolution') :
+                (locale === 'zh' ? '低分辨率' : 'Low resolution')
               }
             />
             <span className={`font-mono text-[11px] font-semibold ${colorClass}`}>

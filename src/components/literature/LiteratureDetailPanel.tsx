@@ -213,9 +213,9 @@ export function LiteratureDetailPanel({
         }),
       });
       const data = await res.json();
-      setAiSummary(data.summary || 'Unable to generate summary.');
+      setAiSummary(data.summary || (locale === 'zh' ? '无法生成摘要。' : 'Unable to generate summary.'));
     } catch {
-      setAiSummary('Failed to generate AI summary. Please try again.');
+      setAiSummary(locale === 'zh' ? 'AI 摘要生成失败，请重试。' : 'Failed to generate AI summary. Please try again.');
     } finally {
       setAiLoading(false);
     }

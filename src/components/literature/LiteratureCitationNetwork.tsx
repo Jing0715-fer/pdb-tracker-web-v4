@@ -777,7 +777,7 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
               onClick={() => { setActiveCluster(null); setZoom(1); setPan({x:0,y:0}); }}
               data-no-pan
               className="px-2 py-0.5 text-[10px] rounded hover:bg-claude-border-light dark:hover:bg-[#2b2926] text-claude-text-secondary hover:text-claude-text transition-colors"
-              title="Back to overview"
+              title={locale === "zh" ? "返回概览" : "Back to overview"}
             >
               ← Overview
             </button>
@@ -803,7 +803,7 @@ export function LiteratureCitationNetwork({ papers, onClose, onSelectPaper }: Li
       {/* Hint */}
       <div className="px-4 py-1.5 text-[10px] text-claude-text-muted border-b border-claude-border-light dark:border-[#2b2926] bg-claude-bg-secondary/40 dark:bg-[#0f0e0d]/50">
         <Lightbulb className="h-3 w-3 inline mr-1" /> {showOverview
-          ? 'Click a cluster to explore its paper relationships. Drag to pan, scroll to zoom.'
+          ? (locale === 'zh' ? '点击集群探索论文关系。拖拽平移，滚轮缩放。' : 'Click a cluster to explore its paper relationships. Drag to pan, scroll to zoom.')
           : 'Edges show shared PDB IDs (teal), sub-topic keywords (orange), or methods (purple). Click a paper for details.'}
       </div>
 

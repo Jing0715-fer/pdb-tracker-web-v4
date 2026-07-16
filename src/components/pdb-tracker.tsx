@@ -2102,7 +2102,7 @@ export default function PdbTracker() {
   const renderWeeklyContent = () => (
     <>
       {/* Error banner with retry */}
-      {fetchError && !loading && (
+      {fetchError && !loading && !dbWizardOpen && (
         <div className="mx-3 mt-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
             <RefreshCw className="h-4 w-4 text-red-500 flex-shrink-0" />
@@ -2115,7 +2115,7 @@ export default function PdbTracker() {
             className="h-7 px-2.5 text-[11px] border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/40 flex-shrink-0"
           >
             <RefreshCw className="h-3 w-3 mr-1" />
-            Retry
+            {t.retry}
           </Button>
         </div>
       )}
@@ -2892,9 +2892,9 @@ export default function PdbTracker() {
                         {/* Resolution quality dot */}
                         {resDotColor && (
                           <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                            pdb.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                            pdb.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                            'Low resolution (≥3.5Å)'
+                            pdb.resolution! < 2.5 ? (locale === 'zh' ? '高分辨率 (<2.5Å)' : 'High resolution (<2.5Å)') :
+                            pdb.resolution! < 3.5 ? (locale === 'zh' ? '中分辨率 (<3.5Å)' : 'Medium resolution (<3.5Å)') :
+                            (locale === 'zh' ? '低分辨率 (≥3.5Å)' : 'Low resolution (≥3.5Å)')
                           } />
                         )}
                         <button
@@ -3102,9 +3102,9 @@ export default function PdbTracker() {
                 <div className="text-xs text-claude-text-muted mb-1">{locale === "zh" ? "分辨率" : "Resolution"}</div>
                 <div className="flex items-center gap-1.5">
                   {resDotColor && <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                    row.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                    row.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                    'Low resolution (≥3.5Å)'
+                    row.resolution! < 2.5 ? (locale === 'zh' ? '高分辨率 (<2.5Å)' : 'High resolution (<2.5Å)') :
+                    row.resolution! < 3.5 ? (locale === 'zh' ? '中分辨率 (<3.5Å)' : 'Medium resolution (<3.5Å)') :
+                    (locale === 'zh' ? '低分辨率 (≥3.5Å)' : 'Low resolution (≥3.5Å)')
                   } />}
                   <span className={`text-sm font-mono font-semibold ${
                     row.resolution != null
@@ -3669,9 +3669,9 @@ export default function PdbTracker() {
                       <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                         {resDotColor && (
                           <span className={`inline-block h-2 w-2 rounded-full flex-shrink-0 ${resDotColor}`} title={
-                            s.resolution! < 2.5 ? 'High resolution (<2.5Å)' :
-                            s.resolution! < 3.5 ? 'Medium resolution (<3.5Å)' :
-                            'Low resolution (≥3.5Å)'
+                            s.resolution! < 2.5 ? (locale === 'zh' ? '高分辨率 (<2.5Å)' : 'High resolution (<2.5Å)') :
+                            s.resolution! < 3.5 ? (locale === 'zh' ? '中分辨率 (<3.5Å)' : 'Medium resolution (<3.5Å)') :
+                            (locale === 'zh' ? '低分辨率 (≥3.5Å)' : 'Low resolution (≥3.5Å)')
                           } />
                         )}
                         <a href={`https://www.rcsb.org/structure/${s.pdbId}`} target="_blank" rel="noopener noreferrer"
@@ -4517,8 +4517,8 @@ export default function PdbTracker() {
           </>
         )}
 
-        {/* Error Banner — shown when API fetch fails */}
-        {fetchError && (
+        {/* Error Banner — shown when API fetch fails (hidden when DB wizard is open) */}
+        {fetchError && !dbWizardOpen && (
           <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs flex-shrink-0">
             <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
             <span className="font-medium">{fetchError === dbErrorMsg ? t.dbNotConfiguredShort : t.dataLoadFailed}</span>
@@ -4902,6 +4902,7 @@ export default function PdbTracker() {
         onClose={() => setDbWizardOpen(false)}
         onComplete={() => {
           setDbWizardOpen(false);
+          setFetchError(null); // Auto-dismiss error banner when DB is restored
           // Re-fetch all data so the UI reflects the newly-active DB.
           (async () => {
             await fetchSnapshots();

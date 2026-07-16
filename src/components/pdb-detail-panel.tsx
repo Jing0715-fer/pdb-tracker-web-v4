@@ -28,6 +28,7 @@ import {
   LayoutDashboard,
   Box,
 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
@@ -320,6 +321,7 @@ export function PdbDetailPanel({
   handleResidueClick,
   handleFocusIn3D,
 }: PdbDetailPanelProps) {
+  const { t, locale } = useI18n();
   // ── Tab state ──
   const [activeTab, setActiveTab] = useState<DetailTab>('overview');
 
@@ -381,12 +383,12 @@ export function PdbDetailPanel({
   const handleCompare = () => {
     toggleEntryCompare(effectiveEntry);
     if (isInComparison) {
-      toast('Removed from comparison');
+      toast(locale === 'zh' ? '已从比较中移除' : 'Removed from comparison');
     } else if (entryComparison.entryA) {
-      toast('Ready to compare!', { description: `${entryComparison.entryA.pdbId} vs ${effectiveEntry.pdbId}` });
+      toast(locale === 'zh' ? '准备比较！' : 'Ready to compare!', { description: `${entryComparison.entryA.pdbId} vs ${effectiveEntry.pdbId}` });
       setEntryCompareModalOpen(true);
     } else {
-      toast('Entry selected for comparison', { description: 'Select one more entry to compare' });
+      toast(locale === 'zh' ? '已选择条目用于比较' : 'Entry selected for comparison', { description: (locale === 'zh' ? '再选择一个条目进行比较' : 'Select one more entry to compare') });
     }
   };
   const handleShare = () => {
@@ -434,7 +436,7 @@ export function PdbDetailPanel({
                 {effectiveEntry.resolution.toFixed(2)}Å
               </span>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="text-[10px]">Resolution</TooltipContent>
+            <TooltipContent side="bottom" className="text-[10px]">{locale === "zh" ? "分辨率" : "Resolution"}</TooltipContent>
           </Tooltip>
         )}
         {effectiveEntry.method && (() => {
@@ -537,7 +539,7 @@ export function PdbDetailPanel({
               </div>
             )}
             <div>
-              <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">Resolution</div>
+              <div className="text-[8px] text-claude-text-muted uppercase tracking-wider">{locale === "zh" ? "分辨率" : "Resolution"}</div>
               <div className="flex items-center gap-1.5">
                 <div className="flex-1 h-1.5 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
                   <div className="h-full rounded-full transition-all duration-500"
@@ -915,7 +917,7 @@ export function PdbDetailPanel({
         {/* Score breakdown */}
         <div className="w-full space-y-1.5 mt-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-[9px] text-claude-text-muted w-16">Resolution</span>
+            <span className="text-[9px] text-claude-text-muted w-16">{locale === "zh" ? "分辨率" : "Resolution"}</span>
             <div className="flex-1 h-2 bg-claude-border-light dark:bg-claude-border rounded-full overflow-hidden">
               <div className="h-full rounded-full bg-claude-accent transition-all duration-500" style={{ width: `${(qs.resolutionScore / 35) * 100}%` }} />
             </div>
@@ -1085,7 +1087,7 @@ export function PdbDetailPanel({
             <button
               onClick={() => deleteNote(effectiveEntry.pdbId)}
               className="text-[10px] text-red-400 hover:text-red-500 dark:text-red-400 dark:hover:text-red-300 transition-colors"
-              title="Delete note"
+              title={locale === "zh" ? "删除笔记" : "Delete note"}
             >
               <Trash2 className="h-3 w-3" />
             </button>
@@ -1161,7 +1163,7 @@ export function PdbDetailPanel({
         <textarea
           value={annotations[effectiveEntry.pdbId]?.notes || ''}
           onChange={(e) => updateAnnotationNotes(effectiveEntry.pdbId, e.target.value)}
-          placeholder="Add notes about this structure..."
+          placeholder={locale === "zh" ? "添加关于此结构的笔记…" : "Add notes about this structure..."}
           className="w-full text-[11px] text-claude-text dark:text-[#d4d0cb] bg-transparent border border-claude-border-light/50 dark:border-[#3d3832]/50 rounded-md px-2 py-1.5 outline-none resize-none min-h-[60px] placeholder:text-claude-text-muted/40 dark:placeholder:text-[#9b9590]/40 focus:ring-1 focus:ring-claude-accent/30"
           onClick={(e) => e.stopPropagation()}
         />

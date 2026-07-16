@@ -331,10 +331,10 @@ export function WeeklySnapshotCompare({ currentSnapshot, previousSnapshot, allSn
       : 'text-claude-text-muted';
 
   const summaryText = overallDirection === 'improving'
-    ? 'Week over week improvements'
+    ? (locale === 'zh' ? '周环比改善' : 'Week over week improvements')
     : overallDirection === 'declining'
-      ? 'Some metrics declining'
-      : 'Mixed changes this week';
+      ? (locale === 'zh' ? '部分指标下降' : 'Some metrics declining')
+      : (locale === 'zh' ? '本周变化不一' : 'Mixed changes this week');
 
   if (!currentSnapshot) {
     return (

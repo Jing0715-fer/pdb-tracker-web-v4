@@ -767,7 +767,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                             <button
                               onClick={() => setActiveCollection(null)}
                               className="flex-shrink-0 p-0.5 rounded hover:bg-claude-border-light dark:hover:bg-[#3d3832] transition-colors"
-                              title="Clear filter"
+                              title={locale === "zh" ? "清除筛选" : "Clear filter"}
                             >
                               <X className="h-3 w-3 text-claude-accent" />
                             </button>
@@ -775,7 +775,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                           <button
                             onClick={() => deleteCollection(name)}
                             className="flex-shrink-0 p-0.5 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                            title="Delete collection"
+                            title={locale === "zh" ? "删除集合" : "Delete collection"}
                           >
                             <Trash2 className="h-3 w-3 text-claude-text-muted hover:text-red-500" />
                           </button>
@@ -1262,7 +1262,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
                         <button
                           onClick={generateInsight}
                           className="absolute top-1 right-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-claude-accent/10 transition-all"
-                          title="Regenerate insight"
+                          title={locale === "zh" ? "重新生成洞察" : "Regenerate insight"}
                         >
                           <RefreshCw className="h-3 w-3 text-claude-text-muted hover:text-claude-accent" />
                         </button>
@@ -1569,7 +1569,7 @@ export function PdbTrackerSidebar(props: PdbTrackerSidebarProps) {
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-claude-text-muted z-10" />
               <input
                 type="text"
-                placeholder="Search proteins..."
+                placeholder={locale === "zh" ? "搜索蛋白…" : "Search proteins..."}
                 value={searchQuery}
                 onChange={e => { setSearchQuery(e.target.value); setSearchDropdownOpen(true); setSearchHighlightIndex(-1); }}
                 onFocus={() => setSearchDropdownOpen(true)}

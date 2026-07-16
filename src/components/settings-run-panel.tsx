@@ -505,7 +505,7 @@ function LLMPreview({
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-rose-600 dark:text-rose-300 mb-1">LLM Call Failed</div>
                     <div className="text-sm text-muted-foreground font-mono break-all">
-                      {error || 'Unknown error'}
+                      {error || (locale === 'zh' ? '未知错误' : 'Unknown error')}
                     </div>
                     <div className="text-xs text-muted-foreground/70 mt-2">
                       No report text was generated for this run (fallback skipped, no fabricated content). Please verify that hermes / claude / codex CLI is on PATH, or set ANTHROPIC_API_KEY / OPENAI_API_KEY and retry.
@@ -892,7 +892,7 @@ function ChapterStream({
                           </div>
                         ) : isError ? (
                           <div className="rounded border border-rose-500/30 bg-rose-500/5 p-3 text-sm text-rose-600 dark:text-rose-300 font-mono break-all">
-                            {r.error || 'Unknown error'}
+                            {r.error || (locale === 'zh' ? '未知错误' : 'Unknown error')}
                           </div>
                         ) : (
                           <div className="rounded border border-border/30 bg-background/40 p-3 text-sm text-muted-foreground italic">
@@ -935,9 +935,9 @@ function CycleTimeline({
   result?: any;
 }) {
   const roles = [
-    { key: 'generator', label: 'Generator', desc: 'Initial report generation', color: 'sky' },
-    { key: 'critic-scientific', label: 'Critic-Sci', desc: 'Scientific review', color: 'amber' },
-    { key: 'synthesis', label: 'Synthesis', desc: 'Final synthesis', color: 'emerald' },
+    { key: 'generator', label: 'Generator', desc: locale === 'zh' ? '初版周报生成' : 'Initial report generation', color: 'sky' },
+    { key: 'critic-scientific', label: 'Critic-Sci', desc: locale === 'zh' ? '科学性评审' : 'Scientific review', color: 'amber' },
+    { key: 'synthesis', label: 'Synthesis', desc: locale === 'zh' ? '综合终稿' : 'Final synthesis', color: 'emerald' },
   ].slice(0, maxCycles);
 
   // Derive per-role status from the event stream + result payload.

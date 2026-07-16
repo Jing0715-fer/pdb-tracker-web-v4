@@ -104,7 +104,7 @@ class ErrorBoundaryInner extends Component<Props, State> {
               {isRecoverable
                 ? (zh
                     ? '部分资源加载失败，可能是网络波动或服务器暂时不可用。请尝试重试。'
-                    : 'Some resources failed to load, possibly due to a network blip or a temporarily unavailable server. Please retry.')
+                    : (zh ? '部分资源加载失败，可能是网络波动或服务器暂时不可用。请重试。' : 'Some resources failed to load, possibly due to a network blip or a temporarily unavailable server. Please retry.'))
                 : (zh ? '加载失败，请刷新页面重试。' : 'Loading failed. Please refresh the page and try again.')}
             </p>
             {isAutoRetrying && (

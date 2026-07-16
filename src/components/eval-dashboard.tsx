@@ -762,11 +762,11 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
         const needsAttention = (1 - coverage / 100) * diseaseRelevance;
         let reason = '';
         if (diseaseRelevance > 0.9 && coverage < 50) {
-          reason = 'High disease relevance but low structural coverage';
+          reason = locale === 'zh' ? '疾病相关性高但结构覆盖度低' : 'High disease relevance but low structural coverage';
         } else if (coverage < 30) {
-          reason = 'Very low structural coverage';
+          reason = locale === 'zh' ? '结构覆盖度极低' : 'Very low structural coverage';
         } else if (diseaseRelevance > 0.9 && structuralCoverage < 0.5) {
-          reason = 'High disease relevance, limited structural data';
+          reason = locale === 'zh' ? '疾病相关性高，结构数据有限' : 'High disease relevance, limited structural data';
         } else {
           reason = 'Moderate priority for further study';
         }
@@ -834,7 +834,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
             icon={<Activity className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#2d8f8f] to-[#1a6b6b]"
             glowColor="#2d8f8f"
-            subtitle={stats.recentTrend === 'up' ? 'Coverage trending up' : stats.recentTrend === 'down' ? 'Coverage trending down' : 'Coverage stable'}
+            subtitle={stats.recentTrend === 'up' ? (locale === 'zh' ? '覆盖率上升趋势' : 'Coverage trending up') : stats.recentTrend === 'down' ? (locale === 'zh' ? '覆盖率下降趋势' : 'Coverage trending down') : (locale === 'zh' ? '覆盖率稳定' : 'Coverage stable')}
             delay={0}
             borderColor="#2d8f8f"
             sparklineData={evalSparklines.total}
@@ -875,7 +875,7 @@ export function EvalDashboard({ evaluations, batches = [], batchSubTargets = {},
             icon={<Trophy className="h-4 w-4 text-white" />}
             color="bg-gradient-to-br from-[#c9872e] to-[#a06b1a]"
             glowColor="#c9872e"
-            subtitle="Highest combined score"
+            subtitle={locale === "zh" ? "最高综合评分" : "Highest combined score"}
             delay={160}
             borderColor="#c9872e"
             sparklineData={evalSparklines.score}

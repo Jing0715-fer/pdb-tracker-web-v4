@@ -2886,3 +2886,48 @@ Stage Summary:
 - Remaining ~123 strings are in deeply nested edge-case components (3D viewer internals, error boundaries, citation networks) that are rarely visible
 - All commonly visible UI text is now translated in Chinese mode
 - Scientific terms (Cryo-EM, X-ray, NMR, PDB ID, BLAST, IF, MolProbity) kept in English
+
+---
+Task ID: db-banner-fix-and-readme
+Agent: main
+Task: Fix DB error banner premature display, continue i18n, write README
+
+Work Log:
+- **DB error banner fix**: 
+  - Both error banners (top bar + weekly content area) now check `!dbWizardOpen` to hide when DB wizard is open
+  - `onComplete` handler now calls `setFetchError(null)` to auto-dismiss error when DB is restored
+  - "Retry" button text → `t.retry` (重试)
+- **Remaining i18n translations** (reduced from 123 to ~50):
+  - settings-run-panel.tsx: "Unknown error" → locale-aware (未知错误), weekly role descriptions
+  - pdb-tracker.tsx: resolution tooltips (High/Medium/Low resolution) → locale-aware
+  - pdb-sidebar.tsx: "Clear filter", "Delete collection", "Regenerate insight", "Search proteins..." → locale-aware
+  - error-boundary.tsx: error message text → locale-aware
+  - eval-dashboard.tsx: reason strings, coverage trend labels, "Highest combined score" → locale-aware
+  - weekly-snapshot-compare.tsx: summary text (improving/declining/mixed) → locale-aware
+  - weekly-structure-compare.tsx: resolution labels → locale-aware
+  - pdb-detail-panel.tsx: toast messages, tooltips, placeholder → locale-aware (added useI18n)
+  - LiteratureCitationNetwork.tsx: hint text → locale-aware
+  - LiteratureDetailPanel.tsx: AI summary error messages → locale-aware
+- **README written**: Comprehensive bilingual README.md with:
+  - Project overview (EN/ZH)
+  - Key features table
+  - Technology stack
+  - Architecture diagram
+  - Quick start guide
+  - 3 module detailed descriptions
+  - i18n documentation
+  - Onboarding tour steps table
+  - Configuration reference
+  - API reference
+  - Development guide
+  - Deployment instructions
+  - 5 screenshots (main page, eval mode, run center, lit mode, tour)
+- **Screenshots**: Taken 5 screenshots using agent-browser and saved to docs/images/
+- Lint: 3 remaining errors are React Compiler memoization warnings (non-blocking)
+- Build: succeeded
+- Server: running on port 3000
+
+Stage Summary:
+- DB error banner no longer shows when wizard is open, auto-dismisses on DB restore
+- ~70 more strings translated to Chinese (remaining ~50 are in deeply nested edge-case components)
+- Comprehensive bilingual README.md written with screenshots
