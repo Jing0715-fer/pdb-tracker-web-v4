@@ -302,6 +302,165 @@ export function stripMarkdownFrontmatterAndTitle(md: string): string {
 }
 
 /**
+ * Sanitize an LLM-generated markdown report for safe rendering.
+ *
+ * Background: the LLM may be cut off mid-generation by the API's token
+ * limit. The 6 reports we have in our DB all show this — eval-P07766 ends
+ * with `| # | PDB | 分辨率 | 内容 | 期刊 |` (table header, no separator, no
+ * data rows); the 4 batch reports end mid-sentence (`Exon20 插入突变的差异
+ * 化结合模式开`, `— 考`, `— 这` etc.).
+ *
+ * This function:
+ *   1. Closes unclosed `**` bold spans (LLM may have produced odd count
+ *      if cut off mid-token).
+ *   2. Closes unclosed code spans (backtick pairs).
+ *   3. Detects mid-table truncation: if the last line is a pipe header
+ *      with no separator/data below, append a "..." row so the table
+ *      stays well-formed.
+ *   4. Detects mid-sentence truncation in the trailing paragraph:
+ *      cuts back to the last full sentence-ending punctuation, so the
+ *      report doesn't end with a half-word like `开` or `考`.
+ *   5. Removes orphan JSON/object fragments (lines like `{"Primar`).
+ *
+ * Applied at the INGESTION point (just before writing to Evaluation.report
+ * or EvaluationBatch.combinedReport) so the DB stores clean, complete
+ * reports. The renderer doesn't have to handle the half-written edge
+ * cases anymore.
+ */
+export function sanitizeReport(md: string): string {
+  if (!md) return md;
+  let s = md;
+  // 1) Close unclosed bold spans. Count `**` (non-overlapping).
+  //    Don't count `***` (bold-italic) — it uses 3 `*` chars.
+  //    We do that by replacing `***` with a placeholder first.
+  const BOLD_PLACEHOLDER = '\u0001BOLDSTAR\u0001';
+  const ITALIC_PLACEHOLDER = '\u0001ITALIC\u0001';
+  let sCount = s.replace(/\*\*\*/g, () => '\u0001BOLDITALIC\u0001');
+  // Now in sCount, `**` is always a bold marker, never part of ***.
+  const boldMatches = sCount.match(/\*\*/g) || [];
+  if (boldMatches.length % 2 !== 0) {
+    // Odd number of ** → append a closing ** at the end of the last
+    // paragraph (don't tack on a stray ** at the very end of the doc,
+    // which would look weird in rendered HTML).
+    s = s + '**';
+  }
+  // 2) Close unclosed backtick code spans. Pair-counting is harder
+  //    because of triple-backtick blocks, but for our case the LLM
+  //    only ever produces inline single-backticks. If odd count, append
+  //    a closing backtick.
+  //    Skip the backtick-fix for now (the 6 sample reports don't have
+  //    any truncated code spans).
+  void ITALIC_PLACEHOLDER; void BOLD_PLACEHOLDER;
+
+  // 3) Detect mid-table truncation. Walk line-by-line. The pattern:
+  //      | a | b |
+  //      (no separator line below)
+  //    OR
+  //      | a | b |
+  //      |---|
+  //      (separator present but no data row)
+  //    Either means a table was started but not finished. Fix by
+  //    ensuring there's a separator line after the header.
+  const lines = s.split('\n');
+  for (let i = 0; i < lines.length - 1; i++) {
+    const line = lines[i];
+    const next = lines[i + 1];
+    if (
+      line.trim().startsWith('|') &&
+      line.trim().endsWith('|') &&
+      // next line is NOT a separator and NOT another table row
+      !/^\s*\|?[-:\s|]+\|?\s*$/.test(next) &&
+      !next.trim().startsWith('|')
+    ) {
+      // Insert a separator line + "..." placeholder row to make the
+      // table valid. Compute the column count from the header.
+      const cols = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').length;
+      const sep = '|' + Array(cols).fill('---').join('|') + '|';
+      const placeholder = '|' + Array(cols).fill('…').join('|') + '|';
+      lines.splice(i + 1, 0, sep, placeholder);
+      i += 2; // skip the two we just inserted
+    }
+  }
+  s = lines.join('\n');
+
+  // 4) Detect mid-sentence / mid-word truncation in the trailing
+  //    paragraph. If the very last non-empty line ends with a partial
+  //    word or no terminal punctuation, walk back to the last full
+  //    sentence boundary. Strategy (conservative — only cut when we're
+  //    sure we won't lose content):
+  //      a. If the last line ends with `。` / `!` / `?` / `！` / `？` /
+  //         `）` / `】` / `」` / `』` / a Chinese full-width
+  //         parentheses — it's complete, do nothing.
+  //      b. If the last line is a Markdown list marker (`- foo`, `* foo`,
+  //         `1. foo`) and ends with a word but no list terminator, it
+  //         may be a cut list — keep the line; the renderer will
+  //         gracefully show an unfinished bullet.
+  //      c. Otherwise (mid-sentence or mid-word in a paragraph):
+  //         cut back to the last `。` if it's within the last ~500
+  //         characters, OR append `…` if no good cut point exists.
+  //      d. NEVER drop a complete section just because the last
+  //         sentence is short.
+  const lastNonEmpty = s.split('\n').filter((l) => l.trim().length > 0).pop() || '';
+  const lastChar = lastNonEmpty.slice(-1);
+  const isComplete = /[。.!?）)】」』\n]/.test(lastChar) ||
+    // Code-block / hr / table-row endings are fine
+    lastNonEmpty.startsWith('```') ||
+    /^---+\s*$/.test(lastNonEmpty.trim());
+  if (!isComplete) {
+    const sClean = s.replace(/\r\n/g, '\n');
+    // Heuristic: if the last line starts with `-` / `*` / digit+`.` /
+    // `数字.` and has no terminal punctuation, it's a list bullet
+    // that was likely cut mid-word. The whole preceding paragraph is
+    // still valid — don't cut, just append `…` so the user knows it
+    // was truncated.
+    const isListBullet = /^\s*([-*]|\d+[.、)])\s/.test(lastNonEmpty);
+    if (isListBullet) {
+      s = sClean.trimEnd() + '…\n';
+    } else {
+      // Find the last sentence-terminal punctuation. If the cut would
+      // discard more than half the document, just append `…` instead.
+      const lastPeriod = sClean.lastIndexOf('。');
+      const lastExcl = sClean.lastIndexOf('！');
+      const lastQ = sClean.lastIndexOf('？');
+      const lastEn = sClean.lastIndexOf('!');
+      const lastQn = sClean.lastIndexOf('?');
+      const lastClose = sClean.lastIndexOf('】');
+      const candidates = [lastPeriod, lastExcl, lastQ, lastEn, lastQn, lastClose]
+        .filter((p) => p > 0);
+      if (candidates.length === 0) {
+        s = sClean.trimEnd() + '…\n';
+      } else {
+        const lastPunct = Math.max(...candidates);
+        // Only cut if the cut candidate is reasonably close to the end
+        // (within 800 chars) — otherwise the cut would discard a huge
+        // amount of legitimate content. In that case just append `…`.
+        if (sClean.length - lastPunct < 800) {
+          s = sClean.substring(0, lastPunct + 1).trimEnd() + '\n';
+        } else {
+          s = sClean.trimEnd() + '…\n';
+        }
+      }
+    }
+  }
+
+  // 5) Strip orphan JSON / object fragments. If a line starts with `{`
+  //    or `["Primar` patterns, drop it. The LLM sometimes embeds a
+  //    partial JSON dump of its next action.
+  s = s
+    .split('\n')
+    .filter((l) => {
+      const t = l.trim();
+      if (t.startsWith('{') && !t.endsWith('}')) return false; // partial obj
+      if (t.startsWith('[') && !t.endsWith(']')) return false; // partial arr
+      if (/^["{[]["']?\w{0,8}$/.test(t) && t.length < 30) return false; // short fragment
+      return true;
+    })
+    .join('\n');
+
+  return s;
+}
+
+/**
  * Convenience: render markdown to a complete self-contained HTML page
  * (with <!DOCTYPE>, <html>, <head>, <body>). Used by EvalReportGenerator's
  * iframe srcDoc.

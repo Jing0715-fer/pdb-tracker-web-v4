@@ -1,6 +1,7 @@
 import { sseStream, sleep, type SseEvent } from '@/lib/sse';
 import { generateText } from '@/lib/llm';
 import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, buildChapterSystemPrompt, type ReportChapterKey } from '@/lib/report-template';
+import { sanitizeReport } from '@/lib/markdown-renderer';
 import { fetchPdbIdsForUniprot, fetchPdbEntryDetails, fetchUniprotMeta, type PdbEntryDetail } from '@/lib/rcsb';
 import { runBlast, runBlastDb, fetchUniprotSequence } from '@/lib/blast';
 import { db } from '@/lib/db';
@@ -376,7 +377,13 @@ ${blastTable}${litBlock}
 请基于 BLAST 同源搜索结果和 UniProt 元数据生成评估报告。重点分析输入序列与已知蛋白的同源性、结构特征、功能推断。`;
             const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白序列评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 序列概述、## BLAST 同源结构分析、## 可成药性评估、## 实验建议、## 总结。';
             const r = await generateText(bSysPrompt, userPrompt, { maxChars: 2000, llm: body.llm });
-            report = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, fallback: false };
+            // Sanitize the LLM output: closes unclosed **, completes truncated
+            // table headers, cuts back to last full sentence if the LLM was
+            // cut off mid-word. Applied at ingestion so the DB stores clean
+            // reports — the renderer no longer needs to handle the half-
+            // written edge cases.
+            const sanitized = r.ok && r.content ? sanitizeReport(r.content) : (r.content || '');
+            report = { ok: r.ok, content: sanitized, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: sanitized.length, fallback: false };
             if (r.ok) emit({ stage: 'llm-report', level: 'success', message: `${prefix}LLM 报告已生成 · ${report.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 90 });
             else emit({ stage: 'llm-report', level: 'error', message: `${prefix}LLM 报告失败：${r.error}`, progress: 90 });
           } catch (err: any) {
@@ -539,7 +546,13 @@ ${overlapSummary}${crossLitBlock}
 ### 六、总结与建议
 （总结序列间关系，提出后续研究建议）`;
               const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
-              crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
+              // Sanitize the cross-report: closes unclosed **, completes
+              // truncated tables, cuts back to last full sentence if the
+              // LLM was cut off mid-word. The 4 batch reports in our DB all
+              // show this kind of mid-sentence / mid-table truncation
+              // (4 of 6 sample reports were truncated).
+              const crossContent = r.ok && r.content ? sanitizeReport(r.content) : (r.content || '');
+              crossReport = { ok: r.ok, content: crossContent, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: crossContent.length, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
               if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 跨序列相关性报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: 100 });
               else emit({ stage: 'cross-llm', level: 'error', message: `✗ 跨序列相关性 LLM 失败：${r.error}`, progress: 100 });
             } catch (err: any) {
@@ -893,7 +906,12 @@ ${overlapSummary}${crossLitBlock}
 
         const chaptersTotalMs = Date.now() - tReportStart;
         // Concatenate chapters in canonical order into the final report content.
-        const finalReport = chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n');
+        // Sanitize the joined result so a chapter that was cut off mid-word
+        // doesn't poison the entire report (the sanitizer cuts back to the
+        // last complete sentence across the whole concatenated text).
+        const finalReport = sanitizeReport(
+          chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n')
+        );
         const allOk = perChapterFailCount === 0;
         if (allOk) {
           emit({ stage: 'llm-report', level: 'success', message: `✓ LLM 分章生成完成 · ${perChapterOkCount}/${totalChapters} 章节 · ${finalReport.length} chars · 共 ${(chaptersTotalMs / 1000).toFixed(1)}s · ${provider}/${model}${saveReportFile ? ' · 已落盘' : ''}`, progress: 91 });
