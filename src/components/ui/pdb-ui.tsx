@@ -1,14 +1,13 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { X, Clock, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { TagInfo, TagCategory } from '@/lib/pdb-types';
 import { PAGE_SIZE_OPTIONS, loadStoredPageSize } from '@/lib/pdb-utils';
+import { renderMarkdownToHtml, stripMarkdownFrontmatterAndTitle } from '@/lib/markdown-renderer';
 
 // ─── Tag Category Styles ──────────────────────────────────────────────────
 
@@ -63,8 +62,17 @@ export function ReportModal({ isOpen, onClose, title, content }: { isOpen: boole
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Strip YAML frontmatter AND first H1 heading (to avoid title duplication with modal header)
-  const strippedContent = content.replace(/^---[\s\S]*?---\s*/m, '').replace(/^#\s+.+\n/, '');
+  // Strip YAML frontmatter AND first H1 heading (to avoid title duplication with modal header).
+  // We use the shared renderer instead of react-markdown + remark-gfm because
+  // that stack was failing to render certain GFM pipe tables in batch
+  // cross-target reports (e.g. the 9IP8 list, which would show as plain
+  // text with raw `|-----|` separators visible). Our converter is more
+  // predictable: it handles 4 table formats and consistently renders every
+  // table we have in the DB.
+  const bodyHtml = useMemo(() => {
+    const stripped = stripMarkdownFrontmatterAndTitle(content);
+    return renderMarkdownToHtml(stripped).bodyHtml;
+  }, [content]);
 
   return (
     <AnimatePresence>
@@ -94,9 +102,10 @@ export function ReportModal({ isOpen, onClose, title, content }: { isOpen: boole
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-5 custom-scrollbar preview-scroll">
-              <div className="markdown-content report-markdown">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{strippedContent}</ReactMarkdown>
-              </div>
+              <div
+                className="markdown-content report-markdown"
+                dangerouslySetInnerHTML={{ __html: bodyHtml }}
+              />
             </div>
           </motion.div>
         </motion.div>
