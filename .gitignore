@@ -58,12 +58,9 @@ server.log
 /db/*.db
 /db/*.db-journal
 /db/*.db-wal
+/db/backups/
 /download/
 /tool-results/
-/.zscripts/dev.pid
-/.zscripts/dev.out.log
-/.zscripts/prod.pid
-/.zscripts/prod.out.log
 /mini-services/
 /Atomworks/
 /Vitrual-lab/
