@@ -1220,12 +1220,16 @@ export default function PdbTracker() {
         ['Cryo-EM', 'X-RAY DIFFRACTION', 'SOLUTION NMR'].includes(activeFilter)
         ? activeFilter : undefined;
       await fetchEntries(selectedSnapshot || undefined, methodFilter, searchQuery || undefined);
-      if (fetchedModesRef.current.has('evaluation')) await fetchEvaluations();
-      if (fetchedModesRef.current.has('literature')) {
-        await fetchLitStats();
-        await fetchLitPapers();
-        await fetchLitReports();
-      }
+      // Always fetch evaluations + literature on a full refresh — the Run
+      // Center may have just written new batch/eval/literature rows that the
+      // user needs to see immediately, even if they haven't visited those
+      // modes yet.
+      await fetchEvaluations();
+      fetchedModesRef.current.add('evaluation');
+      await fetchLitStats();
+      await fetchLitPapers();
+      await fetchLitReports();
+      fetchedModesRef.current.add('literature');
       setDataFetchedAt(new Date());
       toast.success('Data refreshed', { description: 'All data has been updated' });
     } finally {

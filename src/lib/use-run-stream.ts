@@ -51,12 +51,41 @@ const INITIAL: StreamState = {
 export function useRunStream() {
   const [state, setState] = useState<StreamState>(INITIAL);
   const abortRef = useRef<AbortController | null>(null);
+  // Buffer for incoming log events — flushed to state on an interval to
+  // avoid re-rendering on every single SSE frame (which can be 10+/second
+  // during chapter streaming and causes UI jank / perceived "page refresh").
+  const logBufRef = useRef<StreamEvent[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startFlushTimer = useCallback(() => {
+    if (flushTimerRef.current) return;
+    flushTimerRef.current = setInterval(() => {
+      if (logBufRef.current.length === 0) return;
+      const batch = logBufRef.current;
+      logBufRef.current = [];
+      setState(s => ({ ...s, log: [...s.log, ...batch].slice(-300) }));
+    }, 120); // ~8 fps — smooth enough for progress, light on React
+  }, []);
+  const stopFlushTimer = useCallback(() => {
+    if (flushTimerRef.current) {
+      clearInterval(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+    // Final flush
+    if (logBufRef.current.length > 0) {
+      const batch = logBufRef.current;
+      logBufRef.current = [];
+      setState(s => ({ ...s, log: [...s.log, ...batch].slice(-300) }));
+    }
+  }, []);
 
   const reset = useCallback(() => {
     abortRef.current?.abort();
     abortRef.current = null;
+    logBufRef.current = [];
+    stopFlushTimer();
     setState(INITIAL);
-  }, []);
+  }, [stopFlushTimer]);
 
   const start = useCallback((url: string, body?: any) => {
     // cancel any in-flight stream first
@@ -64,7 +93,9 @@ export function useRunStream() {
     const ctrl = new AbortController();
     abortRef.current = ctrl;
 
+    logBufRef.current = [];
     setState({ ...INITIAL, running: true });
+    startFlushTimer();
 
     (async () => {
       try {
@@ -77,6 +108,7 @@ export function useRunStream() {
 
         if (!res.ok) {
           const text = await res.text().catch(() => '');
+          stopFlushTimer();
           setState(s => ({
             ...s,
             running: false,
@@ -88,6 +120,7 @@ export function useRunStream() {
         }
 
         if (!res.body) {
+          stopFlushTimer();
           setState(s => ({ ...s, running: false, done: true, ok: false, error: 'No response body' }));
           return;
         }
@@ -134,8 +167,10 @@ export function useRunStream() {
                 chapterError: payload?.chapterError,
                 chapterDurationMs: payload?.chapterDurationMs,
               };
-              setState(s => ({ ...s, log: [...s.log, ev].slice(-300) }));
+              // Buffer — flushed by interval to avoid per-event re-renders.
+              logBufRef.current.push(ev);
             } else if (eventName === 'done' || eventName === 'result') {
+              stopFlushTimer();
               setState(s => ({
                 ...s,
                 running: false,
@@ -145,6 +180,7 @@ export function useRunStream() {
               }));
               return;
             } else if (eventName === 'error') {
+              stopFlushTimer();
               setState(s => ({
                 ...s,
                 running: false,
@@ -158,8 +194,10 @@ export function useRunStream() {
         }
 
         // Stream ended without explicit done/error — treat as success.
+        stopFlushTimer();
         setState(s => ({ ...s, running: false, done: true, ok: true }));
       } catch (err: any) {
+        stopFlushTimer();
         if (err?.name === 'AbortError') {
           setState(s => ({ ...s, running: false, done: true, ok: false, error: 'cancelled' }));
         } else {
@@ -181,13 +219,19 @@ export function useRunStream() {
         }
       }
     })();
-  }, []);
+  }, [startFlushTimer, stopFlushTimer]);
 
   const cancel = useCallback(() => {
     abortRef.current?.abort();
   }, []);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
+  useEffect(() => () => {
+    abortRef.current?.abort();
+    if (flushTimerRef.current) {
+      clearInterval(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, []);
 
   return { state, start, reset, cancel };
 }

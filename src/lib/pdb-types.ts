@@ -193,6 +193,10 @@ export interface LitPaper {
   keywords?: string[];
   tags?: string[];
   source?: string | null;
+  /** Evaluation targets that reference this paper (via EvaluationPdbStructure.pubmedId). */
+  sourceTargets?: Array<{ uniprotId: string; proteinName: string; pdbId: string }>;
+  /** Number of distinct targets referencing this paper. */
+  sourceTargetCount?: number;
 }
 
 export interface LitPaperPdb {

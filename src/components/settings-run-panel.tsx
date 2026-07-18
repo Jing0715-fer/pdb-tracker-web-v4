@@ -1595,7 +1595,10 @@ export function SettingsRunPanel({
       log({ ts: new Date().toISOString(), module: 'eval', status: 'error', summary: s.error });
     }
     markDone('eval');
-     
+    // ★ Notify parent so the evaluation list (including new batch entries) is
+    // refetched immediately — fixes "first target appears in single evals
+    // instead of under the batch" caused by stale UI data.
+    if (s.ok) onDbChanged?.();
   }, [evalStream.state.done]);
 
   const weeklyLogThrottle = useRef(0);

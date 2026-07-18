@@ -24,17 +24,17 @@ const BASE_DELAY = 1500;
 function isRecoverableError(error: Error): boolean {
   const msg = error.message || '';
   const name = error.name || '';
+  // Only auto-retry for chunk-loading / module-loading errors (real HMR
+  // glitches). Do NOT match generic "fetch" — that catches too many
+  // unrelated errors (including SSE stream failures handled by useRunStream)
+  // and causes spurious full-tree re-renders that feel like page refreshes.
   return (
     name === 'ChunkLoadError' ||
     msg.includes('Loading chunk') ||
-    msg.includes('Failed to fetch') ||
     msg.includes('Failed to load chunk') ||
     msg.includes('Importing a module script failed') ||
     msg.includes('dynamically imported module') ||
-    msg.includes('NetworkError') ||
-    msg.includes('Network request failed') ||
-    msg.includes('fetch') ||
-    msg.includes('Load failed')
+    msg.includes('Load failed') && msg.includes('chunk')
   );
 }
 

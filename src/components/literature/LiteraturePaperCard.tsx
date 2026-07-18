@@ -305,6 +305,46 @@ export function LiteraturePaperCard({
             </div>
           )}
 
+          {/* Source target tags — which evaluation targets reference this paper */}
+          {paper.sourceTargets && paper.sourceTargets.length > 0 && (() => {
+            // Dedup by uniprotId (a target may cite the same paper via multiple PDBs)
+            const seen = new Set<string>();
+            const uniqueTargets = paper.sourceTargets.filter(t => {
+              if (seen.has(t.uniprotId)) return false;
+              seen.add(t.uniprotId);
+              return true;
+            });
+            return (
+              <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap mb-1.5 sm:mb-2">
+                <span className="text-[8px] sm:text-[9px] text-claude-text-muted font-medium uppercase tracking-wide">来源靶点:</span>
+                {uniqueTargets.slice(0, 5).map((t) => (
+                  <Tooltip key={t.uniprotId}>
+                    <TooltipTrigger asChild>
+                      <span
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/50 cursor-default"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <span className="font-mono font-semibold">{t.uniprotId}</span>
+                        {paper.sourceTargets!.filter(x => x.uniprotId === t.uniprotId).length > 1 && (
+                          <span className="opacity-60">×{paper.sourceTargets!.filter(x => x.uniprotId === t.uniprotId).length}</span>
+                        )}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <div className="text-xs">
+                        <div className="font-semibold">{t.proteinName}</div>
+                        <div className="opacity-70 mt-0.5">{t.uniprotId} · PDB: {paper.sourceTargets!.filter(x => x.uniprotId === t.uniprotId).map(x => x.pdbId).join(', ')}</div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                ))}
+                {uniqueTargets.length > 5 && (
+                  <span className="text-[8px] sm:text-[9px] text-claude-text-muted">+{uniqueTargets.length - 5} more</span>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Keywords/Tags */}
           {paper.keywords && paper.keywords.length > 0 && (
             <div className="flex items-center gap-0.5 sm:gap-1 flex-wrap mb-1.5 sm:mb-2">

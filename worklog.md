@@ -3180,3 +3180,24 @@ additional new file is permitted.
 - Lint clean for all new files.
 - Plugin modules verified end-to-end via direct bun smoke test.
 - No existing source files modified.
+
+---
+Task ID: bugfix-batch-eval-lit-refresh
+Agent: main (claude)
+Task: Fix 4 bugs reported by user: (1) batch eval progress bar jumps back to 50% on 2nd target, (2) first target shows in single-evals instead of under batch, (3) literature backfill data not shown in Literature module with source-target tags, (4) page frequently refreshes during runs.
+
+Work Log:
+- Pulled latest origin/main (merged 64920a2 Linting + SSE close), resolved .env conflict (kept local Linux path).
+- Bug 1 (progress bar): Refactored `src/app/api/evaluations/run/route.ts` — introduced `remapProgress()` that maps each target's local 0..100 progress into its global slot [2+bi*slot, 2+(bi+1)*slot). Set `_batchIdx` before primary target run (bi=0) and inside the batch loop (bi=1..N-1). Cross-analysis uses fixed 97..100. Replaced all `windowStart+5` literals with proper local progress values (30/50/55/60/90/95/100). Result: progress bar advances monotonically across all targets.
+- Bug 2 (first target in single-evals): Two fixes. (a) Backend — the `pdbDetails.length=0` memory cleanup at line ~1042 ran BEFORE the batch cross-analysis, zeroing the primary target's PDB data and breaking `batchResults[0].pdbDetails`. Moved cleanup to only clear blastHits pre-batch and defer pdbDetails cleanup until after cross-analysis. (b) Frontend — `settings-run-panel.tsx` now calls `onDbChanged?.()` on eval-stream completion, and `pdb-tracker.tsx` `handleRetryAll` always fetches evaluations + literature (not gated on `fetchedModesRef`), so new batch rows appear immediately.
+- Bug 3 (literature backfill): Added `backfillPubMedArticles()` helper in run/route.ts — collects pubmedIds from PDB details, queries PubMedArticle for existing, efetches missing from NCBI E-utilities, upserts with ON CONFLICT DO NOTHING (dedup). Called after DB write for both primary and batch targets. Updated `/api/literature/papers` route to JOIN PubMedArticle ↔ EvaluationPdbStructure ↔ Evaluation, returning `sourceTargets[]` (deduped by uniprotId+pdbId) and `sourceTargetCount` per paper. Extended `LitPaper` type with `sourceTargets` + `sourceTargetCount`. Added "来源靶点" tag row to `LiteraturePaperCard.tsx` (sky-blue pills with protein-name tooltip, deduped by uniprotId, shows ×N count when same target cites via multiple PDBs).
+- Bug 4 (frequent page refresh): Root cause = SSE `setState` on every frame (10+/sec during chapter streaming) caused React re-render storms + dev server OOM crashes. Fixed `use-run-stream.ts` — added `logBufRef` + 120ms interval flush timer (~8fps), batching log events instead of per-frame setState. Narrowed `error-boundary.tsx` `isRecoverableError()` to only match real chunk-load errors (removed generic "fetch"/"Failed to fetch"/"Load failed" which caught unrelated SSE errors and triggered spurious auto-retries). Reduced dev server `--max-old-space-size` from 4096 to 2048 + added `--expose-gc`. Added `scripts/dev-keepalive.sh` auto-restart wrapper (10 retries, 5s cooldown).
+- Verification: Seeded test batch (P00533 + P04626, 3 PubMed articles, 5 PDB structures linking to articles). Confirmed via API: `/api/evaluations` shows 1 batch with 2 subtargets, 0 individual evals; `/api/literature/papers` returns 3 papers with correct `sourceTargets` (PMID 34567890 shows both P00533 + P04626 — the dedup+multi-target case). Agent Browser verified: Evaluation mode shows batch with both targets nested; Literature mode shows 3 papers with "来源靶点: P00533 P04626" tags visible. Cleaned up test data after verification.
+- Lint: `eslint` on all 8 changed files — 0 errors, 0 warnings.
+
+Stage Summary:
+- 4 bugs fixed across 8 files.
+- Batch progress now monotonic (slot-based remapping).
+- Batch targets correctly grouped under batch (no more stray single-eval).
+- Evaluation auto-backfills PubMed articles → Literature module with source-target tags + dedup.
+- SSE throttling (120ms flush) + narrowed error boundary + dev keepalive = stable UI during runs.
