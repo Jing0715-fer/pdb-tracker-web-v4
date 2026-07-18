@@ -2261,6 +2261,7 @@ export function SettingsRunPanel({
                     {locale === 'zh' ? '保存为 LLM-Wiki 文件' : 'Save to LLM-Wiki file'}
                   </label>
                 </div>
+                <RunHistoryPanel moduleKey="eval" refreshKey={evalRunCount} limit={5} />
               </ModuleCard>
             </TabsContent>
 
@@ -2389,6 +2390,7 @@ export function SettingsRunPanel({
                     )}
                   </div>
                 )}
+                <RunHistoryPanel moduleKey="literature" refreshKey={litRunCount} limit={5} />
               </ModuleCard>
             </TabsContent>
 
@@ -2488,6 +2490,7 @@ export function SettingsRunPanel({
                   ok={weeklyStream.state.ok}
                   emptyHint={locale === 'zh' ? '选择周期数并点击 “立即执行” 启动对抗式周报生成器' : 'Select cycles and click Run Now to start the adversarial weekly report generator'}
                 />
+                <RunHistoryPanel moduleKey="weekly" refreshKey={weeklyRunCount} limit={5} />
               </ModuleCard>
               </TabsContent>
             </div>
