@@ -20,7 +20,7 @@
  */
 
 import { spawn, execSync } from 'node:child_process';
-import { existsSync, writeFileSync, readFileSync, unlinkSync, statSync } from 'node:fs';
+import { existsSync, writeFileSync, readFileSync, unlinkSync, statSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -746,7 +746,13 @@ const PROBE_TTL_MS = 5 * 60_000; // 5 minutes — in-process TTL for probe resul
 // out, etc.) the caller can pass `markStale: true` to drop that one entry
 // from the on-disk cache so the next `inspectProviders()` re-probes it.
 
-const DISK_CACHE_FILE = '.hermes/llm-providers-cache.json';
+// Cache file lives in the OS temp dir (/tmp on Linux) so that writing it
+// during an eval run does NOT trigger webpack's file watcher → no HMR /
+// page refresh / CSS flash. The project's .hermes/ dir is still used for
+// db-config.json (written rarely, only on DB path change).
+const _CACHE_DIR = join(tmpdir(), 'pdb-tracker-cache');
+try { mkdirSync(_CACHE_DIR, { recursive: true }); } catch { /* ignore */ }
+const DISK_CACHE_FILE = join(_CACHE_DIR, 'llm-providers-cache.json');
 const DISK_CACHE_VERSION = 1;
 const DISK_TTL_MS = 144 * 60 * 60_000; // 144 hours (6 days)
 
