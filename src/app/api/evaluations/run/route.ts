@@ -1038,7 +1038,7 @@ ${overlapSummary}${crossLitBlock}
         dbSaved,
         durationMs: Date.now() - t0,
       };
-      emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: windowStart + 5 });
+      emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: 100 });
 
       // ── Batch mode: evaluate remaining targets + cross-target relationship analysis ──
       // Progress is split evenly across all targets so the user sees each target
