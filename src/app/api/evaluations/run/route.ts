@@ -1,6 +1,7 @@
 import { sseStream, sleep, type SseEvent } from '@/lib/sse';
 import { generateText } from '@/lib/llm';
-import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, type ReportChapterKey } from '@/lib/report-template';
+import { buildReportSystemPrompt, buildReportUserPrompt, buildDetailedPdbTable, buildDetailedBlastTable, buildChapterPrompt, buildChapterSystemPrompt, type ReportChapterKey } from '@/lib/report-template';
+import { sanitizeReport } from '@/lib/markdown-renderer';
 import { fetchPdbIdsForUniprot, fetchPdbEntryDetails, fetchUniprotMeta, type PdbEntryDetail } from '@/lib/rcsb';
 import { runBlast, runBlastDb, fetchUniprotSequence } from '@/lib/blast';
 import { db } from '@/lib/db';
@@ -224,13 +225,19 @@ export async function POST(req: Request) {
           emit({ stage: 'blast', level: 'error', message: `${prefix}BLAST pdbaa 失败：${err?.message}`, progress: 40 });
         }
 
-        // Convert BLAST hits to PDB-like details for scoring and report
-        const pdbDetails: PdbEntryDetail[] = blastHits.map((h: any) => ({
-          pdbId: h.pdbId, method: h.method || 'X-RAY DIFFRACTION', resolution: h.resolution ?? null,
-          title: h.description || h.title || '', journal: h.journal || '', journalIf: h.journalIf ?? null,
-          doi: null, pubmedId: h.pubmedId || null, organisms: h.organism || '',
-          authors: '', ligands: '', depositDate: null, releaseDate: h.releaseDate || null,
-        }));
+        // Build pdbDetails from BLAST hits. For pdbaa hits, pdbId is real.
+        // For nr hits, pdbId is empty (we never extract fake pdbIds from
+        // UniProt accessions — see parseBlastXml in src/lib/blast.ts). The
+        // real pdb list for nr-fallback path comes from UniProt → RCSB lookup
+        // below, AFTER we have the uniprotAcc.
+        let pdbDetails: PdbEntryDetail[] = blastHits
+          .filter((h: any) => h.pdbId)  // skip nr hits with empty pdbId
+          .map((h: any) => ({
+            pdbId: h.pdbId, method: h.method || 'X-RAY DIFFRACTION', resolution: h.resolution ?? null,
+            title: h.description || h.title || '', journal: h.journal || '', journalIf: h.journalIf ?? null,
+            doi: null, pubmedId: h.pubmedId || null, organisms: h.organism || '',
+            authors: '', ligands: '', depositDate: null, releaseDate: h.releaseDate || null,
+          }));
 
         // ── Fetch UniProt metadata from the top BLAST hit ──
         let uniprotInfo: any = { uniprotId: seqId, entryName: 'Sequence Input', proteinName: `Input Sequence (${sequence.length}aa)`, geneNames: 'N/A', organism: 'N/A', sequenceLength: sequence.length };
@@ -283,6 +290,36 @@ export async function POST(req: Request) {
               }
             } else {
               emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}未找到关联的 UniProt accession`, progress: 46 });
+            }
+
+            // ── nr-fallback path: fetch REAL PDB IDs from UniProt → RCSB ──
+            // The nr BLAST hit's pdbId is empty (parseBlastXml never extracts
+            // a fake one from a UniProt accession). To get a real PDB list
+            // for scoring + the LLM report, query RCSB by the UniProt accession
+            // we just resolved. We MERGE these with any pdbaa hits already in
+            // pdbDetails (in case some pdbaa hits survived the threshold), and
+            // dedup by pdbId. UniProt-sourced entries take priority (they carry
+            // proper RCSB metadata: method, resolution, journal, pubmedId).
+            if (usedNrFallback && uniprotAcc) {
+              emit({ stage: 'rcsb-from-uniprot', level: 'info', message: `${prefix}nr-fallback 路径: 从 UniProt ${uniprotAcc} 反查真实 PDB ID（最多 ${maxPdb}）…`, progress: 47 });
+              try {
+                const uniprotPdbIds = await fetchPdbIdsForUniprot(uniprotAcc, maxPdb);
+                if (uniprotPdbIds.length > 0) {
+                  const uniprotPdbDetails = await fetchPdbEntryDetails(uniprotPdbIds, uniprotPdbIds.length);
+                  // Dedup: prefer UniProt-sourced entries (full RCSB metadata)
+                  // over any leftover pdbaa hits that happen to share a pdbId.
+                  const seenPdbIds = new Set(uniprotPdbDetails.map(e => e.pdbId));
+                  pdbDetails = [
+                    ...uniprotPdbDetails,
+                    ...pdbDetails.filter(e => !seenPdbIds.has(e.pdbId)),
+                  ];
+                  emit({ stage: 'rcsb-from-uniprot', level: 'success', message: `${prefix}✓ UniProt ${uniprotAcc} → RCSB 反查命中 ${uniprotPdbDetails.length} 个真实 PDB（合并后 ${pdbDetails.length}）`, progress: 48 });
+                } else {
+                  emit({ stage: 'rcsb-from-uniprot', level: 'warn', message: `${prefix}UniProt ${uniprotAcc} 在 RCSB 中无关联 PDB`, progress: 48 });
+                }
+              } catch (rcsbErr: any) {
+                emit({ stage: 'rcsb-from-uniprot', level: 'warn', message: `${prefix}RCSB 反查失败: ${rcsbErr?.message}`, progress: 48 });
+              }
             }
           } catch (err: any) {
             emit({ stage: 'uniprot-lookup', level: 'warn', message: `${prefix}UniProt 查找失败: ${err?.message}`, progress: 46 });
@@ -340,7 +377,13 @@ ${blastTable}${litBlock}
 请基于 BLAST 同源搜索结果和 UniProt 元数据生成评估报告。重点分析输入序列与已知蛋白的同源性、结构特征、功能推断。`;
             const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白序列评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 序列概述、## BLAST 同源结构分析、## 可成药性评估、## 实验建议、## 总结。';
             const r = await generateText(bSysPrompt, userPrompt, { maxChars: 2000, llm: body.llm });
-            report = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, fallback: false };
+            // Sanitize the LLM output: closes unclosed **, completes truncated
+            // table headers, cuts back to last full sentence if the LLM was
+            // cut off mid-word. Applied at ingestion so the DB stores clean
+            // reports — the renderer no longer needs to handle the half-
+            // written edge cases.
+            const sanitized = r.ok && r.content ? sanitizeReport(r.content) : (r.content || '');
+            report = { ok: r.ok, content: sanitized, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: sanitized.length, fallback: false };
             if (r.ok) emit({ stage: 'llm-report', level: 'success', message: `${prefix}LLM 报告已生成 · ${report.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: 90 });
             else emit({ stage: 'llm-report', level: 'error', message: `${prefix}LLM 报告失败：${r.error}`, progress: 90 });
           } catch (err: any) {
@@ -353,16 +396,33 @@ ${blastTable}${litBlock}
           const scoresJson = JSON.stringify({ 'X-ray': { score: scores.xray.score, rating: scores.xray.rating }, 'Cryo-EM': { score: scores.cryoem.score, rating: scores.cryoem.rating }, 'NMR': { score: scores.nmr.score, rating: scores.nmr.rating }, 'Overall': { score: scores.overall.score, rating: scores.overall.rating } });
           await db.$executeRaw`INSERT INTO Evaluation (uniprotId, entryName, proteinName, geneNames, organism, sequenceLength, coverage, scores, report, maxPdbUsed, blastWasSkipped, pdbCountAtEval, createdAt, updatedAt) VALUES (${seqId}, ${uniprotInfo.entryName}, ${uniprotInfo.proteinName}, ${uniprotInfo.geneNames}, ${uniprotInfo.organism}, ${uniprotInfo.sequenceLength}, ${coverage}, ${scoresJson}, ${report?.ok ? report.content : null}, 0, false, ${pdbDetails.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP) ON CONFLICT(uniprotId) DO UPDATE SET entryName = excluded.entryName, proteinName = excluded.proteinName, geneNames = excluded.geneNames, organism = excluded.organism, sequenceLength = excluded.sequenceLength, coverage = excluded.coverage, scores = excluded.scores, report = excluded.report, updatedAt = CURRENT_TIMESTAMP`;
           await db.$executeRaw`DELETE FROM EvaluationPdbStructure WHERE uniprotId = ${seqId}`;
+          // Dedup by pdbId — the same PDB can show up multiple times in
+          // pdbDetails (BLAST report can return the same entry for
+          // multiple chains / HSP regions). We keep the first occurrence.
+          const seenPdbIds = new Set<string>();
+          let dedupedPdbCount = 0;
           for (const e of pdbDetails) {
+            if (!e.pdbId || seenPdbIds.has(e.pdbId)) continue;
+            seenPdbIds.add(e.pdbId);
+            dedupedPdbCount++;
             const isCryoem = (e.method || '').includes('ELECTRON'); const isXray = (e.method || '').includes('X-RAY'); const isNmr = (e.method || '').includes('NMR');
             const ifTier = e.journalIf == null ? 'unknown' : e.journalIf >= 20 ? 'top' : e.journalIf >= 10 ? 'high' : e.journalIf >= 5 ? 'mid' : 'low';
             await db.$executeRaw`INSERT INTO EvaluationPdbStructure (uniprotId, pdbId, method, resolution, title, depositionDate, releaseDate, ligand, ligandNames, journal, journalIf, doi, pubmedId, organism, authors, isCryoem, isXray, isNmr, ifTier) VALUES (${seqId}, ${e.pdbId}, ${e.method}, ${e.resolution}, ${e.title}, ${e.depositDate || null}, ${e.releaseDate}, ${e.ligands || ''}, ${e.ligands || ''}, ${e.journal}, ${e.journalIf}, ${e.doi}, ${e.pubmedId}, ${e.organisms || ''}, ${e.authors || ''}, ${isCryoem}, ${isXray}, ${isNmr}, ${ifTier})`;
           }
           await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${seqId}`;
+          // Dedup blastHits by pdbId as well — same PDB can show up via
+          // both pdbaa and nr fallback searches.
+          const seenBlastPdbIds = new Set<string>();
+          let dedupedBlastCount = 0;
+          let paralogCount = 0;
           for (const h of blastHits) {
-            await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${seqId}, ${h.pdbId}, ${h.uniprotRef || ''}, ${h.description || ''}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
+            if (!h.pdbId || seenBlastPdbIds.has(h.pdbId)) continue;
+            seenBlastPdbIds.add(h.pdbId);
+            dedupedBlastCount++;
+            if (h.isParalog) paralogCount++;
+            await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source, isParalog) VALUES (${seqId}, ${h.pdbId}, ${h.uniprotRef || ''}, ${h.description || ''}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'}, ${!!h.isParalog})`;
           }
-          emit({ stage: 'write-db', level: 'success', message: `${prefix}已写入 Evaluation + ${pdbDetails.length} PDB + ${blastHits.length} BLAST`, progress: 95 });
+          emit({ stage: 'write-db', level: 'success', message: `${prefix}已写入 Evaluation + ${dedupedPdbCount} PDB (去重自 ${pdbDetails.length}) + ${dedupedBlastCount} BLAST (${paralogCount} 个同源蛋白 ≥95%, 去重自 ${blastHits.length})`, progress: 95 });
         } catch (err: any) {
           emit({ stage: 'write-db', level: 'error', message: `${prefix}DB 写入失败：${err?.message}`, progress: 95 });
         }
@@ -486,7 +546,13 @@ ${overlapSummary}${crossLitBlock}
 ### 六、总结与建议
 （总结序列间关系，提出后续研究建议）`;
               const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
-              crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
+              // Sanitize the cross-report: closes unclosed **, completes
+              // truncated tables, cuts back to last full sentence if the
+              // LLM was cut off mid-word. The 4 batch reports in our DB all
+              // show this kind of mid-sentence / mid-table truncation
+              // (4 of 6 sample reports were truncated).
+              const crossContent = r.ok && r.content ? sanitizeReport(r.content) : (r.content || '');
+              crossReport = { ok: r.ok, content: crossContent, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: crossContent.length, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
               if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 跨序列相关性报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: 100 });
               else emit({ stage: 'cross-llm', level: 'error', message: `✗ 跨序列相关性 LLM 失败：${r.error}`, progress: 100 });
             } catch (err: any) {
@@ -676,6 +742,43 @@ ${overlapSummary}${crossLitBlock}
         }
       }
 
+      // ── Fix 2: Enrich BLAST hits with RCSB structural metadata ──────────
+      // BLAST XML only gives pdbId + identity + description. The downstream
+      // buildLiteratureInfo() needs pubmedId/method/resolution/journal, and
+      // the LLM report needs the full structural table. So we call RCSB for
+      // each unique BLAST pdbId (chunked, concurrent via fetchPdbEntryDetails).
+      // Result: pdbDetails now contains BOTH direct SIFTS PDBs AND enriched
+      // BLAST hits (deduped by pdbId). BLAST-derived entries are tagged with
+      // `via: 'blast'` so the UI / report can distinguish them.
+      if (blastHits.length > 0) {
+        const directPdbIds = new Set(pdbDetails.map((d) => d.pdbId));
+        const blastPdbIds = Array.from(new Set(blastHits.map((h: any) => h.pdbId).filter((id: string) => id && !directPdbIds.has(id))));
+        if (blastPdbIds.length > 0) {
+          emit({ stage: 'blast-enrich', level: 'info', message: `从 RCSB 反查 ${blastPdbIds.length} 个 BLAST PDB 的结构元数据（并发 · 5/批）…`, progress: 53 });
+          try {
+            const enriched = await fetchPdbEntryDetails(blastPdbIds, blastPdbIds.length);
+            // Tag each enriched entry with via:'blast' and a back-reference to its BLAST row
+            // (so the LLM report can cite both identity% and the structural fields).
+            const identityByPdb = new Map<string, number>();
+            for (const h of blastHits as any[]) {
+              const cur = identityByPdb.get(h.pdbId) ?? 0;
+              if ((h.identity ?? 0) > cur) identityByPdb.set(h.pdbId, h.identity);
+            }
+            const tagged: PdbEntryDetail[] = enriched.map((e) => ({
+              ...e,
+              // Stash identity on a loose field so buildDetailedPdbTable can render it
+              ...({ blastIdentity: identityByPdb.get(e.pdbId) ?? null } as any),
+            }));
+            pdbDetails = [...pdbDetails, ...tagged];
+            emit({ stage: 'blast-enrich', level: 'success', message: `✓ RCSB enrich 命中 ${enriched.length}/${blastPdbIds.length}（${blastPdbIds.length - enriched.length} 个 PDB id 在 RCSB 中找不到）`, progress: 54 });
+          } catch (err: any) {
+            emit({ stage: 'blast-enrich', level: 'warn', message: `⚠ RCSB enrich 失败：${err?.message}（BLAST hit 仍以 bare 形式进报告）`, progress: 54 });
+          }
+        } else {
+          emit({ stage: 'blast-enrich', level: 'info', message: '所有 BLAST PDB id 已在 direct PDB 集合中，无需 enrich', progress: 54 });
+        }
+      }
+
       emit({ stage: 'score', level: 'info', message: '综合可成药性评分', progress: 56 });
       await sleep(300);
       const scoreRating = (s: number) => s >= 8 ? '优' : s >= 6 ? '良' : s >= 4 ? '中' : '差';
@@ -765,7 +868,7 @@ ${overlapSummary}${crossLitBlock}
           emit({ stage: 'chapter', level: 'info', message: `[${chapterIdx}/${totalChapters}] ${labelOf(ck)} — 开始生成`, progress: baseProgress, chapter: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
 
           const userPrompt = buildChapterPrompt({ ...reportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: totalChapters });
-          const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
+          const sysPrompt = buildChapterSystemPrompt();
 
           const t0 = Date.now();
           const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
@@ -803,7 +906,12 @@ ${overlapSummary}${crossLitBlock}
 
         const chaptersTotalMs = Date.now() - tReportStart;
         // Concatenate chapters in canonical order into the final report content.
-        const finalReport = chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n');
+        // Sanitize the joined result so a chapter that was cut off mid-word
+        // doesn't poison the entire report (the sanitizer cuts back to the
+        // last complete sentence across the whole concatenated text).
+        const finalReport = sanitizeReport(
+          chapters.map((ck) => chapterContents[ck] ?? '').join('\n\n')
+        );
         const allOk = perChapterFailCount === 0;
         if (allOk) {
           emit({ stage: 'llm-report', level: 'success', message: `✓ LLM 分章生成完成 · ${perChapterOkCount}/${totalChapters} 章节 · ${finalReport.length} chars · 共 ${(chaptersTotalMs / 1000).toFixed(1)}s · ${provider}/${model}${saveReportFile ? ' · 已落盘' : ''}`, progress: 91 });
@@ -853,9 +961,21 @@ ${overlapSummary}${crossLitBlock}
 
         if (!skipReportGeneration) {
         await db.$executeRaw`DELETE FROM EvaluationBlastResult WHERE uniprotId = ${uniprot}`;
+        // Dedup blastHits by pdbId — same PDB can show up via both pdbaa
+        // and nr fallback searches. Keep first occurrence (which is the
+        // highest-identity one because blastHits is sorted desc by
+        // identity in dedupBlastHits).
+        const seenBlastPdbIds = new Set<string>();
+        let dedupedBlastCount = 0;
+        let paralogCount = 0;
         for (const h of blastHits) {
-          await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source) VALUES (${uniprot}, ${h.pdbId}, ${h.uniprotRef}, ${h.description}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'})`;
+          if (!h.pdbId || seenBlastPdbIds.has(h.pdbId)) continue;
+          seenBlastPdbIds.add(h.pdbId);
+          dedupedBlastCount++;
+          if (h.isParalog) paralogCount++;
+          await db.$executeRaw`INSERT INTO EvaluationBlastResult (uniprotId, pdbId, uniprotRef, description, identity, evalue, queryCoverage, method, source, isParalog) VALUES (${uniprot}, ${h.pdbId}, ${h.uniprotRef}, ${h.description}, ${h.identity}, ${h.evalue}, ${h.queryCoverage}, ${'BLASTp'}, ${'NCBI BLAST REST API'}, ${!!h.isParalog})`;
         }
+        emit({ stage: 'write-db', level: 'info', message: `  ↳ BLAST 去重: ${dedupedBlastCount}/${blastHits.length} (${paralogCount} 个同源蛋白 ≥95%)`, progress: 98 });
         } // end if (!skipReportGeneration) BLAST
 
         if (report?.ok && report.content) {
@@ -918,7 +1038,7 @@ ${overlapSummary}${crossLitBlock}
         dbSaved,
         durationMs: Date.now() - t0,
       };
-      emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: windowStart + 5 });
+      emit({ stage: 'done', level: report?.ok || !generateReport ? 'success' : 'warn', message: `完成 · ${directPdbCount} PDB (真实) · overall=${scores.overall.score}/10 · ${((Date.now() - t0) / 1000).toFixed(1)}s${report?.ok ? ` · LLM ✓ (${report.contentChars} chars)` : generateReport ? ' · LLM ✗' : ''}${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: 100 });
 
       // ── Batch mode: evaluate remaining targets + cross-target relationship analysis ──
       // Progress is split evenly across all targets so the user sees each target
@@ -1025,7 +1145,7 @@ ${overlapSummary}${crossLitBlock}
                   const chapterIdx = i + 1;
                   emit({ stage: `batch-${bi}-chapter`, level: 'info', message: `[Batch ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} — 开始生成`, progress: windowStart + 5, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
                   const userPrompt = buildChapterPrompt({ ...bReportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
-                  const sysPrompt = '你是结构生物学领域的资深研究员，正在为一个蛋白靶点的可成药性评估报告撰写章节。中文输出，markdown 格式，严格按照用户提供的任务指令。';
+                  const sysPrompt = buildChapterSystemPrompt();
                   const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
                   if (r.ok) {
                     perChapterOkCount++;

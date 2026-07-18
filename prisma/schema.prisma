@@ -147,6 +147,11 @@ model EvaluationBlastResult {
   pubmedTitle     String?
   pubmedAuthors   String?
   pubmedAbstract  String?
+  /// True if this BLAST hit has identity ≥ the paralog threshold (95%) —
+  /// i.e. it is likely the same protein / a very close homolog and can be
+  /// treated as a direct structural reference, not a structural
+  /// homolog derived from fold similarity.
+  isParalog       Boolean  @default(false)
 
   evaluation      Evaluation @relation(fields: [uniprotId], references: [uniprotId])
 }

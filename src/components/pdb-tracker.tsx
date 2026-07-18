@@ -2396,7 +2396,7 @@ export default function PdbTracker() {
 
     // Default: individual evaluation page with Compare/Dashboard/Timeline buttons
     return (
-      <>
+      <div className="flex flex-col h-full">
         {/* Compare + Dashboard + Timeline toggle buttons */}
         <div className="px-4 pt-2 flex items-center gap-2 flex-shrink-0">
           <Button
@@ -2447,38 +2447,40 @@ export default function PdbTracker() {
             </Button>
           )}
         </div>
-        <EvaluationPage
-          evaluation={selectedEval}
-          loading={evalLoading}
-          selectedPdbId={selectedEvalStructure?.pdbId ?? null}
-          onSelectPdb={(pdbId) => {
-            if (!selectedEval) return;
-            // Find the matching EvalRow from pdbStructures or blastResults
-            const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
-            if (structRow) {
-              setSelectedEvalStructure({ ...structRow, _type: 'structure' });
-              setDetailPanelOpen(true);
-              return;
-            }
-            const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
-            if (blastRow) {
-              setSelectedEvalStructure({
-                ...blastRow,
-                _type: 'blast',
-                ifTier: blastRow.ifTier || '',
-                journalIf: blastRow.journalIf ?? null,
-                title: blastRow.title || blastRow.description || null,
-                releaseDate: blastRow.releaseDate || null,
-                pubmedId: blastRow.pubmedId || null,
-                pubmedTitle: blastRow.pubmedTitle || null,
-                pubmedAuthors: blastRow.pubmedAuthors || null,
-                pubmedAbstract: blastRow.pubmedAbstract || null,
-              });
-              setDetailPanelOpen(true);
-            }
-          }}
-        />
-      </>
+        <div className="flex-1 min-h-0">
+          <EvaluationPage
+            evaluation={selectedEval}
+            loading={evalLoading}
+            selectedPdbId={selectedEvalStructure?.pdbId ?? null}
+            onSelectPdb={(pdbId) => {
+              if (!selectedEval) return;
+              // Find the matching EvalRow from pdbStructures or blastResults
+              const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
+              if (structRow) {
+                setSelectedEvalStructure({ ...structRow, _type: 'structure' });
+                setDetailPanelOpen(true);
+                return;
+              }
+              const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
+              if (blastRow) {
+                setSelectedEvalStructure({
+                  ...blastRow,
+                  _type: 'blast',
+                  ifTier: blastRow.ifTier || '',
+                  journalIf: blastRow.journalIf ?? null,
+                  title: blastRow.title || blastRow.description || null,
+                  releaseDate: blastRow.releaseDate || null,
+                  pubmedId: blastRow.pubmedId || null,
+                  pubmedTitle: blastRow.pubmedTitle || null,
+                  pubmedAuthors: blastRow.pubmedAuthors || null,
+                  pubmedAbstract: blastRow.pubmedAbstract || null,
+                });
+                setDetailPanelOpen(true);
+              }
+            }}
+          />
+        </div>
+      </div>
     );
   };
 
@@ -2499,7 +2501,7 @@ export default function PdbTracker() {
       {/* Desktop: inline panel with responsive width */}
       <aside
         style={{ width: 'clamp(280px, 30vw, 420px)' }}
-        className="hidden md:flex bg-white/80 dark:bg-[#1a1917]/80 backdrop-blur-md flex-col overflow-hidden flex-shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] relative animate-in slide-in-from-right-2 duration-200"
+        className="hidden md:flex bg-white/80 dark:bg-[#1a1917]/80 backdrop-blur-md flex-col overflow-hidden flex-shrink-0 shadow-[inset_0_1px_1px_rgba(255,255,255,0.1)] relative animate-in slide-in-from-right-2 duration-200 h-full"
       >
         {/* Left border divider line */}
         <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-claude-border dark:bg-[#3d3832] z-10 rounded-r-sm" />
@@ -3579,7 +3581,7 @@ export default function PdbTracker() {
             </div>
           )}
           {evalDetailTab === 'Structures' && (
-            <div className="space-y-2">
+            <div className="space-y-2 max-h-full overflow-y-auto preview-scroll pr-1">
               {subTargetEvals.length === 0 ? (
                 <p className="text-xs text-claude-text-muted py-4 text-center">{t.noStructureData}</p>
               ) : subTargetEvals.flatMap(e => e.pdbStructures || []).length === 0 ? (
@@ -3671,7 +3673,7 @@ export default function PdbTracker() {
         const structures = selectedEval.pdbStructures || [];
         const showThumbnails = structures.length <= 10;
         return (
-          <div className="space-y-2">
+          <div className="space-y-2 max-h-full overflow-y-auto preview-scroll pr-1">
             {structures.length === 0 ? (
               <div className="text-xs text-claude-text-muted py-4 text-center">{t.noStructures}</div>
             ) : (

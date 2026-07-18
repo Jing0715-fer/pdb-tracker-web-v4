@@ -1,6 +1,5 @@
 'use client';
 import { useI18n } from '@/lib/i18n';
-
 import React, { useState, useMemo, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
@@ -11,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Evaluation } from '@/lib/pdb-types';
+import { renderMarkdownToFullPage } from '@/lib/markdown-renderer';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +85,7 @@ export function EvalReportGenerator({
   ]);
 
   const [showPreview, setShowPreview] = useState(false);
+  const [view, setView] = useState<'data' | 'llm'>('data');
 
   const toggleSection = useCallback((id: string) => {
     setSections(prev => prev.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s));
@@ -339,6 +340,20 @@ export function EvalReportGenerator({
     return html;
   }, [evaluation, reportTitle, enabledSections, includeCharts, coverage, overallScore, scoreEntries]);
 
+  // ─── LLM Report (markdown → HTML) ────────────────────────────────────────
+  // The LLM chapter-mode generates full markdown with §N.M sub-sections, tables,
+  // bold/italic, code spans, lists. We render it as a self-contained HTML page
+  // (same shape as reportHtml) and toggle the iframe via `view` state.
+  // Uses the shared renderer at src/lib/markdown-renderer.ts which handles
+  // 4 table formats (pipe+sep, pipe-no-sep, tab, multi-space) and inline
+  // markdown (bold/italic/code/URLs).
+  const llmReportHtml = useMemo(() => {
+    if (!evaluation.report) {
+      return `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,sans-serif;padding:40px;color:#6b6560;text-align:center;"><p>该评估尚无 LLM 报告。先在 Run Center 重新生成报告。</p></body></html>`;
+    }
+    return renderMarkdownToFullPage(evaluation.report, { title: `LLM Report · ${evaluation.uniprotId}` }).html;
+  }, [evaluation.report, evaluation.uniprotId]);
+
   // ─── Export as HTML ─────────────────────────────────────────────────────
 
   const handleExportHtml = useCallback(() => {
@@ -507,6 +522,30 @@ export function EvalReportGenerator({
                 <div className={`flex items-center gap-2 px-4 py-2 border-b flex-shrink-0 ${
                   isDark ? 'border-[#3d3832]' : 'border-claude-border'
                 }`}>
+                  {/* View toggle: Data Report (static HTML from fields) vs LLM Report (markdown from chapter-mode generation) */}
+                  <div className="flex items-center gap-0.5 rounded-md border border-claude-border dark:border-[#3d3832] overflow-hidden">
+                    <button
+                      onClick={() => setView('data')}
+                      className={`h-7 px-2.5 text-[11px] transition-colors ${
+                        view === 'data'
+                          ? 'bg-claude-accent/10 text-claude-accent font-medium'
+                          : isDark ? 'text-[#9b9590] hover:text-claude-text' : 'text-claude-text-muted hover:text-claude-text'
+                      }`}
+                    >
+                      {locale === 'zh' ? '数据报告' : 'Data Report'}
+                    </button>
+                    <button
+                      onClick={() => setView('llm')}
+                      className={`h-7 px-2.5 text-[11px] transition-colors ${
+                        view === 'llm'
+                          ? 'bg-claude-accent/10 text-claude-accent font-medium'
+                          : isDark ? 'text-[#9b9590] hover:text-claude-text' : 'text-claude-text-muted hover:text-claude-text'
+                      }`}
+                    >
+                      {locale === 'zh' ? 'LLM 分析' : 'LLM Analysis'}
+                    </button>
+                  </div>
+
                   <Button
                     variant="ghost"
                     size="sm"
@@ -549,10 +588,10 @@ export function EvalReportGenerator({
                   {showPreview ? (
                     <div ref={previewRef} className="p-4">
                       <iframe
-                        srcDoc={reportHtml}
+                        srcDoc={view === 'llm' ? llmReportHtml : reportHtml}
                         className="w-full border-0 bg-white"
                         style={{ height: '600px', borderRadius: '8px' }}
-                        title={locale === "zh" ? "报告预览" : "Report Preview"}
+                        title={view === 'llm' ? (locale === 'zh' ? 'LLM 报告预览' : 'LLM Report Preview') : (locale === "zh" ? "报告预览" : "Report Preview")}
                         sandbox="allow-same-origin"
                       />
                     </div>

@@ -749,6 +749,12 @@ function LigandRowItem({
 export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }: PdbStructureViewerProps) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  // Fix: locale was previously referenced as a free variable in JSX rendered
+  // before the useI18n() call site at the bottom of this component (and the
+  // existing useI18n() calls at lines 572 / 671 are inside OTHER components:
+  // ChainRowItem and LigandRowItem — different closures). Adding the hook
+  // here makes locale available to all JSX in PdbStructureViewer's render.
+  const { locale } = useI18n();
 
   const containerRef = useRef<HTMLDivElement>(null);
   const pluginRef = useRef<any>(null);

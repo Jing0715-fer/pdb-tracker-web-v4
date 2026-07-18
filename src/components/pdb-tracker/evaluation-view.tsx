@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { StatCard, CircularProgress, MiniBar } from '@/components/ui/stat-card';
 import { LazyMarkdown } from '@/components/lazy-markdown';
-import type { Evaluation, EvalBatch, EvalBatchSubTarget, EvalPdbStructure } from '@/lib/pdb-types';
+import type { Evaluation, EvalBatch, EvalBatchSubTarget, EvalPdbStructure, EvalRow } from '@/lib/pdb-types';
 import type { EvaluationViewProps } from './types';
 import { getMethodColor, getMethodLabel, getResolutionColor, getIfTierStyle } from '@/components/pdb-helpers';
 
@@ -27,6 +27,11 @@ const EvalComparison = dynamic(() => import('@/components/eval-comparison').then
 });
 
 const EvalBatchCompare = dynamic(() => import('@/components/EvalBatchCompare').then(m => ({ default: m.EvalBatchCompare })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
+
+const EvalPdbTable = dynamic(() => import('@/components/EvalPdbTable').then(m => ({ default: m.EvalPdbTable })), {
   ssr: false,
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
 });
@@ -227,54 +232,79 @@ function BatchCommonPdbView({
     return map;
   }, [subTargets, allEvals]);
 
-  // Build rows for the common PDB table — merge structure info from any eval that has it
-  const rows = useMemo(() => {
-    return commonPdbIds.map(pdbId => {
-      // Find the first eval that has this PDB to get method/resolution/title
-      let method = '';
-      let resolution: number | null = null;
-      let title = '';
-      let ifTier = '';
-      let journalIf: number | null = null;
-      let releaseDate: string | null = null;
-
+  // Build rows for the common PDB table — EvalPdbTable-compatible EvalRow[].
+  // For each common pdbId, find the first eval that has it (as either a
+  // direct PDB structure or a BLAST hit) and surface its full RCSB fields.
+  // The "shared by" info is encoded into the row's `_source` and as a tooltip
+  // so EvalPdbTable can render the standard 9-column schema; we show the
+  // actual holder list in a small annotation chip below the table.
+  const commonPdbRows: EvalRow[] = useMemo(() => {
+    return commonPdbIds.map((pdbId): EvalRow => {
+      // Find the first eval that has this PDB to get full method/resolution/etc.
+      let found: EvalPdbStructure | null = null;
       for (const sub of subTargets) {
         const evalData = allEvals.find(e => e.uniprotId === sub.uniprotId);
         if (!evalData) continue;
         const struct = (evalData.pdbStructures || []).find(s => s.pdbId === pdbId);
-        if (struct) {
-          method = struct.method || method;
-          resolution = resolution ?? struct.resolution ?? null;
-          title = title || struct.title || '';
-          ifTier = ifTier || struct.ifTier || '';
-          journalIf = journalIf ?? struct.journalIf ?? null;
-          releaseDate = releaseDate || struct.releaseDate || null;
-          break;
-        }
+        if (struct) { found = struct; break; }
         const blast = (evalData.blastResults || []).find(b => b.pdbId === pdbId);
         if (blast) {
-          method = method || blast.method || '';
-          resolution = resolution ?? blast.resolution ?? null;
-          title = title || blast.title || blast.description || '';
-          ifTier = ifTier || blast.ifTier || '';
-          journalIf = journalIf ?? blast.journalIf ?? null;
-          releaseDate = releaseDate || blast.releaseDate || null;
+          // Build a minimal EvalPdbStructure from a BLAST row so EvalPdbTable
+          // can render it. Missing fields are null.
+          found = {
+            id: -1,
+            uniprotId: evalData.uniprotId,
+            pdbId,
+            method: blast.method || null,
+            resolution: blast.resolution ?? null,
+            title: blast.title || blast.description || null,
+            depositionDate: null,
+            releaseDate: blast.releaseDate || null,
+            ligand: null,
+            ligandNames: null,
+            journal: null,
+            journalIf: blast.journalIf ?? null,
+            doi: null,
+            pubmedId: null,
+            organism: null,
+            authors: null,
+            isCryoem: false, isXray: false, isNmr: false,
+            ifTier: blast.ifTier || null,
+            chainId: null, unpStart: null, unpEnd: null,
+          } as EvalPdbStructure;
           break;
         }
       }
-
+      if (!found) {
+        // Fallback: minimal row from pdbId only
+        found = {
+          id: -1, uniprotId: '', pdbId, method: null, resolution: null,
+          title: null, depositionDate: null, releaseDate: null,
+          ligand: null, ligandNames: null, journal: null, journalIf: null,
+          doi: null, pubmedId: null, organism: null, authors: null,
+          isCryoem: false, isXray: false, isNmr: false, ifTier: null,
+          chainId: null, unpStart: null, unpEnd: null,
+        } as EvalPdbStructure;
+      }
       return {
-        pdbId,
-        method,
-        resolution,
-        title,
-        ifTier,
-        journalIf,
-        releaseDate,
-        holders: pdbHolders[pdbId] || [],
-      };
+        ...found,
+        _type: 'structure' as const,
+        // Tag with the holder list (sub-targets sharing this PDB) so a
+        // downstream UI layer could show it. EvalPdbTable ignores unknown
+        // fields, so this is safe.
+        _sharedBy: pdbHolders[pdbId] || [],
+      } as EvalRow;
     });
   }, [commonPdbIds, subTargets, allEvals, pdbHolders]);
+
+  // Backward-compat: keep the old `rows` for the small "shared by" chip strip
+  // below the table — it just needs pdbId + holders per row.
+  const sharedByRows = useMemo(() => {
+    return commonPdbIds.map(pdbId => ({
+      pdbId,
+      holders: pdbHolders[pdbId] || [],
+    }));
+  }, [commonPdbIds, pdbHolders]);
 
   if (!batch) {
     return (
@@ -332,76 +362,57 @@ function BatchCommonPdbView({
         )}
       </div>
 
-      {/* Common PDB list — same visual style as single eval PDB table */}
-      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
-        {rows.length === 0 ? (
+      {/* Common PDB list — same 9-column schema as single eval EvalPdbTable */}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {commonPdbIds.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-claude-text-muted">
             <Box className="h-8 w-8 mb-2 opacity-40" />
             <p className="text-xs">No common PDB structures found between targets</p>
             <p className="text-[10px] mt-1">Run the batch evaluation to detect shared structures.</p>
           </div>
         ) : (
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 z-10 bg-claude-surface dark:bg-[#242220] border-b border-claude-border dark:border-[#3d3832]">
-              <tr>
-                <th className="text-left font-semibold text-claude-text-muted px-4 py-2 w-[90px]">{locale === 'zh' ? 'PDB ID' : 'PDB ID'}</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">{locale === 'zh' ? '方法' : 'Method'}</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[80px]">{locale === 'zh' ? '分辨率 (Å)' : 'Res. (Å)'}</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[100px]">{locale === 'zh' ? 'IF 级别' : 'IF Tier'}</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 min-w-0">{locale === 'zh' ? '标题' : 'Title'}</th>
-                <th className="text-left font-semibold text-claude-text-muted px-2 py-2 w-[160px]">{locale === 'zh' ? '共享子靶点' : 'Shared By'}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, i) => {
-                const methodStyle = getMethodColor(row.method);
-                const resColor = row.resolution != null
-                  ? row.resolution < 2.5 ? 'text-emerald-600 dark:text-emerald-400'
-                    : row.resolution < 3.5 ? 'text-amber-600 dark:text-amber-400'
-                    : 'text-red-600 dark:text-red-400'
-                  : 'text-claude-text-muted';
-                return (
-                  <tr
-                    key={row.pdbId}
-                    onClick={() => onSelectPdb?.(row.pdbId)}
-                    className={`border-b border-claude-border/40 dark:border-[#3d3832]/40 hover:bg-claude-accent/5 cursor-pointer transition-colors ${i % 2 === 0 ? '' : 'bg-claude-border-light/20 dark:bg-[#1a1917]/20'}`}
-                  >
-                    <td className="px-4 py-2">
-                      <span className="font-mono font-bold text-[11px] text-claude-accent">{row.pdbId}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${methodStyle}`}>{row.method || '—'}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <span className={`font-mono text-[11px] font-medium ${resColor}`}>{row.resolution != null ? row.resolution.toFixed(1) : '—'}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      {row.ifTier ? (
-                        <span className="text-[10px] font-medium" style={getIfTierStyle(row.ifTier)}>{row.ifTier}</span>
-                      ) : (
-                        <span className="text-[10px] text-claude-text-muted">—</span>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 min-w-0">
-                      <span className="text-[11px] text-claude-text-secondary truncate block max-w-[300px]" title={row.title}>{row.title || '—'}</span>
-                    </td>
-                    <td className="px-2 py-2">
-                      <div className="flex items-center gap-0.5 flex-wrap">
-                        {row.holders.slice(0, 3).map(h => (
-                          <span key={h} className="text-[9px] font-mono px-1 py-0.5 rounded bg-claude-border-light/60 dark:bg-[#2b2926]/60 text-claude-text-muted">{h}</span>
-                        ))}
-                        {row.holders.length > 3 && (
-                          <span className="text-[9px] text-claude-text-muted">+{row.holders.length - 3}</span>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+          <EvalPdbTable
+            rows={commonPdbRows}
+            loading={false}
+            compact={false}
+            onSelectRow={(row) => onSelectPdb?.(row.pdbId)}
+          />
         )}
       </div>
+
+      {/* Shared-by annotation strip — shows which sub-targets share each PDB
+          (kept because EvalPdbTable doesn't have a "shared by" column).
+          Maps each common pdbId → its holder list. */}
+      {sharedByRows.length > 0 && (
+        <div className="border-t border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] px-4 py-2 max-h-[120px] overflow-y-auto custom-scrollbar flex-shrink-0">
+          <div className="text-[9px] uppercase tracking-wider text-claude-text-muted font-semibold mb-1.5">
+            {locale === 'zh' ? '共享子靶点' : 'Shared By'}
+          </div>
+          <div className="flex flex-col gap-1">
+            {sharedByRows.map(({ pdbId, holders }) => (
+              <div key={pdbId} className="flex items-center gap-1.5 text-[10px]">
+                <span className="font-mono font-bold text-claude-accent shrink-0 w-[60px]">{pdbId}</span>
+                <div className="flex items-center gap-0.5 flex-wrap">
+                  {holders.length === 0 ? (
+                    <span className="text-claude-text-muted italic">—</span>
+                  ) : (
+                    <>
+                      {holders.slice(0, 6).map(h => (
+                        <span key={h} className="text-[9px] font-mono px-1 py-0.5 rounded bg-claude-border-light/60 dark:bg-[#2b2926]/60 text-claude-text-muted">
+                          {h}
+                        </span>
+                      ))}
+                      {holders.length > 6 && (
+                        <span className="text-[9px] text-claude-text-muted">+{holders.length - 6}</span>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1565,7 +1576,7 @@ export function EvaluationView({
 
   // Default: individual evaluation page with overview → separator → action bar pattern
   return (
-    <>
+    <div className="flex flex-col h-full">
       {/* Overview stat cards — same pattern as Weekly & Literature */}
       <EvalStatCards evaluations={allEvaluations} evalBatches={evalBatches} evalLoading={evalLoading} />
 
@@ -1643,36 +1654,39 @@ export function EvaluationView({
           }}
         />
       ) : (
-        <EvaluationPage
-          evaluation={selectedEval}
-          loading={evalLoading}
-          selectedPdbId={selectedEvalStructure?.pdbId ?? null}
-          onSelectPdb={(pdbId) => {
-            if (!selectedEval) return;
-            // Find the matching EvalRow from pdbStructures or blastResults
-            const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
-            if (structRow) {
-              onSetSelectedEvalStructure({ ...structRow, _type: 'structure' });
-              return;
-            }
-            const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
-            if (blastRow) {
-              onSetSelectedEvalStructure({
-                ...blastRow,
-                _type: 'blast',
-                ifTier: blastRow.ifTier || '',
-                journalIf: blastRow.journalIf ?? null,
-                title: blastRow.title || blastRow.description || null,
-                releaseDate: blastRow.releaseDate || null,
-                pubmedId: blastRow.pubmedId || null,
-                pubmedTitle: blastRow.pubmedTitle || null,
-                pubmedAuthors: blastRow.pubmedAuthors || null,
-                pubmedAbstract: blastRow.pubmedAbstract || null,
-              });
-            }
-          }}
-        />
+        <div className="flex-1 min-h-0">
+          <EvaluationPage
+            evaluation={selectedEval}
+            loading={evalLoading}
+            selectedPdbId={selectedEvalStructure?.pdbId ?? null}
+            onSelectPdb={(pdbId) => {
+              if (!selectedEval) return;
+              // Find the matching EvalRow from pdbStructures or blastResults
+              const structRow = selectedEval.pdbStructures.find(s => s.pdbId === pdbId);
+              if (structRow) {
+                onSetSelectedEvalStructure({ ...structRow, _type: 'structure' });
+                return;
+              }
+              const blastRow = selectedEval.blastResults.find(b => b.pdbId === pdbId);
+              if (blastRow) {
+                onSetSelectedEvalStructure({
+                  ...blastRow,
+                  _type: 'blast',
+                  ifTier: blastRow.ifTier || '',
+                  journalIf: blastRow.journalIf ?? null,
+                  title: blastRow.title || blastRow.description || null,
+                  releaseDate: blastRow.releaseDate || null,
+                  pubmedId: blastRow.pubmedId || null,
+                  pubmedTitle: blastRow.pubmedTitle || null,
+                  pubmedAuthors: blastRow.pubmedAuthors || null,
+                  pubmedAbstract: blastRow.pubmedAbstract || null,
+                });
+                setDetailPanelOpen(true);
+              }
+            }}
+          />
+        </div>
       )}
-    </>
+    </div>
   );
 }
