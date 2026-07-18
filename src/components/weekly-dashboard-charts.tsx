@@ -105,6 +105,7 @@ interface MethodDistributionChartProps {
 function MethodDistributionChart({ entries }: MethodDistributionChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const { locale } = useI18n();
 
   const data = useMemo(() => {
     const cryoem = entries.filter(e => e.isCryoem).length;
@@ -185,6 +186,7 @@ interface ResolutionHistogramChartProps {
 function ResolutionHistogramChart({ entries }: ResolutionHistogramChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const { locale } = useI18n();
   const axisColor = getChartAxisColor(isDark);
   const tickColor = getChartTickColor(isDark);
 
@@ -250,6 +252,7 @@ interface WeeklyTrendChartProps {
 function WeeklyTrendChart({ snapshots }: WeeklyTrendChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const { locale } = useI18n();
   const axisColor = getChartAxisColor(isDark);
   const tickColor = getChartTickColor(isDark);
 
@@ -361,6 +364,7 @@ interface JournalImpactChartProps {
 function JournalImpactChart({ entries }: JournalImpactChartProps) {
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === 'dark';
+  const { locale } = useI18n();
   const axisColor = getChartAxisColor(isDark);
   const tickColor = getChartTickColor(isDark);
 

@@ -123,11 +123,15 @@ async function buildLiteratureInfo(
   }
   if (articles.length === 0) return { text: '', count: 0 };
 
-  // Backfill journal IF from PdbStructure table for any PMIDs whose IF is null.
+  // Backfill journal IF from PdbStructure AND EvaluationPdbStructure tables
+  // for any PMIDs whose IF is null. PdbStructure is populated by the weekly
+  // report path; EvaluationPdbStructure is populated by the evaluation path.
+  // Either may have the IF data we need.
   const nullIfPmids = articles
     .map((a) => a.pubmedId)
     .filter((pm) => pmidToIf.get(pm) == null);
   if (nullIfPmids.length > 0) {
+    // Try PdbStructure first (weekly report path)
     try {
       const ifRows = await db.$queryRaw<any[]>`SELECT pubmedId, journalIf FROM PdbStructure WHERE pubmedId IN (${nullIfPmids}) AND journalIf IS NOT NULL`;
       for (const r of ifRows as any[]) {
@@ -138,6 +142,56 @@ async function buildLiteratureInfo(
       }
     } catch {
       // PdbStructure may not exist (depends on schema state) — ignore.
+    }
+    // Try EvaluationPdbStructure (evaluation path — this is where the current
+    // eval's PDBs live, with journalIf from RCSB)
+    const stillNullPmids = nullIfPmids.filter((pm) => pmidToIf.get(pm) == null);
+    if (stillNullPmids.length > 0) {
+      try {
+        const ifRows2 = await db.$queryRaw<any[]>`SELECT pubmedId, journalIf, journal FROM EvaluationPdbStructure WHERE pubmedId IN (${stillNullPmids}) AND journalIf IS NOT NULL`;
+        for (const r of ifRows2 as any[]) {
+          const pm = r.pubmedId?.toString();
+          if (!pm) continue;
+          const v = typeof r.journalIf === 'number' ? r.journalIf : Number(r.journalIf);
+          if (!Number.isNaN(v)) pmidToIf.set(pm, v);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    // Last resort: online IF lookup via Crossref for any still-null PMIDs.
+    // Uses the journal name from PubMedArticle to fetch IF.
+    const finalNullPmids = nullIfPmids.filter((pm) => pmidToIf.get(pm) == null);
+    if (finalNullPmids.length > 0 && finalNullPmids.length <= 30) {
+      try {
+        const { fetchJournalIFs } = await import('@/lib/journal-if-api');
+        const { buildJournalLookup, matchJournalIf } = await import('@/lib/journal-matching');
+        // Build a lookup from journal name → IF using all PdbStructure +
+        // EvaluationPdbStructure rows that have IF data.
+        const allIfRows = await db.$queryRaw<any[]>`SELECT DISTINCT journal, journalIf FROM PdbStructure WHERE journalIf IS NOT NULL AND journalIf > 0`;
+        const evalIfRows = await db.$queryRaw<any[]>`SELECT DISTINCT journal, journalIf FROM EvaluationPdbStructure WHERE journalIf IS NOT NULL AND journalIf > 0`;
+        const combined = [...(allIfRows as any[]), ...(evalIfRows as any[])];
+        const { journalIfMap, pdbJournals } = buildJournalLookup(combined as any[]);
+        // For PMIDs still without IF, match by journal name
+        for (const a of articles) {
+          if (pmidToIf.get(a.pubmedId) != null) continue;
+          if (!a.journal) continue;
+          const ifVal = matchJournalIf(a.journal, journalIfMap, pdbJournals);
+          if (ifVal != null) pmidToIf.set(a.pubmedId, ifVal);
+        }
+        // If still null, try online Crossref lookup for unique journals
+        const stillNull = articles.filter(a => pmidToIf.get(a.pubmedId) == null && a.journal);
+        if (stillNull.length > 0 && stillNull.length <= 15) {
+          const uniqueJournals = [...new Set(stillNull.map(a => a.journal!).filter(Boolean))];
+          const onlineIfMap = await fetchJournalIFs(uniqueJournals);
+          for (const a of stillNull) {
+            const ifVal = onlineIfMap.get(a.journal!);
+            if (ifVal != null) pmidToIf.set(a.pubmedId, ifVal);
+          }
+        }
+      } catch {
+        // ignore — IF is best-effort, not critical for the report
+      }
     }
   }
 
@@ -1203,8 +1257,13 @@ ${overlapSummary}${crossLitBlock}
             const bScores = { xray: { score: calcS(bXray), structures: bXray }, cryoem: { score: calcS(bCryoem), structures: bCryoem }, nmr: { score: calcS(bNmr), structures: bNmr }, overall: { score: Math.min(10, Math.max(1, Math.round((calcS(bXray) + calcS(bCryoem) + calcS(bNmr)) / 3))) } };
             // Write to DB — skip PDB structure insert if cache hit
             let bReport: any = undefined;
-            // Generate individual LLM report for this batch target (unless cached with existing report)
-            if (generateReport && !(bCacheHit && bCached?.report)) {
+            // Generate individual LLM report for this batch target.
+            // In batch mode we ALWAYS regenerate the report (even if a cached
+            // Evaluation row exists) so the user sees per-chapter SSE streaming
+            // for every target — otherwise batch targets with a prior eval would
+            // silently skip the LLM and the ChapterStream UI would only show
+            // the primary target's chapters.
+            if (generateReport) {
               emit({ stage: `batch-${bi}-llm`, level: 'info', message: `[Batch ${bi + 1}] 生成 ${bUid} 的 LLM 报告（8 章节流式，跟 primary 模板一致）…`, progress: 50 });
               try {
                 // ── Per-chapter LLM streaming (same 8-chapter flow as primary target,
@@ -1287,9 +1346,6 @@ ${overlapSummary}${crossLitBlock}
               } catch (err: any) {
                 emit({ stage: `batch-${bi}-llm`, level: 'error', message: `✗ [Batch ${bi + 1}] ${bUid} LLM 生成失败：${err?.message}`, progress: 90 });
               }
-            } else if (bCacheHit && bCached?.report) {
-              bReport = { ok: true, content: bCached.report, provider: '(cached)', model: '(cached)', durationMs: 0, contentChars: bCached.report.length, cached: true };
-              emit({ stage: `batch-${bi}-llm`, level: 'success', message: `✓ [Batch ${bi + 1}] ${bUid} 使用已有 LLM 报告（缓存）· ${bReport.contentChars} chars`, progress: 90 });
             }
             try {
               const bScoresJson = JSON.stringify({ 'X-ray': { score: bScores.xray.score }, 'Cryo-EM': { score: bScores.cryoem.score }, 'NMR': { score: bScores.nmr.score }, 'Overall': { score: bScores.overall.score } });
@@ -1326,12 +1382,21 @@ ${overlapSummary}${crossLitBlock}
         // Disable per-target remapping — these final stages use the reserved
         // 97..100% range directly.
         _batchIdx = null;
-        // Free the primary target's pdbDetails now that cross-analysis has
-        // captured what it needs (the allPdbSets above already extracted IDs).
+        emit({ stage: 'cross-analysis', level: 'info', message: `分析 ${batchResults.length} 个靶点的共有结构与相关性…`, progress: 97 });
+        // IMPORTANT: batchResults[0].pdbDetails is a REFERENCE to the primary
+        // target's pdbDetails array. Do NOT clear pdbDetails until after
+        // allPdbSets has extracted the IDs, otherwise batchResults[0] will
+        // have 0 PDBs and common-structure detection breaks.
+        const allPdbSets = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
+        // Log per-target PDB counts so the user can verify all targets
+        // contributed to cross-analysis.
+        for (let i = 0; i < batchResults.length; i++) {
+          const cnt = (batchResults[i].pdbDetails || []).length;
+          emit({ stage: 'cross-analysis', level: 'info', message: `  · 靶点 ${i + 1} ${batchResults[i].uniprot}: ${cnt} 个 PDB 结构`, progress: 97 });
+        }
+        // Now safe to free the primary target's array.
         pdbDetails.length = 0;
         if (typeof global.gc === 'function') { try { global.gc(); } catch { /* ignore */ } }
-        emit({ stage: 'cross-analysis', level: 'info', message: `分析 ${batchResults.length} 个靶点的共有结构与相关性…`, progress: 97 });
-        const allPdbSets = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
         // Find PDB IDs present in ALL targets
         const commonPdbIds = allPdbSets.length > 0
           ? [...allPdbSets[0].pdbIds].filter(id => allPdbSets.every(s => s.pdbIds.has(id)))
