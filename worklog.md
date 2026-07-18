@@ -3201,3 +3201,23 @@ Stage Summary:
 - Batch targets correctly grouped under batch (no more stray single-eval).
 - Evaluation auto-backfills PubMed articles → Literature module with source-target tags + dedup.
 - SSE throttling (120ms flush) + narrowed error boundary + dev keepalive = stable UI during runs.
+
+---
+Task ID: bugfix-batch2-lit-if-locale
+Agent: main (claude)
+Task: Fix 4 bugs from 2nd batch eval run: (1) batch chapter streaming only shows 1 target, (2) first target data missing from cross-analysis (0 PDBs, no common structures), (3) LLM literature info missing IF data, (4) WeeklyTrendChart locale is not defined error.
+
+Work Log:
+- Bug 4 (locale error): 4 sub-components in weekly-dashboard-charts.tsx (MethodDistributionChart, ResolutionHistogramChart, WeeklyTrendChart, JournalImpactChart) referenced `locale` but never called useI18n() — only parent WeeklyDashboardCharts did. Added `const { locale } = useI18n();` to all 4. Verified: Weekly mode + Dashboard Charts expand → 48 SVGs render, 0 errors.
+- Bug 2 (cross-analysis missing target 0): batchResults[0].pdbDetails is a REFERENCE to the primary pdbDetails array. Code did `pdbDetails.length = 0` BEFORE allPdbSets extracted IDs → batchResults[0] had 0 PDBs → common-structure detection found nothing. Moved cleanup to AFTER allPdbSets. Added per-target PDB count logging so user can verify all targets contributed.
+- Bug 1 (batch chapter streaming not visible): Batch targets with cached Evaluation row skipped LLM generation (`if (generateReport && !(bCacheHit && bCached?.report))`), so chapter_done SSE events never fired for cached targets. Fixed by always regenerating LLM in batch mode (removed cache-hit short-circuit). Now every target streams its 8 chapters via batch-N-chapter events.
+- Bug 3 (LLM literature missing IF): buildLiteratureInfo only queried PdbStructure (weekly report path) for IF backfill, but eval PDBs live in EvaluationPdbStructure. Added 3-tier IF lookup: (1) PdbStructure, (2) EvaluationPdbStructure, (3) journal-name matching from combined IF lookup + online Crossref fallback via fetchJournalIFs.
+- Lint: eslint on both changed files — 0 errors.
+- Pushed to GitHub (086b5f2).
+
+Stage Summary:
+- 4 bugs fixed across 2 files (weekly-dashboard-charts.tsx, evaluations/run/route.ts).
+- Weekly mode renders without locale crash.
+- Batch cross-analysis now includes all targets (common structures detected).
+- Batch chapter streaming visible for every target.
+- LLM literature prompt includes IF data from multiple sources.
