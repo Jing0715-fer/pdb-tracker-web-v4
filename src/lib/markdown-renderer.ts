@@ -44,6 +44,18 @@ function escapeHtml(s: string): string {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * True if every cell in a table row is "junk" (only `---`, `:`, `…`, or
+ * whitespace). LLMs sometimes append a stray separator line + placeholder
+ * tail (e.g. `|---|---|---|` then `|…|…|…|`) at the end of a table when
+ * running out of content. Without this filter the renderer would treat
+ * those as data rows, producing visible "---" / "…" cells.
+ */
+function isJunkTableRow(cells: string[]): boolean {
+  if (cells.length === 0) return true;
+  return cells.every((c) => /^[-:\s…]+$/.test(c));
+}
+
 function renderInline(text: string): string {
   // Escape first, then apply inline markdown on the safe string. Order matters:
   // bold/italic/code replacements should not be re-escaped.
@@ -74,7 +86,12 @@ const TABLE_STYLE =
 
 /** Render markdown to body HTML (no wrapper). Returns rich metadata. */
 export function renderMarkdownToHtml(md: string): MarkdownRenderResult {
-  const lines = md.split('\n');
+  // Normalize \r\n / \r line endings to \n so the line-based block parser
+  // sees the document correctly. Some DB-stored reports come in with
+  // bare \r (e.g. legacy single-call evaluations), which would otherwise
+  // collapse the whole report into one <p>.
+  const normalized = md.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n');
   const out: string[] = [];
   let i = 0;
   let hadTable = false;
@@ -119,15 +136,39 @@ export function renderMarkdownToHtml(md: string): MarkdownRenderResult {
       const dataRows: string[][] = [];
       if (hasPipeSep) i += 2;
       else i += 1; // no separator — first row is header
-      while (i < lines.length && lines[i].trim().startsWith('|')) {
-        dataRows.push(
-          lines[i]
-            .trim()
-            .replace(/^\|/, '')
-            .replace(/\|$/, '')
-            .split('|')
-            .map((c) => c.trim())
-        );
+      // Collect pipe rows, allowing a single blank line between them.
+      // Some LLMs emit tables with blank lines between data rows
+      // (`| a |\n\n| b |\n\n| c |`); GFM is strict about no-blanks, but PDB
+      // trackers often pipe MD through several LLM layers that add the
+      // blanks, so we tolerate up to 1 blank between rows. More than
+      // 1 blank means we're outside the table.
+      const isPipeRowLine = (l: string) => l.trim().startsWith('|');
+      while (i < lines.length) {
+        // Consume one optional blank line between pipe rows
+        if (lines[i].trim() === '') {
+          // Peek: is the next non-blank line still a pipe row? If yes,
+          // swallow this blank. If no, table ends here.
+          let k = i + 1;
+          while (k < lines.length && lines[k].trim() === '') k++;
+          if (k < lines.length && isPipeRowLine(lines[k])) {
+            i = k;
+          } else {
+            break;
+          }
+        }
+        if (!isPipeRowLine(lines[i])) break;
+        const rowCells = lines[i]
+          .trim()
+          .replace(/^\|/, '')
+          .replace(/\|$/, '')
+          .split('|')
+          .map((c) => c.trim());
+        // Skip "junk" rows: cells that are all --- / : / … / spaces.
+        // LLMs sometimes emit a stray separator line + placeholder tail
+        // at the end of a table (e.g. `|---|---|---|` then `|…|…|…|`);
+        // without this filter those render as visible `---` / `…` data cells.
+        if (isJunkTableRow(rowCells)) { i++; continue; }
+        dataRows.push(rowCells);
         i++;
       }
       out.push(`<table style="${TABLE_STYLE}">`);
@@ -296,9 +337,25 @@ export function renderMarkdownToHtml(md: string): MarkdownRenderResult {
 
 /** Pre-process: strip YAML frontmatter (---\n…\n---) and the first H1 heading. */
 export function stripMarkdownFrontmatterAndTitle(md: string): string {
+  // Normalize line endings — DB-stored reports sometimes arrive as \r\n
+  // (the route handler concatenates chapter-mode LLM output that may
+  // include CR). The renderer splits on \n only, so any \r in the input
+  // causes a single long line that no block-level regex will match —
+  // the whole report collapses to a single <p>.
   return md
-    .replace(/^---[\s\S]*?---\s*/m, '')
-    .replace(/^#\s+.+\n/, '');
+    .replace(/\r\n?/g, '\n')
+    // Strip YAML frontmatter: must be at the very start of the document,
+    // bounded by `---` on its own line. Markdown horizontal rules are
+    // also `---` but they appear mid-document, so the `\A` anchor
+    // (string start, not line start) is what makes this safe.
+    .replace(/\A---\n[\s\S]*?\n---\s*/m, '')
+    // Strip the FIRST H1 heading, wherever it is. LLMs often open the
+    // report with a chatty preamble ("我来为 ... 生成完整的结构评估报告。")
+    // before the actual H1 title, so the H1 may not be at offset 0.
+    // Use the `m` flag so ^ matches any line start, and `g` would be
+    // wrong (we only want the first H1 — leaving subsequent ## headings
+    // intact). Do the substitution once with .replace and a /m regex.
+    .replace(/^# [^\n]*\n?/m, '');
 }
 
 /**
@@ -313,7 +370,10 @@ export function stripMarkdownFrontmatterAndTitle(md: string): string {
  * This function:
  *   1. Closes unclosed `**` bold spans (LLM may have produced odd count
  *      if cut off mid-token).
- *   2. Closes unclosed code spans (backtick pairs).
+ *   2. (Backtick code-span fix skipped.)
+ *   2.5. Collapses runs of "API call failed …" lines (chapter-mode HTTP
+ *      429 errors) into a single `_(本章生成失败：…)_` marker, so step 5
+ *      doesn't silently delete the fact that a chapter failed.
  *   3. Detects mid-table truncation: if the last line is a pipe header
  *      with no separator/data below, append a "..." row so the table
  *      stays well-formed.
@@ -329,8 +389,42 @@ export function stripMarkdownFrontmatterAndTitle(md: string): string {
  */
 export function sanitizeReport(md: string): string {
   if (!md) return md;
-  let s = md;
+  // Normalize line endings before anything else. Some upstream callers
+  // (legacy single-call LLM output, or reports concat'd in route handlers
+  // that didn't strip CR) may pass in \r\n or bare \r. Downstream
+  // regexes all assume \n.
+  let s = md.replace(/\r\n?/g, '\n');
   // 1) Close unclosed bold spans. Count `**` (non-overlapping).
+  // 2) Close unclosed backtick code spans. Pair-counting is harder
+  //    because of triple-backtick blocks, but for our case the LLM
+  //    only ever produces inline single-backticks. If odd count, append
+  //    a closing backtick.
+  //    Skip the backtick-fix for now (the 6 sample reports don't have
+  //    any truncated code spans).
+  // 2.5) Collapse runs of "API call failed" lines into a single error
+  //      marker per chapter, so subsequent mid-sentence trimming doesn't
+  //      silently delete the fact that a chapter failed to generate.
+  //      Background: in chapter-mode the route loop tries each chapter
+  //      independently; if 6/8 fail with HTTP 429 we end up with 6 lines
+  //      of "API call failed after 3 retries: ..." in the concatenated
+  //      report. The old behavior was to cut back to the last "。" in
+  //      step 4 — which deleted all 6 error lines along with everything
+  //      before the surviving chapter. The user couldn't tell that 6
+  //      chapters were missing.
+  s = s.replace(
+    /(?:\n|^)([^\n]*API call failed[^\n]*\n)+/g,
+    (block) => {
+      // Count the number of failure lines
+      const lines = block.trim().split('\n');
+      const firstLine = lines[0];
+      // Extract a short reason from the first line (the part after the last `:`)
+      const colonIdx = firstLine.lastIndexOf(':');
+      const reason = colonIdx > 0 ? firstLine.substring(colonIdx + 1).trim() : firstLine;
+      return `\n\n_(本章生成失败：${reason})_\n\n`;
+    }
+  );
+  // 3) Close unclosed backtick code spans. (Skipped for now.)
+  // 4) Detect mid-table truncation. Walk line-by-line. The pattern:
   //    Don't count `***` (bold-italic) — it uses 3 `*` chars.
   //    We do that by replacing `***` with a placeholder first.
   const BOLD_PLACEHOLDER = '\u0001BOLDSTAR\u0001';
@@ -344,33 +438,49 @@ export function sanitizeReport(md: string): string {
     // which would look weird in rendered HTML).
     s = s + '**';
   }
-  // 2) Close unclosed backtick code spans. Pair-counting is harder
-  //    because of triple-backtick blocks, but for our case the LLM
-  //    only ever produces inline single-backticks. If odd count, append
-  //    a closing backtick.
-  //    Skip the backtick-fix for now (the 6 sample reports don't have
-  //    any truncated code spans).
+  // (Backtick code-span fix is intentionally skipped — the 6 sample
+  // reports don't have any truncated code spans.)
   void ITALIC_PLACEHOLDER; void BOLD_PLACEHOLDER;
 
-  // 3) Detect mid-table truncation. Walk line-by-line. The pattern:
+  // 4) Detect mid-table truncation. Walk line-by-line. The pattern:
   //      | a | b |
   //      (no separator line below)
   //    OR
   //      | a | b |
   //      |---|
-  //      (separator present but no data row)
+  //    (separator present but no data row)
   //    Either means a table was started but not finished. Fix by
   //    ensuring there's a separator line after the header.
+  //
+  //    Important: skip blank lines when looking for the "next" row.
+  //    Without this, an LLM that emits `| header |\n\n|---|` (with a
+  //    blank line between header and separator) would be mis-detected
+  //    as a truncated table and we'd insert a duplicate separator +
+  //    placeholder row between them — corrupting the data rows that
+  //    come after.
   const lines = s.split('\n');
+  const isPipeRow = (l: string | undefined) => !!l && l.trim().startsWith('|') && l.trim().endsWith('|');
+  const isSepRow = (l: string | undefined) => !!l && /^\s*\|?[-:\s|]+\|?\s*$/.test(l);
+  // A "real" pipe table row has at least one cell with non-junk content
+  // (not all `---` / `:` / `…` / whitespace). Otherwise an LLM's stray
+  // `|---|---|` or `|…|…|` placeholder would itself look like a header
+  // and we'd insert another separator after it.
+  const isRealTableContent = (l: string | undefined): boolean => {
+    if (!l || !isPipeRow(l)) return false;
+    const cells = l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+    if (cells.length === 0) return false;
+    return cells.some((c) => !/^[-:\s…]+$/.test(c));
+  };
   for (let i = 0; i < lines.length - 1; i++) {
     const line = lines[i];
-    const next = lines[i + 1];
+    if (!isRealTableContent(line)) continue;
+    // Find the next non-blank line
+    let j = i + 1;
+    while (j < lines.length && lines[j].trim() === '') j++;
+    const next = j < lines.length ? lines[j] : '';
     if (
-      line.trim().startsWith('|') &&
-      line.trim().endsWith('|') &&
-      // next line is NOT a separator and NOT another table row
-      !/^\s*\|?[-:\s|]+\|?\s*$/.test(next) &&
-      !next.trim().startsWith('|')
+      // next non-blank line is NOT a separator and NOT another table row
+      !isSepRow(next) && !isPipeRow(next)
     ) {
       // Insert a separator line + "..." placeholder row to make the
       // table valid. Compute the column count from the header.
@@ -383,7 +493,7 @@ export function sanitizeReport(md: string): string {
   }
   s = lines.join('\n');
 
-  // 4) Detect mid-sentence / mid-word truncation in the trailing
+  // 5) Detect mid-sentence / mid-word truncation in the trailing
   //    paragraph. If the very last non-empty line ends with a partial
   //    word or no terminal punctuation, walk back to the last full
   //    sentence boundary. Strategy (conservative — only cut when we're
@@ -443,7 +553,7 @@ export function sanitizeReport(md: string): string {
     }
   }
 
-  // 5) Strip orphan JSON / object fragments. If a line starts with `{`
+  // 6) Strip orphan JSON / object fragments. If a line starts with `{`
   //    or `["Primar` patterns, drop it. The LLM sometimes embeds a
   //    partial JSON dump of its next action.
   s = s
