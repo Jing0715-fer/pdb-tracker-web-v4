@@ -478,9 +478,25 @@ export function sanitizeReport(md: string): string {
     let j = i + 1;
     while (j < lines.length && lines[j].trim() === '') j++;
     const next = j < lines.length ? lines[j] : '';
+    // Only insert a separator + placeholder when this is a HEADER row
+    // (i.e. a pipe row whose immediate next non-blank line is NOT a
+    // separator and NOT another table row). This means the table was
+    // truncated right after the header. For a normal table where `line`
+    // is a DATA row (followed by a separator or more data), we must NOT
+    // insert a placeholder — otherwise every well-formed table gets a
+    // spurious `|---|\n|…|…|` appended after its last data row.
+    //
+    // To distinguish header-from-data: a header is the FIRST pipe row in
+    // a contiguous block of pipe rows. If the PREVIOUS non-blank line is
+    // also a pipe row (or separator), then `line` is a data row and we
+    // skip it.
+    let prevIdx = i - 1;
+    while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--;
+    const prevNonBlank = prevIdx >= 0 ? lines[prevIdx] : '';
+    const isInTableBlock = isPipeRow(prevNonBlank) || isSepRow(prevNonBlank);
     if (
-      // next non-blank line is NOT a separator and NOT another table row
-      !isSepRow(next) && !isPipeRow(next)
+      !isInTableBlock && // only act on the first row of a table block
+      !isSepRow(next) && !isPipeRow(next) // header not followed by sep/data
     ) {
       // Insert a separator line + "..." placeholder row to make the
       // table valid. Compute the column count from the header.

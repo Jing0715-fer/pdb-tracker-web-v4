@@ -188,8 +188,14 @@ ${pdbSummary}
       cycles.push(cycleEntry);
     }
 
-    // Build the final report content from the last cycle (synthesis or generator)
-    const finalContent = cycles.length > 0 ? (cycles[cycles.length - 1].content || cycles[0].content || '') : '';
+    // Build the final report content. Cycle order is:
+    //   generator → critic-scientific → synthesis
+    // The user wants the FINAL report (synthesis), NOT the critique.
+    // Priority: synthesis > generator > last cycle. (Never show the
+    // critic-scientific cycle as the report — it's an intermediate review.)
+    const synthesisCycle = cycles.find((c: any) => c.role === 'synthesis' && c.content);
+    const generatorCycle = cycles.find((c: any) => c.role === 'generator' && c.content);
+    const finalContent = synthesisCycle?.content || generatorCycle?.content || (cycles.length > 0 ? (cycles[cycles.length - 1].content || cycles[0].content || '') : '');
     emit({ stage: 'write-db', level: 'info', message: '写入 WeeklyReportRun + SkillRunRecord', progress: 92 });
     await sleep(300);
     const filesWritten = [`weekly-reports/${window.weekId}/cryoem.md`, `weekly-reports/${window.weekId}/xray.md`, `weekly-reports/${window.weekId}/index.md`];

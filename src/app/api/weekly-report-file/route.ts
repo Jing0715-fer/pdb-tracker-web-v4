@@ -16,10 +16,18 @@ export async function GET(request: NextRequest) {
     const providers = run.providers || 'cli:hermes';
     const duration = run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : 'unknown';
 
-    // Extract actual LLM-generated content from cycles
-    const finalContent = cycles.length > 0 && cycles[cycles.length - 1].content
-      ? cycles[cycles.length - 1].content
-      : (cycles[0]?.content || '');
+    // Extract the FINAL report content from cycles.
+    // Cycle order is: generator → critic-scientific → synthesis.
+    // The user wants the FINAL report (synthesis), NOT the critique.
+    // Priority: synthesis > generator > last cycle. (Never show the
+    // critic-scientific cycle as the report — it's an intermediate review.)
+    const synthesisCycle = cycles.find((c: any) => c.role === 'synthesis' && c.content);
+    const generatorCycle = cycles.find((c: any) => c.role === 'generator' && c.content);
+    const finalContent = (synthesisCycle?.content)
+      || (generatorCycle?.content)
+      || (cycles.length > 0 && cycles[cycles.length - 1].content
+        ? cycles[cycles.length - 1].content
+        : (cycles[0]?.content || ''));
 
     // Build X-ray specific report
     const xrayContent = `# X-ray 结构解析周报 — ${weekId}\n\n**报告日期**: ${weekId}\n**类型**: X-ray 晶体学\n**LLM 提供方**: ${providers}\n**耗时**: ${duration}\n**生成时间**: ${run.createdAt.toISOString()}\n\n---\n\n${finalContent || '（无报告内容 — LLM 生成失败）'}\n\n---\n\n*本报告由 PDB Tracker 运行中心自动生成 · 数据来源: RCSB PDB*\n*生成时间: ${run.createdAt.toISOString()}*\n`;
