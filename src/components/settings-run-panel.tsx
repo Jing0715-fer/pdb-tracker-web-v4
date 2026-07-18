@@ -753,9 +753,12 @@ function ChapterStream({
       }
     }
     if (!groupKey || !e.chapter) continue;
+    // All targets are equal — label them uniformly as "Target N · Chapter Stream".
+    // 'primary' (legacy single-mode stage names) → Target 1 (order 0).
+    // 'batch-N' → Target N+1 (order N+1).
     const group = groupKey === 'primary'
-      ? ensureGroup('primary', 'Primary Target · Chapter Stream', 0)
-      : ensureGroup(groupKey, `Batch ${parseInt(groupKey.replace('batch-', ''), 10) + 1} · Chapter Stream`, parseInt(groupKey.replace('batch-', ''), 10) + 1);
+      ? ensureGroup('primary', 'Target 1 · Chapter Stream', 0)
+      : ensureGroup(groupKey, `Target ${parseInt(groupKey.replace('batch-', ''), 10) + 1} · Chapter Stream`, parseInt(groupKey.replace('batch-', ''), 10) + 1);
     const k = e.chapter as string;
     const cur = group.chapters.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' as const };
     if (!isDone) {
