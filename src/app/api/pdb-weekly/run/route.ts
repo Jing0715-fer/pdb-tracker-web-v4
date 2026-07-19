@@ -2,8 +2,118 @@ import { sseStream, sleep, type SseEvent } from '@/lib/sse';
 import { db } from '@/lib/db';
 import { fetchWeeklyPdbIds, fetchPdbEntryDetails, type PdbEntryDetail } from '@/lib/rcsb';
 import { generateText } from '@/lib/llm';
+import { sanitizeReport } from '@/lib/markdown-renderer';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// ─── Weekly report chapter definitions ──────────────────────────────────────
+// Each chapter is its own short LLM call (~1-2KB output, 10-20s) so the
+// full report is never truncated by max-token limits. Chapters are merged
+// in order at the end.
+type WeeklyChapterKey = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H';
+
+const WEEKLY_CHAPTERS: Array<{ key: WeeklyChapterKey; label: string; title: string; desc: string }> = [
+  { key: 'A', label: 'A', title: '期刊趋势分析', desc: '本周 PDB 结构来自哪些期刊，高影响因子期刊的贡献比例，与近期趋势对比' },
+  { key: 'B', label: 'B', title: '技术突破', desc: '本周有哪些突破性的结构解析成果（如新方法、新分辨率记录、新蛋白家族首解析等）' },
+  { key: 'C', label: 'C', title: '研究热点', desc: '本周的热门研究方向（如病毒结构、膜蛋白、G蛋白偶联受体、激酶等）' },
+  { key: 'D', label: 'D', title: '方法创新', desc: '本周有哪些方法学上的创新或改进（如新的晶体制备方法、新的 Cryo-EM 样品制备、AI 辅助结构解析等）' },
+  { key: 'E', label: 'E', title: '重要结构 Top 20', desc: '列出本周最重要的 20 个 PDB 结构（按分辨率/期刊 IF/科学重要性排序），包含 PDB ID、方法、分辨率、标题、期刊' },
+  { key: 'F', label: 'F', title: '技术评估', desc: '本周各方法的分辨率分布、结构质量评估' },
+  { key: 'G', label: 'G', title: '跨学科应用', desc: '本周结构生物学与其他学科的交叉应用（如药物设计、合成生物学、疾病机制等）' },
+  { key: 'H', label: 'H', title: '参考文献', desc: '本周高 IF 期刊已正式发表的结构文献精选（列出标题、第一作者、PDB ID、DOI）' },
+];
+
+/** Build a per-chapter LLM prompt for the weekly report. */
+function buildWeeklyChapterPrompt(opts: {
+  weekId: string;
+  startDate: string;
+  endDate: string;
+  methodLabel: string; // 'X-ray 晶体学' | '冷冻电镜'
+  methodKey: string;   // 'xray' | 'cryoem'
+  pdbCount: number;
+  pdbSummary: string;
+  chapterKey: WeeklyChapterKey;
+  chapterTitle: string;
+  chapterDesc: string;
+  chapterIndex: number;
+  chapterTotal: number;
+}): string {
+  const { weekId, startDate, endDate, methodLabel, methodKey, pdbCount, pdbSummary, chapterKey, chapterTitle, chapterDesc, chapterIndex, chapterTotal } = opts;
+  return `你是结构生物学领域的资深研究员。请生成本周（${weekId}，${startDate} 至 ${endDate}）${methodLabel} 结构周报的 **第 ${chapterIndex}/${chapterTotal} 章：${chapterKey}. ${chapterTitle}**。
+
+**报告类型**: ${methodLabel} 周报（仅包含${methodLabel}方法解析的结构）
+**PDB 入库数**: ${pdbCount} 个${methodLabel}结构
+**数据来源**: RCSB PDB
+
+## 本章要求
+${chapterDesc}
+
+## 代表性 ${methodLabel} PDB 结构数据
+${pdbSummary}
+
+请直接输出本章内容（${chapterKey}. ${chapterTitle} 标题下的正文），不要重复标题。内容充实、数据准确，使用 Markdown 格式。如果涉及表格请使用 GFM pipe table 格式。`;
+}
+
+const WEEKLY_CHAPTER_SYSTEM_PROMPT = '你是结构生物学领域的资深研究员。请用中文生成周报的某一章节内容，使用 Markdown 格式。直接输出章节正文，不要重复章节标题。内容要充实、专业、数据准确。';
+
+/** Generate a full method-specific weekly report via per-chapter LLM calls,
+ *  streaming progress via emit(). Returns the merged markdown + per-chapter
+ *  metadata. Each chapter is a separate short LLM call to avoid max-token
+ *  truncation. */
+async function generateMethodReport(opts: {
+  weekId: string;
+  startDate: string;
+  endDate: string;
+  methodLabel: string;
+  methodKey: string;
+  pdbCount: number;
+  pdbSummary: string;
+  llm: any;
+  emit: (e: SseEvent) => void;
+  methodProgressBase: number; // 0..100 base for this method's chapters
+  methodProgressSpan: number; // how much progress this method gets
+}): Promise<{ content: string; ok: boolean; chaptersOk: number; chaptersFailed: number; chapterDetails: any[] }> {
+  const { weekId, startDate, endDate, methodLabel, methodKey, pdbCount, pdbSummary, llm, emit, methodProgressBase, methodProgressSpan } = opts;
+  const chapterContents: Record<string, string> = {};
+  let chaptersOk = 0;
+  let chaptersFailed = 0;
+  const chapterDetails: any[] = [];
+  const totalChapters = WEEKLY_CHAPTERS.length;
+
+  emit({ stage: `${methodKey}-llm`, level: 'info', message: `[${methodLabel}] 准备分 ${totalChapters} 章节生成报告… 共 ${pdbCount} 个 ${methodLabel} 结构已加载到上下文`, progress: methodProgressBase });
+
+  for (let i = 0; i < totalChapters; i++) {
+    const ch = WEEKLY_CHAPTERS[i];
+    const chapterIdx = i + 1;
+    const chapterProgress = methodProgressBase + Math.round((i / totalChapters) * methodProgressSpan);
+    emit({ stage: `${methodKey}-chapter`, level: 'info', message: `[${methodLabel}] [${chapterIdx}/${totalChapters}] ${ch.key}. ${ch.title} — 开始生成`, progress: chapterProgress, chapter: ch.key, chapterIndex: chapterIdx, chapterTotal: totalChapters, method: methodKey });
+    const userPrompt = buildWeeklyChapterPrompt({
+      weekId, startDate, endDate, methodLabel, methodKey, pdbCount, pdbSummary,
+      chapterKey: ch.key, chapterTitle: ch.title, chapterDesc: ch.desc,
+      chapterIndex, chapterTotal: totalChapters,
+    });
+    const t0 = Date.now();
+    const r = await generateText(WEEKLY_CHAPTER_SYSTEM_PROMPT, userPrompt, { maxChars: 2000, llm });
+    if (r.ok) {
+      chaptersOk++;
+      chapterContents[ch.key] = r.content;
+      emit({ stage: `${methodKey}-chapter_done`, level: 'success', message: `[${methodLabel}] [${chapterIdx}/${totalChapters}] ${ch.key}. ${ch.title} ✓ ${r.content.length} chars · ${(r.durationMs / 1000).toFixed(1)}s`, progress: chapterProgress + Math.round(methodProgressSpan / totalChapters) - 1, chapter: ch.key, chapterIndex: chapterIdx, chapterTotal: totalChapters, chapterContent: r.content, method: methodKey });
+      chapterDetails.push({ key: ch.key, title: ch.title, ok: true, chars: r.content.length, durationMs: r.durationMs });
+    } else {
+      chaptersFailed++;
+      chapterContents[ch.key] = `_(${ch.key}. ${ch.title}: LLM 调用失败 — ${r.error?.slice(0, 120) ?? 'unknown'})_`;
+      emit({ stage: `${methodKey}-chapter_done`, level: 'error', message: `[${methodLabel}] [${chapterIdx}/${totalChapters}] ${ch.key}. ${ch.title} ✗ ${r.error?.slice(0, 100) ?? 'unknown'}`, progress: chapterProgress + Math.round(methodProgressSpan / totalChapters) - 1, chapter: ch.key, chapterIndex: chapterIdx, chapterTotal: totalChapters, method: methodKey });
+      chapterDetails.push({ key: ch.key, title: ch.title, ok: false, error: r.error, durationMs: r.durationMs });
+    }
+  }
+
+  // Merge chapters in order — sanitize to close unclosed bold/code spans
+  // and fix any mid-table truncation from individual chapters.
+  const merged = sanitizeReport(WEEKLY_CHAPTERS.map(ch => `## ${ch.key}. ${ch.title}\n\n${chapterContents[ch.key] ?? ''}`).join('\n\n'));
+  const allOk = chaptersFailed === 0;
+  emit({ stage: `${methodKey}-llm`, level: allOk ? 'success' : 'warn', message: `✓ [${methodLabel}] 分章报告完成 · ${chaptersOk}/${totalChapters} 章 · ${merged.length} chars${allOk ? '' : ` · ${chaptersFailed} 章失败`}`, progress: methodProgressBase + methodProgressSpan });
+  return { content: merged, ok: allOk, chaptersOk, chaptersFailed, chapterDetails };
+}
 function isoWeek(d: Date) {
   const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
   const dayNum = tmp.getUTCDay() || 7;
@@ -89,131 +199,77 @@ export async function POST(req: Request) {
       emit({ stage: 'write-pdb', level: 'success', message: `✓ 已写入 ${pdbSaved} 条 PdbStructure（with_authors=${withAuthors}, with_pubmedId=${withPubmedId}）`, progress: 34 });
     } catch (err: any) { emit({ stage: 'write-pdb', level: 'error', message: `✗ PdbStructure 写入失败：${err?.message}`, progress: 34 }); }
 
-    // Build a summary of PDB structures for LLM
-    const pdbSummary = details.slice(0, 20).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
-    const methodBreakdown = { 'Cryo-EM': details.filter(e => (e.method || '').includes('ELECTRON')).length, 'X-ray': details.filter(e => (e.method || '').includes('X-RAY')).length, 'NMR': details.filter(e => (e.method || '').includes('NMR')).length };
+    // ── Split PDB structures by method for method-specific reports ──
+    // The user wants separate reports for X-ray and Cryo-EM (not a combined
+    // report). Each report is generated via per-chapter LLM calls to avoid
+    // max-token truncation.
+    const cryoemDetails = details.filter(e => (e.method || '').includes('ELECTRON'));
+    const xrayDetails = details.filter(e => (e.method || '').includes('X-RAY'));
+    const methodBreakdown = { 'Cryo-EM': cryoemDetails.length, 'X-ray': xrayDetails.length, 'NMR': details.filter(e => (e.method || '').includes('NMR')).length };
+    emit({ stage: 'method-split', level: 'info', message: `按方法分组: Cryo-EM=${cryoemDetails.length}, X-ray=${xrayDetails.length}, NMR=${methodBreakdown['NMR']}`, progress: 38 });
 
-    const cycles: any[] = [];
-    const cycleRoles = [
-      { role: 'generator', label: 'Generator', reportType: 'cryoem+xray' },
-      { role: 'critic-scientific', label: 'Critic-Scientific', reportType: 'critique' },
-      { role: 'synthesis', label: 'Synthesis', reportType: 'final' },
-    ];
-    for (let c = 1; c <= maxCycles; c++) {
-      const { role, label, reportType } = cycleRoles[c - 1];
-      const baseProgress = 42 + Math.round(((c - 1) / maxCycles) * 45);
-      emit({ stage: `cycle-${c}-${role}`, level: 'info', message: `C${c} ${label} 启动 (${provider}/${model})`, progress: baseProgress });
+    // Build per-method PDB summaries (top 30 each for chapter context)
+    const cryoemSummary = cryoemDetails.slice(0, 30).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
+    const xraySummary = xrayDetails.slice(0, 30).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
 
-      // Generate REAL LLM content for each cycle using the original 8-section template
-      const cycleT0 = Date.now();
-      let cycleContent = '';
-      let llmOk = false;
-      let llmModel = model;
-      try {
-        const systemPrompt = '你是结构生物学领域的资深研究员。你的输出必须严格使用以下 8 个二级标题，不得使用其他标题格式，不得遗漏任何章节：\n## A. 期刊趋势分析\n## B. 技术突破\n## C. 研究热点\n## D. 方法创新\n## E. 重要结构 Top 20\n## F. 技术评估\n## G. 跨学科应用\n## H. 参考文献\n每个标题下填写实质内容。不要使用 "## 1." 或 "## 概览" 等其他格式。';
-
-        // The 8-section template matching the original skill
-        const templateSections = `请按照以下模板生成本周（${window.weekId}，${window.startDate} 至 ${window.endDate}）的 PDB 结构生物学周报：
-
-# PDB 结构生物学周报 — ${window.weekId}
-
-**报告周期**: ${window.startDate} ~ ${window.endDate}
-**报告日期**: ${window.reportDate}
-**数据来源**: RCSB PDB
-**PDB 入库总数**: ${pdbSaved}
-**方法分布**: X-ray=${methodBreakdown['X-ray']}, Cryo-EM=${methodBreakdown['Cryo-EM']}, NMR=${methodBreakdown['NMR']}
-
----
-
-## A. 期刊趋势分析
-本周 PDB 结构来自哪些期刊，高影响因子期刊的贡献比例，与近期趋势对比。
-
-## B. 技术突破
-本周有哪些突破性的结构解析成果（如新方法、新分辨率记录、新蛋白家族首解析等）。
-
-## C. 研究热点
-本周的热门研究方向（如病毒结构、膜蛋白、G蛋白偶联受体、激酶等）。
-
-## D. 方法创新
-本周有哪些方法学上的创新或改进（如新的晶体制备方法、新的 Cryo-EM 样品制备、AI 辅助结构解析等）。
-
-## E. 重要结构 Top 20
-列出本周最重要的 20 个 PDB 结构（按分辨率/期刊 IF/科学重要性排序），包含 PDB ID、方法、分辨率、标题、期刊。
-
-## F. 技术评估
-本周各方法（X-ray/Cryo-EM/NMR）的分辨率分布、结构质量评估。
-
-## G. 跨学科应用
-本周结构生物学与其他学科的交叉应用（如药物设计、合成生物学、疾病机制等）。
-
-## H. 参考文献
-本周高 IF 期刊已正式发表的结构文献精选（列出标题、第一作者、PDB ID、DOI）。
-
----
-
-代表性 PDB 结构数据（前 20 个）：
-${pdbSummary}
-
-请严格按照上述 A-H 八个章节模板生成完整报告。`;
-
-        let userPrompt = templateSections;
-        if (role === 'critic-scientific') {
-          userPrompt = `你是科学评审专家。请对以下 PDB 周报进行科学性评审，检查：
-- 8 章节是否齐全（A 期刊趋势 / B 技术突破 / C 研究热点 / D 方法创新 / E 重要结构 Top20 / F 技术评估 / G 跨学科 / H 参考文献）
-- 数据准确性
-- 结构计数是否正确
-- 是否遗漏重要结构
-
-本周（${window.weekId}）入库 ${pdbSaved} 个结构。
-方法分布：Cryo-EM=${methodBreakdown['Cryo-EM']}, X-ray=${methodBreakdown['X-ray']}, NMR=${methodBreakdown['NMR']}
-
-代表性结构：
-${pdbSummary}`;
-        } else if (role === 'synthesis') {
-          userPrompt = `你是综合生成器。请根据评审意见生成最终版 PDB 周报，必须包含全部 8 个章节（A-H）。
-
-本周（${window.weekId}）入库 ${pdbSaved} 个结构。
-方法分布：Cryo-EM=${methodBreakdown['Cryo-EM']}, X-ray=${methodBreakdown['X-ray']}, NMR=${methodBreakdown['NMR']}
-
-代表性结构：
-${pdbSummary}
-
-请严格按照模板生成完整 8 章节报告。`;
-        }
-
-        const r = await generateText(systemPrompt, userPrompt, { maxChars: 4000, llm: body.llm });
-        cycleContent = r.content;
-        llmOk = r.ok;
-        llmModel = r.model;
-        if (r.ok) emit({ stage: `cycle-${c}-${role}`, level: 'success', message: `✓ C${c} ${label} LLM 真实生成 · ${cycleContent.length} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}`, progress: baseProgress + Math.round((45 / maxCycles) * 0.9) });
-        else emit({ stage: `cycle-${c}-${role}`, level: 'error', message: `✗ C${c} ${label} LLM 失败：${r.error}`, progress: baseProgress + Math.round((45 / maxCycles) * 0.9) });
-      } catch (err: any) {
-        emit({ stage: `cycle-${c}-${role}`, level: 'error', message: `✗ C${c} ${label} 失败：${err?.message}`, progress: baseProgress + Math.round((45 / maxCycles) * 0.9) });
-      }
-      const cycleEntry = { cycle: c, role, reportType, provider, model: llmModel, durationMs: Date.now() - cycleT0, contentChars: cycleContent.length, content: cycleContent, llmOk, verdict: role === 'critic-scientific' ? (llmOk ? 'pass' : 'revise') : undefined };
-      cycles.push(cycleEntry);
+    // ── Generate Cryo-EM report (8 chapters, each a separate LLM call) ──
+    // Progress: 40%..65% for Cryo-EM chapters
+    let cryoemReport: { content: string; ok: boolean; chaptersOk: number; chaptersFailed: number; chapterDetails: any[] } | null = null;
+    if (cryoemDetails.length > 0) {
+      cryoemReport = await generateMethodReport({
+        weekId: window.weekId, startDate: window.startDate, endDate: window.endDate,
+        methodLabel: '冷冻电镜', methodKey: 'cryoem',
+        pdbCount: cryoemDetails.length, pdbSummary: cryoemSummary,
+        llm: body.llm, emit,
+        methodProgressBase: 40, methodProgressSpan: 25,
+      });
+    } else {
+      emit({ stage: 'cryoem-llm', level: 'warn', message: `[冷冻电镜] 本周无 Cryo-EM 结构，跳过报告生成`, progress: 65 });
     }
 
-    // Build the final report content. Cycle order is:
-    //   generator → critic-scientific → synthesis
-    // The user wants the FINAL report (synthesis), NOT the critique.
-    // Priority: synthesis > generator > last cycle. (Never show the
-    // critic-scientific cycle as the report — it's an intermediate review.)
-    const synthesisCycle = cycles.find((c: any) => c.role === 'synthesis' && c.content);
-    const generatorCycle = cycles.find((c: any) => c.role === 'generator' && c.content);
-    const finalContent = synthesisCycle?.content || generatorCycle?.content || (cycles.length > 0 ? (cycles[cycles.length - 1].content || cycles[0].content || '') : '');
+    // ── Generate X-ray report (8 chapters, each a separate LLM call) ──
+    // Progress: 65%..90% for X-ray chapters
+    let xrayReport: { content: string; ok: boolean; chaptersOk: number; chaptersFailed: number; chapterDetails: any[] } | null = null;
+    if (xrayDetails.length > 0) {
+      xrayReport = await generateMethodReport({
+        weekId: window.weekId, startDate: window.startDate, endDate: window.endDate,
+        methodLabel: 'X-ray 晶体学', methodKey: 'xray',
+        pdbCount: xrayDetails.length, pdbSummary: xraySummary,
+        llm: body.llm, emit,
+        methodProgressBase: 65, methodProgressSpan: 25,
+      });
+    } else {
+      emit({ stage: 'xray-llm', level: 'warn', message: `[X-ray 晶体学] 本周无 X-ray 结构，跳过报告生成`, progress: 90 });
+    }
+
+    // Build cycle-like entries for backward compat with the DB schema + UI
+    // (which expects a `cycles` array). We store 2 "cycles": one per method.
+    const cycles: any[] = [];
+    if (cryoemReport) {
+      cycles.push({ cycle: 1, role: 'cryoem', reportType: 'cryoem', provider, model, durationMs: 0, contentChars: cryoemReport.content.length, content: cryoemReport.content, llmOk: cryoemReport.ok, chaptersOk: cryoemReport.chaptersOk, chaptersFailed: cryoemReport.chaptersFailed, chapterDetails: cryoemReport.chapterDetails });
+    }
+    if (xrayReport) {
+      cycles.push({ cycle: cryoemReport ? 2 : 1, role: 'xray', reportType: 'xray', provider, model, durationMs: 0, contentChars: xrayReport.content.length, content: xrayReport.content, llmOk: xrayReport.ok, chaptersOk: xrayReport.chaptersOk, chaptersFailed: xrayReport.chaptersFailed, chapterDetails: xrayReport.chapterDetails });
+    }
+
+    // finalContent is kept for backward compat but is no longer the primary
+    // display path — the UI reads per-method content via cyclesJson.
+    const finalContent = cryoemReport?.content || xrayReport?.content || '';
+
     emit({ stage: 'write-db', level: 'info', message: '写入 WeeklyReportRun + SkillRunRecord', progress: 92 });
     await sleep(300);
-    const filesWritten = [`weekly-reports/${window.weekId}/cryoem.md`, `weekly-reports/${window.weekId}/xray.md`, `weekly-reports/${window.weekId}/index.md`];
-    const providers = [...new Set(cycles.map((c) => c.provider).filter(Boolean))].join(', ');
+    const filesWritten = [`weekly-reports/${window.weekId}/cryoem.md`, `weekly-reports/${window.weekId}/xray.md`];
+    const providers = provider;
     let dbSaved = false;
     try {
-      await db.weeklyReportRun.create({ data: { weekId: window.weekId, cycles: maxCycles, reportTypes: 'cryoem+xray', providers, filesWritten: filesWritten.join('\n'), durationMs: Date.now() - t0, cyclesJson: JSON.stringify(cycles) } });
-      await db.skillRunRecord.create({ data: { module: 'weekly', status: 'success', summary: `完成 ${window.weekId} · ${fetched} PDB · ${maxCycles} cycles · ${providers}`, details: JSON.stringify({ weekId: window.weekId, pdbFetched: fetched, pdbSaved, withAuthors, withPubmedId, cycles: cycles.length, filesWritten, finalContentChars: finalContent.length }), provider, model, llmOk: cycles.some(c => c.llmOk), durationMs: Date.now() - t0, resultJson: JSON.stringify({ weekId: window.weekId, cycles: cycles.map(c => ({ cycle: c.cycle, role: c.role, contentChars: c.contentChars, llmOk: c.llmOk, verdict: c.verdict })), pdbFetched: fetched, pdbSaved, finalContent: finalContent.slice(0, 500) }), log: _log.join('\n') } });
-      dbSaved = true; emit({ stage: 'write-db', level: 'success', message: `✓ 已写入 WeeklyReportRun + SkillRunRecord + 落盘 ${filesWritten.length} 文件`, progress: 98 });
+      await db.weeklyReportRun.create({ data: { weekId: window.weekId, cycles: cycles.length, reportTypes: 'cryoem+xray', providers, filesWritten: filesWritten.join('\n'), durationMs: Date.now() - t0, cyclesJson: JSON.stringify(cycles) } });
+      const totalChaptersOk = (cryoemReport?.chaptersOk || 0) + (xrayReport?.chaptersOk || 0);
+      const totalChaptersFailed = (cryoemReport?.chaptersFailed || 0) + (xrayReport?.chaptersFailed || 0);
+      await db.skillRunRecord.create({ data: { module: 'weekly', status: totalChaptersFailed === 0 ? 'success' : 'error', summary: `完成 ${window.weekId} · ${fetched} PDB · Cryo-EM ${cryoemDetails.length} + X-ray ${xrayDetails.length} · ${totalChaptersOk} 章✓ ${totalChaptersFailed} 章✗ · ${providers}`, details: JSON.stringify({ weekId: window.weekId, pdbFetched: fetched, pdbSaved, withAuthors, withPubmedId, cryoemCount: cryoemDetails.length, xrayCount: xrayDetails.length, cryoemChaptersOk: cryoemReport?.chaptersOk, xrayChaptersOk: xrayReport?.chaptersOk, totalChaptersOk, totalChaptersFailed }), provider, model, llmOk: totalChaptersFailed === 0, durationMs: Date.now() - t0, resultJson: JSON.stringify({ weekId: window.weekId, cycles: cycles.map(c => ({ cycle: c.cycle, role: c.role, contentChars: c.contentChars, llmOk: c.llmOk, chaptersOk: c.chaptersOk, chaptersFailed: c.chaptersFailed })), pdbFetched: fetched, pdbSaved, cryoemContentChars: cryoemReport?.content.length || 0, xrayContentChars: xrayReport?.content.length || 0 }), log: _log.join('\n') } });
+      dbSaved = true; emit({ stage: 'write-db', level: 'success', message: `✓ 已写入 WeeklyReportRun + SkillRunRecord（Cryo-EM ${cryoemReport?.content.length || 0} chars + X-ray ${xrayReport?.content.length || 0} chars）`, progress: 98 });
     } catch (err: any) { emit({ stage: 'write-db', level: 'error', message: `✗ 数据库写入失败：${err?.message}`, progress: 98 }); }
-    const result = { window, reports: ['cryoem', 'xray'], cycles: cycles.map(c => ({ ...c, content: undefined })), finalContent, dbCounts: { pdbStructure: pdbSaved, weeklyReport: maxCycles, weeklySnapshot: 0, withAuthors, withPubmedId, pubmedArticleMatched: withPubmedId }, pdbFetched: fetched, pdbSaved, pdbSample: details.slice(0, 5).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title?.slice(0, 60) })), filesWritten, dbSaved, durationMs: Date.now() - t0 };
-    emit({ stage: 'done', level: 'success', message: `完成 · ${fetched} PDB (真实) · ${maxCycles} cycles · ${finalContent.length} chars 报告 · ${((Date.now() - t0) / 1000).toFixed(1)}s${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: 100 });
+    const result = { window, reports: ['cryoem', 'xray'], cycles: cycles.map(c => ({ ...c, content: undefined })), cryoemContent: cryoemReport?.content || '', xrayContent: xrayReport?.content || '', finalContent, dbCounts: { pdbStructure: pdbSaved, weeklyReport: cycles.length, weeklySnapshot: 0, withAuthors, withPubmedId, pubmedArticleMatched: withPubmedId }, pdbFetched: fetched, pdbSaved, methodBreakdown, pdbSample: details.slice(0, 5).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title?.slice(0, 60) })), filesWritten, dbSaved, durationMs: Date.now() - t0 };
+    emit({ stage: 'done', level: 'success', message: `完成 · ${fetched} PDB (Cryo-EM ${cryoemDetails.length} + X-ray ${xrayDetails.length}) · Cryo-EM 报告 ${cryoemReport?.content.length || 0} chars · X-ray 报告 ${xrayReport?.content.length || 0} chars · ${((Date.now() - t0) / 1000).toFixed(1)}s${dbSaved ? ' · DB ✓' : ' · DB ✗'}`, progress: 100 });
     await sleep(150); done(result);
   })();
   return new Response(stream, { headers: { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' } });

@@ -768,7 +768,7 @@ function ChapterStream({
     startedAt?: string;
     finishedAt?: string;
   };
-  type GroupKey = 'primary' | `batch-${number}`;
+  type GroupKey = 'primary' | `batch-${number}` | 'cryoem' | 'xray';
   type Group = { key: GroupKey; title: string; order: number; chapters: Map<string, ChapterRow> };
   const labels: Record<string, string> = {
     summary: 'Executive Summary',
@@ -779,6 +779,15 @@ function ChapterStream({
     experimental: 'Experimental Plan',
     references: 'Key References',
     conclusion: 'Conclusion',
+    // Weekly report chapters (A-H)
+    A: 'A. 期刊趋势分析',
+    B: 'B. 技术突破',
+    C: 'C. 研究热点',
+    D: 'D. 方法创新',
+    E: 'E. 重要结构 Top 20',
+    F: 'F. 技术评估',
+    G: 'G. 跨学科应用',
+    H: 'H. 参考文献',
   };
 
   // Group events by target — primary (stage 'chapter' / 'chapter_done') gets
@@ -812,13 +821,31 @@ function ChapterStream({
         isDone = !!m[2];
       }
     }
+    // ── Weekly report method-specific chapters ──
+    // The weekly route emits 'cryoem-chapter'/'cryoem-chapter_done' and
+    // 'xray-chapter'/'xray-chapter_done'. Group them under method labels.
+    if (!groupKey) {
+      const wm = stage.match(/^(cryoem|xray)-chapter(_done)?$/);
+      if (wm) {
+        groupKey = wm[1] as GroupKey;
+        isDone = !!wm[2];
+      }
+    }
     if (!groupKey || !e.chapter) continue;
     // All targets are equal — label them uniformly as "Target N · Chapter Stream".
     // 'primary' (legacy single-mode stage names) → Target 1 (order 0).
     // 'batch-N' → Target N+1 (order N+1).
-    const group = groupKey === 'primary'
-      ? ensureGroup('primary', 'Target 1 · Chapter Stream', 0)
-      : ensureGroup(groupKey, `Target ${parseInt(groupKey.replace('batch-', ''), 10) + 1} · Chapter Stream`, parseInt(groupKey.replace('batch-', ''), 10) + 1);
+    // Weekly method chapters → 'Cryo-EM · Chapter Stream' / 'X-ray · Chapter Stream'
+    let group: Group;
+    if (groupKey === 'primary') {
+      group = ensureGroup('primary', 'Target 1 · Chapter Stream', 0);
+    } else if (groupKey === 'cryoem') {
+      group = ensureGroup('cryoem' as GroupKey, 'Cryo-EM · Chapter Stream', 100);
+    } else if (groupKey === 'xray') {
+      group = ensureGroup('xray' as GroupKey, 'X-ray · Chapter Stream', 101);
+    } else {
+      group = ensureGroup(groupKey, `Target ${parseInt(groupKey.replace('batch-', ''), 10) + 1} · Chapter Stream`, parseInt(groupKey.replace('batch-', ''), 10) + 1);
+    }
     const k = e.chapter as string;
     const cur = group.chapters.get(k) || { key: k, label: labels[k] || k, index: 0, total: 0, status: 'running' as const };
     if (!isDone) {
