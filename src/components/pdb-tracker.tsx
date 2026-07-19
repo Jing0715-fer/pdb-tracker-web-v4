@@ -1197,20 +1197,27 @@ export default function PdbTracker() {
     }
   }, [mode]);
 
-  // Lazy-fetch literature data when switching to literature mode (sequential)
+  // Lazy-fetch literature data when switching to literature mode.
+  // Use Promise.allSettled so one failed fetch doesn't block the others —
+  // the user sees partial data instead of an indefinite loading state.
   useEffect(() => {
     if (mode === 'literature' && !fetchedModesRef.current.has('literature')) {
       fetchedModesRef.current.add('literature');
       (async () => {
-        await fetchLitStats();
-        await fetchLitPapers();
-        await fetchLitReports();
+        await Promise.allSettled([
+          fetchLitStats(),
+          fetchLitPapers(),
+          fetchLitReports(),
+        ]);
         setDataFetchedAt(new Date());
       })();
     }
   }, [mode]);
 
-  // Retry all data fetching after an error (sequential)
+  // Retry all data fetching after an error.
+  // Weekly data is fetched first (needed for the default view), then
+  // evaluation + literature are fetched in parallel via Promise.allSettled
+  // so a single failed endpoint doesn't block the others.
   const handleRetryAll = useCallback(async () => {
     setIsRefreshing(true);
     setFetchError(null);
@@ -1220,16 +1227,19 @@ export default function PdbTracker() {
         ['Cryo-EM', 'X-RAY DIFFRACTION', 'SOLUTION NMR'].includes(activeFilter)
         ? activeFilter : undefined;
       await fetchEntries(selectedSnapshot || undefined, methodFilter, searchQuery || undefined);
-      // Always fetch evaluations + literature on a full refresh — the Run
-      // Center may have just written new batch/eval/literature rows that the
-      // user needs to see immediately, even if they haven't visited those
-      // modes yet.
-      await fetchEvaluations();
-      fetchedModesRef.current.add('evaluation');
-      await fetchLitStats();
-      await fetchLitPapers();
-      await fetchLitReports();
-      fetchedModesRef.current.add('literature');
+      // Fetch evaluation + literature in parallel — one failing shouldn't
+      // block the other.
+      await Promise.allSettled([
+        (async () => { await fetchEvaluations(); fetchedModesRef.current.add('evaluation'); })(),
+        (async () => {
+          await Promise.allSettled([
+            fetchLitStats(),
+            fetchLitPapers(),
+            fetchLitReports(),
+          ]);
+          fetchedModesRef.current.add('literature');
+        })(),
+      ]);
       setDataFetchedAt(new Date());
       toast.success('Data refreshed', { description: 'All data has been updated' });
     } finally {

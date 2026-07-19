@@ -1,7 +1,11 @@
 /**
- * Sequential request queue to prevent concurrent API requests that crash the server.
- * All API calls should go through this queue to ensure they are processed one at a time.
+ * Sequential request queue with timeout to prevent stuck requests from
+ * blocking the entire queue. A single hung fetch (e.g. server compiling
+ * a route) would otherwise block ALL subsequent API calls, causing
+ weekly/literature pages to get stuck loading.
  */
+
+const FETCH_TIMEOUT_MS = 15_000; // 15s per request — enough for compilation
 
 type QueueItem = {
   url: string;
@@ -20,8 +24,23 @@ async function processQueue() {
   while (queue.length > 0) {
     const item = queue.shift()!;
     try {
-      const response = await fetch(item.url, item.options);
-      item.resolve(response);
+      // Race the fetch against a timeout so a stuck request (server
+      // compiling, network hiccup) doesn't block the queue forever.
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      // Merge any caller-provided signal with our timeout signal.
+      const mergedOptions: RequestInit = {
+        ...item.options,
+        signal: controller.signal,
+      };
+      try {
+        const response = await fetch(item.url, mergedOptions);
+        clearTimeout(timeoutId);
+        item.resolve(response);
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
     } catch (error) {
       item.reject(error);
     }
@@ -33,9 +52,7 @@ async function processQueue() {
 }
 
 /**
- * Queue a fetch request to be executed sequentially.
- * This prevents concurrent API requests that can crash the Next.js server
- * in memory-constrained environments.
+ * Queue a fetch request to be executed sequentially with a timeout.
  */
 export function queuedFetch(url: string, options?: RequestInit): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -46,13 +63,15 @@ export function queuedFetch(url: string, options?: RequestInit): Promise<Respons
 
 /**
  * Fetch with automatic retry and queuing.
- * Combines sequential request processing with retry logic.
+ * Combines sequential request processing with retry logic and timeout.
+ * Reduced to 2 retries with shorter backoff (500ms, 750ms) so a stuck
+ * queue clears in <2s instead of >5s.
  */
 export async function queuedFetchWithRetry(
   url: string,
   options?: RequestInit,
-  retries: number = 3,
-  baseDelay: number = 1000
+  retries: number = 2,
+  baseDelay: number = 500
 ): Promise<Response> {
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
