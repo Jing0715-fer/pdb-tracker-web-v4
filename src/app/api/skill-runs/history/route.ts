@@ -33,6 +33,10 @@ export async function GET(req: Request) {
         llmFallback: r.llmFallback,
         llmError: r.llmError,
         durationMs: r.durationMs,
+        // Surface log size so the Run Center UI can show a "View Log"
+        // button only when the run actually persisted a log. The full
+        // log itself is fetched lazily from /api/skill-runs/[id]/log.
+        logBytes: r.log ? r.log.length : 0,
         createdAt: r.createdAt.toISOString(),
       })),
     });

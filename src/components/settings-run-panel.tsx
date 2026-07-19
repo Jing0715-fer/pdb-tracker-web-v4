@@ -551,10 +551,17 @@ function RunHistoryPanel({
     llmFallback?: boolean | null;
     llmError?: string | null;
     durationMs?: number | null;
+    logBytes?: number;
     createdAt: string;
   }>>([]);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // The full SSE log for the currently-expanded row. Loaded lazily from
+  // /api/skill-runs/[id]/log so the panel doesn't fetch 100KB of NDJSON
+  // for every row in the history list.
+  const [expandedLog, setExpandedLog] = useState<{ id: string; lines: number; bytes: number; text: string } | null>(null);
+  const [expandedLogLoading, setExpandedLogLoading] = useState(false);
+  const [expandedLogError, setExpandedLogError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -615,7 +622,29 @@ function RunHistoryPanel({
             <div key={r.id} className="border border-border/40 rounded-md bg-background/40 overflow-hidden">
               <button
                 type="button"
-                onClick={() => setExpandedId(isOpen ? null : r.id)}
+                onClick={() => {
+                  // Collapse if already open; otherwise expand and lazily
+                  // fetch the full SSE log for this run.
+                  if (isOpen) {
+                    setExpandedId(null);
+                    setExpandedLog(null);
+                    setExpandedLogError(null);
+                  } else {
+                    setExpandedId(r.id);
+                    setExpandedLog(null);
+                    setExpandedLogError(null);
+                    if ((r.logBytes ?? 0) > 0) {
+                      setExpandedLogLoading(true);
+                      fetch(`/api/skill-runs/${r.id}/log`)
+                        .then((res) => res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`)))
+                        .then((d) => {
+                          setExpandedLog({ id: d.id, lines: d.lines, bytes: d.bytes, text: d.log ?? '' });
+                        })
+                        .catch((err) => setExpandedLogError(err?.message ?? 'fetch failed'))
+                        .finally(() => setExpandedLogLoading(false));
+                    }
+                  }
+                }}
                 className="w-full px-2 py-1 flex items-center gap-2 text-left hover:bg-background/60 transition-colors"
               >
                 {isOk ? (
@@ -633,6 +662,11 @@ function RunHistoryPanel({
                   </span>
                 )}
                 <span className="text-3xs text-muted-foreground/60 font-mono shrink-0">{fmtDur(r.durationMs)}</span>
+                {(r.logBytes ?? 0) > 0 && (
+                  <span className="text-3xs font-mono text-muted-foreground/60 shrink-0 hidden sm:inline" title="SSE log size in bytes">
+                    log {(r.logBytes! / 1024).toFixed(1)}KB
+                  </span>
+                )}
                 <ChevronRight className={`h-3 w-3 text-muted-foreground/60 transition-transform shrink-0 ${isOpen ? 'rotate-90' : ''}`} />
               </button>
               <AnimatePresence initial={false}>
@@ -656,6 +690,32 @@ function RunHistoryPanel({
                         <div className="text-muted-foreground/70">model: <span className="font-mono">{r.model || '—'}</span></div>
                         <div className="text-muted-foreground/70">llmOk: <span className="font-mono">{r.llmOk === true ? '✓' : r.llmOk === false ? '✗' : '—'}</span></div>
                       </div>
+                      {/* Full SSE log viewer. Shows a loading indicator while
+                          fetching, the log text once loaded, or a hint
+                          when the run predates log persistence. */}
+                      {(r.logBytes ?? 0) > 0 && (
+                        <div className="pt-1">
+                          <div className="flex items-center justify-between text-3xs text-muted-foreground/70 mb-0.5">
+                            <span>SSE log</span>
+                            {expandedLog && (
+                              <span className="font-mono">{expandedLog.lines} lines · {(expandedLog.bytes / 1024).toFixed(1)}KB</span>
+                            )}
+                          </div>
+                          {expandedLogLoading && (
+                            <div className="text-3xs text-muted-foreground/60 flex items-center gap-1">
+                              <Loader2 className="h-2.5 w-2.5 animate-spin" /> Loading…
+                            </div>
+                          )}
+                          {expandedLogError && (
+                            <div className="text-3xs text-rose-600 dark:text-rose-300">log fetch failed: {expandedLogError}</div>
+                          )}
+                          {expandedLog && (
+                            <pre className="max-h-60 overflow-y-auto rounded border border-border/40 bg-background/40 p-1.5 text-3xs font-mono leading-snug text-muted-foreground/80 whitespace-pre-wrap break-all">
+                              {expandedLog.text}
+                            </pre>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 )}

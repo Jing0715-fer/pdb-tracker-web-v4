@@ -13,6 +13,33 @@ export interface SseEvent {
   [key: string]: unknown;
 }
 
+/**
+ * Wrap a route's `emit` (or `progress`) function so that every event the
+ * route emits is also appended to a `logAccumulator` array, formatted as
+ * NDJSON (one JSON object per line). The route hands the array to
+ * `db.skillRunRecord.create({ data: { ..., log: logAccumulator.join('\n') } })`
+ * so the Run Center can show the full SSE log for a past run instead of
+ * only the short summary.
+ *
+ *   const log: string[] = [];
+ *   const emit = withLog(progress, log);
+ *   ...
+ *   await db.skillRunRecord.create({ data: { ..., log: log.join('\n') } });
+ */
+export function withLog<T extends (ev: SseEvent) => void>(
+  origEmit: T,
+  log: string[],
+): T {
+  return ((ev: SseEvent) => {
+    try {
+      log.push(JSON.stringify({ ts: new Date().toISOString(), ...ev }));
+    } catch {
+      // never let logging break the route
+    }
+    origEmit(ev);
+  }) as T;
+}
+
 export function sseStream() {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

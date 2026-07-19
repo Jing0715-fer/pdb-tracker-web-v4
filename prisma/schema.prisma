@@ -218,6 +218,7 @@ model SkillRunRecord {
   llmError    String?  // LLM 失败原因
   durationMs  Int?
   resultJson  String?  // 完整 result payload (JSON string)
+  log         String?  // 完整 SSE log (NDJSON: 1 event per line)
   createdAt   DateTime @default(now())
 
   @@index([module])

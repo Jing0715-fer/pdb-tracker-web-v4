@@ -264,7 +264,13 @@ export async function POST(req: Request) {
       const base = 2 + _batchIdx * slot;
       return Math.min(97, Math.max(2, Math.round(base + (localPct / 100) * slot)));
     };
-    const emit = (e: SseEvent) => _origProgress({ ...e, progress: remapProgress(e.progress ?? 0) });
+    // Accumulate every SSE event into a log array so the Run Center can
+    // show the full log for past runs (not just the short summary).
+    const _log: string[] = [];
+    const emit = (e: SseEvent) => {
+      try { _log.push(JSON.stringify({ ts: new Date().toISOString(), ...e })); } catch { /* never let logging break the route */ }
+      _origProgress({ ...e, progress: remapProgress(e.progress ?? 0) });
+    };
     try {
       // ── Helper: evaluate ONE sequence (used by both single & multi-sequence modes) ──
       // Returns the full per-sequence result object. All log messages are
@@ -719,10 +725,11 @@ ${overlapSummary}${crossLitBlock}
                 llmOk: generateReport ? crossReport?.ok ?? false : null,
                 durationMs: Date.now() - t0,
                 resultJson: JSON.stringify({ sequences: seqResults.map(r => ({ seqId: r.seqId, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score })), commonPdbIds, crossReportChars: crossReport?.contentChars || 0 }),
-              },
-            });
-          } catch { /* ignore */ }
-        }
+                log: _log.join('\n'),
+                },
+                });
+                } catch { /* ignore */ }
+                }
 
         const result = {
           ok: true,
@@ -1153,6 +1160,7 @@ ${overlapSummary}${crossLitBlock}
             llmError: generateReport ? report?.error : null,
             durationMs: Date.now() - t0,
             resultJson: JSON.stringify({ uniprot, scores, reportOk: report?.ok, reportChars: report?.contentChars, pdbSample: pdbDetails.slice(0, 5).map(e => e.pdbId) }),
+            log: _log.join('\n'),
           },
         });
         dbSaved = true;
@@ -1523,6 +1531,7 @@ ${overlapSummary}${crossLitBlock}
               llmOk: crossReport?.ok ?? false,
               durationMs: Date.now() - t0,
               resultJson: JSON.stringify({ batchResults: batchResults.map(r => ({ uniprot: r.uniprot, pdbCount: r.pdbDetails?.length || 0, overall: r.scores?.overall?.score, cached: r.cached })), commonPdbIds, crossReportChars: crossReport?.contentChars || 0 }),
+              log: _log.join('\n'),
             },
           });
         } catch { /* ignore */ }

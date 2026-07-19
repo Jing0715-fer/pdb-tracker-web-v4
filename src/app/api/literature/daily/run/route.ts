@@ -16,7 +16,13 @@ export async function POST(req: Request) {
   const { stream, progress, done } = sseStream();
   (async () => {
     const t0 = Date.now();
-    const emit = (e: SseEvent) => progress(e);
+    // Accumulate every SSE event into a log array so the Run Center can
+    // show the full log for past runs (not just the short summary).
+    const _log: string[] = [];
+    const emit = (e: SseEvent) => {
+      try { _log.push(JSON.stringify({ ts: new Date().toISOString(), ...e })); } catch { /* never let logging break the route */ }
+      progress(e);
+    };
     emit({ stage: 'init', level: 'info', message: `启动 literature-daily · date=${date} ±${windowDays}d`, progress: 2 });
     await sleep(300);
     emit({ stage: 'pubmed-pathA', level: 'info', message: `Path A: MeSH + 方法关键词 (上限 ${maxPathA}) · PubMed 真实检索`, progress: 6 });
@@ -83,7 +89,7 @@ export async function POST(req: Request) {
     let dbSaved = false;
     try {
       if (!skipWikiFiles) { await db.literatureDigest.upsert({ where: { date }, create: { date, paperCount: finalCount, methodStats: JSON.stringify(methodStats), digest: digest || '(LLM 失败，无摘要)', llmOk, llmProvider: provider, llmModel: actualModel, llmDurationMs, filePath: `daily-reports/structural-biology/${date}/index.md` }, update: { paperCount: finalCount, methodStats: JSON.stringify(methodStats), digest: digest || '(LLM 失败，无摘要)', llmOk, llmProvider: provider, llmModel: actualModel, llmDurationMs, filePath: `daily-reports/structural-biology/${date}/index.md` } }); }
-      await db.skillRunRecord.create({ data: { module: 'literature', status: llmOk || skipWikiFiles ? 'success' : 'error', summary: `${date}: PubMed ${finalCount} 篇 (真实) · ${pubmedSaved} 入库${llmOk ? ' · LLM ✓' : skipWikiFiles ? '' : ' · LLM ✗'}`, details: JSON.stringify({ pathACount: pathAIds.length, pathBCount: pathBIds.length, finalCount, methodStats, pubmedSaved, llmOk, llmError }), provider, model: actualModel, llmOk: skipWikiFiles ? null : llmOk, llmFallback: skipWikiFiles ? false : llmFallback, llmError: skipWikiFiles ? null : llmError, durationMs: Date.now() - t0, resultJson: JSON.stringify({ date, finalCount, methodStats, pubmedSaved, digest: digest.slice(0, 500), llmOk }) } });
+      await db.skillRunRecord.create({ data: { module: 'literature', status: llmOk || skipWikiFiles ? 'success' : 'error', summary: `${date}: PubMed ${finalCount} 篇 (真实) · ${pubmedSaved} 入库${llmOk ? ' · LLM ✓' : skipWikiFiles ? '' : ' · LLM ✗'}`, details: JSON.stringify({ pathACount: pathAIds.length, pathBCount: pathBIds.length, finalCount, methodStats, pubmedSaved, llmOk, llmError }), provider, model: actualModel, llmOk: skipWikiFiles ? null : llmOk, llmFallback: skipWikiFiles ? false : llmFallback, llmError: skipWikiFiles ? null : llmError, durationMs: Date.now() - t0, resultJson: JSON.stringify({ date, finalCount, methodStats, pubmedSaved, digest: digest.slice(0, 500), llmOk }), log: _log.join('\n') } });
       dbSaved = true; emit({ stage: 'write-db', level: 'success', message: `✓ 已写入 LiteratureDigest + SkillRunRecord`, progress: 99 });
     } catch (err: any) { emit({ stage: 'write-db', level: 'error', message: `✗ 数据库写入失败：${err?.message}`, progress: 99 }); }
     const result = { date, totalCandidates: allIds.length, pathACount: pathAIds.length, pathBCount: pathBIds.length, finalCount, methodStats, pubmedSaved, paperSample: papers.slice(0, 5).map(p => ({ pmid: p.pmid, title: p.title.slice(0, 60), journal: p.journal, doi: p.doi })), files: skipWikiFiles ? undefined : { dailyIndex: `daily-reports/structural-biology/${date}/index.md`, mainIndex: 'daily-reports/structural-biology/index.md' }, digest, llmOk, llmFallback, llmError, llmModel: actualModel, llmDurationMs, dbSaved, durationMs: Date.now() - t0, provider, model: actualModel, dataSource: 'PubMed (NCBI E-utilities)' };

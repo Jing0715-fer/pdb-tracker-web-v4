@@ -65,7 +65,13 @@ export async function POST(req: Request) {
   const { stream, progress, done } = sseStream();
   (async () => {
     const t0 = Date.now();
-    const emit = (e: SseEvent) => progress(e);
+    // Accumulate every SSE event into a log array so the Run Center can
+    // show the full log for past runs (not just the short summary).
+    const _log: string[] = [];
+    const emit = (e: SseEvent) => {
+      try { _log.push(JSON.stringify({ ts: new Date().toISOString(), ...e })); } catch { /* never let logging break the route */ }
+      progress(e);
+    };
     emit({ stage: 'init', level: 'info', message: `启动 pdb-weekly · ${window.weekId} · ${maxCycles}-cycle`, progress: 1 });
     await sleep(300);
     emit({ stage: 'fetch-rcsb', level: 'info', message: `RCSB 检索 ${window.startDate} → ${window.endDate}（真实 API）`, progress: 6 });
@@ -203,7 +209,7 @@ ${pdbSummary}
     let dbSaved = false;
     try {
       await db.weeklyReportRun.create({ data: { weekId: window.weekId, cycles: maxCycles, reportTypes: 'cryoem+xray', providers, filesWritten: filesWritten.join('\n'), durationMs: Date.now() - t0, cyclesJson: JSON.stringify(cycles) } });
-      await db.skillRunRecord.create({ data: { module: 'weekly', status: 'success', summary: `完成 ${window.weekId} · ${fetched} PDB · ${maxCycles} cycles · ${providers}`, details: JSON.stringify({ weekId: window.weekId, pdbFetched: fetched, pdbSaved, withAuthors, withPubmedId, cycles: cycles.length, filesWritten, finalContentChars: finalContent.length }), provider, model, llmOk: cycles.some(c => c.llmOk), durationMs: Date.now() - t0, resultJson: JSON.stringify({ weekId: window.weekId, cycles: cycles.map(c => ({ cycle: c.cycle, role: c.role, contentChars: c.contentChars, llmOk: c.llmOk, verdict: c.verdict })), pdbFetched: fetched, pdbSaved, finalContent: finalContent.slice(0, 500) }) } });
+      await db.skillRunRecord.create({ data: { module: 'weekly', status: 'success', summary: `完成 ${window.weekId} · ${fetched} PDB · ${maxCycles} cycles · ${providers}`, details: JSON.stringify({ weekId: window.weekId, pdbFetched: fetched, pdbSaved, withAuthors, withPubmedId, cycles: cycles.length, filesWritten, finalContentChars: finalContent.length }), provider, model, llmOk: cycles.some(c => c.llmOk), durationMs: Date.now() - t0, resultJson: JSON.stringify({ weekId: window.weekId, cycles: cycles.map(c => ({ cycle: c.cycle, role: c.role, contentChars: c.contentChars, llmOk: c.llmOk, verdict: c.verdict })), pdbFetched: fetched, pdbSaved, finalContent: finalContent.slice(0, 500) }), log: _log.join('\n') } });
       dbSaved = true; emit({ stage: 'write-db', level: 'success', message: `✓ 已写入 WeeklyReportRun + SkillRunRecord + 落盘 ${filesWritten.length} 文件`, progress: 98 });
     } catch (err: any) { emit({ stage: 'write-db', level: 'error', message: `✗ 数据库写入失败：${err?.message}`, progress: 98 }); }
     const result = { window, reports: ['cryoem', 'xray'], cycles: cycles.map(c => ({ ...c, content: undefined })), finalContent, dbCounts: { pdbStructure: pdbSaved, weeklyReport: maxCycles, weeklySnapshot: 0, withAuthors, withPubmedId, pubmedArticleMatched: withPubmedId }, pdbFetched: fetched, pdbSaved, pdbSample: details.slice(0, 5).map(e => ({ pdbId: e.pdbId, method: e.method, resolution: e.resolution, title: e.title?.slice(0, 60) })), filesWritten, dbSaved, durationMs: Date.now() - t0 };
