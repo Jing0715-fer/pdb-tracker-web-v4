@@ -38,6 +38,26 @@ function isRecoverableError(error: Error): boolean {
   );
 }
 
+/**
+ * True ONLY when the error is a *static asset* / *chunk* failure — these
+ * never recover by retrying the React tree, because the chunk hash is
+ * baked into the HTML. The only fix is a full page reload. Network SSE
+ * errors, transient API errors, etc. are NOT in this set (they recover
+ * fine on their own or via normal refetch).
+ */
+function isChunkLoadError(error: Error): boolean {
+  const name = error.name || '';
+  const msg = error.message || '';
+  return (
+    name === 'ChunkLoadError' ||
+    msg.includes('Loading chunk') ||
+    msg.includes('Failed to load chunk') ||
+    msg.includes('Importing a module script failed') ||
+    msg.includes('dynamically imported module') ||
+    (msg.includes('Load failed') && msg.includes('chunk'))
+  );
+}
+
 class ErrorBoundaryInner extends Component<Props, State> {
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -52,6 +72,23 @@ class ErrorBoundaryInner extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught:', error, errorInfo);
+
+    // ChunkLoadError: the chunk hash in the served HTML doesn't match
+    // what's on disk (typical after dev server recompiles mid-session
+    // or after switching branches). Retrying the React tree can't
+    // help because the chunk URL is fixed in the page's <script> tags
+    // — only a full reload will re-fetch the new HTML and resolve the
+    // new chunk paths. Auto-retry just delays the inevitable and shows
+    // a confusing "Auto-retrying... (attempt N)" UI for ~20 seconds.
+    // For non-chunk errors we still do the normal backoff retry.
+    if (isChunkLoadError(error)) {
+      const reloadDelay = 500; // tiny pause so user sees the message
+      this.setState({ isRetrying: true });
+      this.retryTimer = setTimeout(() => {
+        window.location.reload();
+      }, reloadDelay);
+      return;
+    }
 
     // Auto-retry for recoverable errors (network/chunk load issues)
     if (isRecoverableError(error) && this.state.retryCount < MAX_RETRIES) {
