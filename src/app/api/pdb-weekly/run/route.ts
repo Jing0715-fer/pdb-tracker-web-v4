@@ -93,7 +93,14 @@ async function generateMethodReport(opts: {
       chapterIndex, chapterTotal: totalChapters,
     });
     const t0 = Date.now();
-    const r = await generateText(WEEKLY_CHAPTER_SYSTEM_PROMPT, userPrompt, { maxChars: 2000, llm });
+    // Each weekly chapter is a SEPARATE short LLM call (~1-5KB output
+    // is realistic now that the system prompt + chapter template is well
+    // scoped). The previous maxChars: 2000 was too tight — with Top-30
+    // PDB context (~3-4K tokens input) plus system prompt, the model
+    // would either truncate mid-thought or pad with "..." to fit. 8000
+    // chars gives the chapter room to breathe while still well under any
+    // reasonable output-token cap (8-16K on most models).
+    const r = await generateText(WEEKLY_CHAPTER_SYSTEM_PROMPT, userPrompt, { maxChars: 8000, llm });
     if (r.ok) {
       chaptersOk++;
       chapterContents[ch.key] = r.content;
@@ -208,9 +215,14 @@ export async function POST(req: Request) {
     const methodBreakdown = { 'Cryo-EM': cryoemDetails.length, 'X-ray': xrayDetails.length, 'NMR': details.filter(e => (e.method || '').includes('NMR')).length };
     emit({ stage: 'method-split', level: 'info', message: `按方法分组: Cryo-EM=${cryoemDetails.length}, X-ray=${xrayDetails.length}, NMR=${methodBreakdown['NMR']}`, progress: 38 });
 
-    // Build per-method PDB summaries (top 30 each for chapter context)
-    const cryoemSummary = cryoemDetails.slice(0, 30).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
-    const xraySummary = xrayDetails.slice(0, 30).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
+    // Build per-method PDB summaries (Top 25 each is enough context for the
+    // LLM — Top 30 was right at the token edge and triggered input-side
+    // truncation on long titles/journal names. Each Top-25 line is ~150
+    // chars × 25 = ~4KB of text — well within the per-chapter context
+    // budget. The LLM has the full count above so it can say "等".
+    const TOP_N = 25;
+    const cryoemSummary = cryoemDetails.slice(0, TOP_N).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
+    const xraySummary = xrayDetails.slice(0, TOP_N).map(e => `- ${e.pdbId}: ${e.method || 'unknown'} | ${e.resolution != null ? e.resolution.toFixed(1) + 'Å' : 'N/A'} | ${(e.title || '').slice(0, 60)} | ${e.journal || 'N/A'}`).join('\n');
 
     // ── Generate Cryo-EM report (8 chapters, each a separate LLM call) ──
     // Progress: 40%..65% for Cryo-EM chapters

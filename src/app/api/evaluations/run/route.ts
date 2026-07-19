@@ -514,7 +514,11 @@ ${blastTable}${litBlock}
 
 请基于 BLAST 同源搜索结果和 UniProt 元数据生成评估报告。重点分析输入序列与已知蛋白的同源性、结构特征、功能推断。`;
             const bSysPrompt = '你是结构生物学领域的资深研究员。请用中文生成一份蛋白序列评估报告（800-1500 字），使用 Markdown 格式，包含以下章节：## 序列概述、## BLAST 同源结构分析、## 可成药性评估、## 实验建议、## 总结。';
-            const r = await generateText(bSysPrompt, userPrompt, { maxChars: 2000, llm: body.llm });
+            // Generous ceiling: the previous 2000-char cap truncated mid-section
+            // for targets with rich BLAST hits (~10-15 hits per target). 6000
+            // lets the model produce 4-6 well-developed paragraphs per chapter
+            // — the LLM was previously padding its output with "..." to fit.
+            const r = await generateText(bSysPrompt, userPrompt, { maxChars: 6000, llm: body.llm });
             // Sanitize the LLM output: closes unclosed **, completes truncated
             // table headers, cuts back to last full sentence if the LLM was
             // cut off mid-word. Applied at ingestion so the DB stores clean
@@ -683,7 +687,9 @@ ${overlapSummary}${crossLitBlock}
 
 ### 六、总结与建议
 （总结序列间关系，提出后续研究建议）`;
-              const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
+              // Cross-target report: 8000 chars — covers summary + per-pair
+              // comparison + table for 2-4 targets without truncation.
+              const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 8000, llm: body.llm });
               // Sanitize the cross-report: closes unclosed **, completes
               // truncated tables, cuts back to last full sentence if the
               // LLM was cut off mid-word. The 4 batch reports in our DB all
@@ -1023,7 +1029,10 @@ ${overlapSummary}${crossLitBlock}
           const sysPrompt = buildChapterSystemPrompt();
 
           const t0 = Date.now();
-          const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
+          // Per-chapter report: 4000 chars — each chapter (功能概述/BLAST/
+          // 文献 etc.) needs ~3-5KB to develop a single idea + table.
+          // 1500 was truncating at the first bullet of any 4-table chapter.
+          const r = await generateText(sysPrompt, userPrompt, { maxChars: 4000, llm: body.llm });
           if (r.ok) {
             perChapterOkCount++;
             chapterContents[ck] = r.content;
@@ -1331,7 +1340,10 @@ ${overlapSummary}${crossLitBlock}
                   emit({ stage: `batch-${bi}-chapter`, level: 'info', message: `[Target ${bi + 1}] [${chapterIdx}/${chapters.length}] ${labelOf(ck)} — 开始生成`, progress: 55, chapter: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
                   const userPrompt = buildChapterPrompt({ ...bReportData, chapterKey: ck, chapterIndex: chapterIdx, chapterTotal: chapters.length });
                   const sysPrompt = buildChapterSystemPrompt();
-                  const r = await generateText(sysPrompt, userPrompt, { maxChars: 1500, llm: body.llm });
+                  // Per-chapter report: 4000 chars — each chapter (功能概述/BLAST/
+          // 文献 etc.) needs ~3-5KB to develop a single idea + table.
+          // 1500 was truncating at the first bullet of any 4-table chapter.
+          const r = await generateText(sysPrompt, userPrompt, { maxChars: 4000, llm: body.llm });
                   if (r.ok) {
                     perChapterOkCount++;
                     chapterContents[ck] = r.content;
@@ -1492,7 +1504,9 @@ ${overlapSummary}${crossLitBlock}
 
 ### 六、总结与建议
 （总结靶点间关系，提出后续研究建议）`;
-            const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 4000, llm: body.llm });
+             // Batch cross-report: 8000 chars — covers summary + per-pair
+            // comparison + table for 2-4 batch targets without truncation.
+            const r = await generateText(crossSysPrompt, crossUserPrompt, { maxChars: 8000, llm: body.llm });
             crossReport = { ok: r.ok, content: r.content, provider: r.provider, model: r.model, durationMs: r.durationMs, contentChars: r.content?.length || 0, commonPdbIds, pdbOverlap, literatureCount: crossLit.count };
             if (r.ok) emit({ stage: 'cross-llm', level: 'success', message: `✓ 相关性分析报告已生成 · ${crossReport.contentChars} chars · ${(r.durationMs / 1000).toFixed(1)}s · ${r.provider}/${r.model}${crossLit.count > 0 ? ` · 附 ${crossLit.count} 篇文献` : ''}`, progress: 99 });
             else emit({ stage: 'cross-llm', level: 'error', message: `✗ 相关性分析 LLM 失败：${r.error}`, progress: 99 });
