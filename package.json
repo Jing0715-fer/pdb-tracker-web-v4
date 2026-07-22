@@ -2,9 +2,11 @@
   "name": "nextjs_tailwind_shadcn_ts",
   "version": "0.2.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "NODE_OPTIONS=\"--max-old-space-size=2048 --expose-gc\" next dev --webpack -p 3000 2>&1 | tee dev.log",
     "build": "next build --webpack",
+    "build:electron": "npm run build && electron-builder --mac dmg --arm64 --publish never",
     "start": "NODE_ENV=production node -r dotenv/config .next/standalone/server.js",
     "lint": "node scripts/lint.mjs",
     "db:push": "prisma db push",
@@ -97,11 +99,63 @@
     "@types/react-dom": "^19",
     "@vitest/ui": "^4.1.7",
     "bun-types": "^1.3.4",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.3.5",
     "typescript": "^5",
     "vitest": "^4.1.7"
+  },
+  "build": {
+    "appId": "com.jing0715.pdb-tracker",
+    "productName": "PDB Structure Tracker",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**",
+      ".next/standalone/**",
+      ".next/static/**",
+      "package.json",
+      "prisma/**",
+      ".env"
+    ],
+    "extraResources": [
+      {
+        "from": "public",
+        "to": "public"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "hardenedRuntime": false,
+      "gatekeeperAssess": false
+    },
+    "dmg": {
+      "title": "${productName} ${version}",
+      "icon": null,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
+    }
   }
 }

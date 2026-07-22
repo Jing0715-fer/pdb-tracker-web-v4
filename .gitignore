@@ -97,6 +97,9 @@ blob-report/
 # Lint temp output
 .lint-tmp.json
 
+# Electron build output
+/release/
+
 # Sensitive / large / per-machine (added 2026-07-14)
 /upload/
 /.hermes/
