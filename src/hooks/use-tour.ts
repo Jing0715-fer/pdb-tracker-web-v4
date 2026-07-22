@@ -42,12 +42,27 @@ export interface UseTourOptions {
   onSwitchLit?: () => void;
   /** Called when a step with onEnter='switchWeekly' is entered. */
   onSwitchWeekly?: () => void;
+  /**
+   * When true, skip the "数据库配置" tour step (the one whose onEnter is
+   * 'openDbWizard'). Use this when the user has already confirmed a
+   * database — the wizard would be empty / confusing in that case.
+   * Auto-applied from the first-run DB check on the host page.
+   */
+  skipDbStep?: boolean;
 }
 
 export interface UseTourReturn {
   tourActive: boolean;
   tourStep: number;
   setTourStep: (s: number) => void;
+  /**
+   * Advance to the next step, skipping the database step when
+   * `skipDbStep` was passed to the hook. Returns whether the tour reached
+   * the end (caller can decide what to do — usually just close the overlay).
+   */
+  nextStep: () => boolean;
+  /** Move one step back, skipping the database step when configured. */
+  prevStep: () => void;
   finishTour: () => void;
   startTour: () => void;
   steps: TourStepConfig[];
@@ -85,12 +100,17 @@ export function useTour({
   onSwitchEval,
   onSwitchLit,
   onSwitchWeekly,
+  skipDbStep = false,
 }: UseTourOptions): UseTourReturn {
   const { t } = useI18n();
   const [tourActive, setTourActive] = useState(false);
   const [tourStep, setTourStep] = useState(0);
   const autoStartedRef = useRef(false);
   const prevStepRef = useRef(-1);
+  // Latest skipDbStep value, accessible from the step-enter effect without
+  // re-triggering it on every change.
+  const skipDbStepRef = useRef(skipDbStep);
+  skipDbStepRef.current = skipDbStep;
   // Build localized steps from the current locale
   const localizedSteps = buildTourSteps(t);
 
@@ -204,7 +224,49 @@ export function useTour({
     prevStepRef.current = -1;
   }, []);
 
+  // nextStep / prevStep — advance the tour, skipping the database step
+  // (the one whose onEnter is 'openDbWizard') when skipDbStep is true.
+  // The DB step's onEnter callback is also skipped so we don't auto-open
+  // the wizard behind the user's back when they've already confirmed a DB.
+  const nextStep = useCallback((): boolean => {
+    let reachedEnd = false;
+    setTourStep((cur) => {
+      let next = cur + 1;
+      while (
+        skipDbStepRef.current &&
+        localizedSteps[next]?.onEnter === 'openDbWizard'
+      ) {
+        next += 1;
+      }
+      if (next >= localizedSteps.length) {
+        // Reached the end — finish.
+        reachedEnd = true;
+        return cur;
+      }
+      return next;
+    });
+    if (reachedEnd) {
+      finishTour();
+      return true;
+    }
+    return false;
+  }, [finishTour, localizedSteps]);
+
+  const prevStep = useCallback(() => {
+    setTourStep((cur) => {
+      let prev = cur - 1;
+      while (
+        skipDbStepRef.current &&
+        localizedSteps[prev]?.onEnter === 'openDbWizard' &&
+        prev > 0
+      ) {
+        prev -= 1;
+      }
+      return Math.max(0, prev);
+    });
+  }, [localizedSteps]);
+
   const steps = buildSteps(t, refs);
 
-  return { tourActive, tourStep, setTourStep, finishTour, startTour, steps };
+  return { tourActive, tourStep, setTourStep, nextStep, prevStep, finishTour, startTour, steps };
 }

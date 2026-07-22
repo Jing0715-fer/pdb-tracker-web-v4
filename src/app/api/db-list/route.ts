@@ -27,7 +27,7 @@ import { NextResponse } from 'next/server'
 import { promises as fs } from 'node:fs'
 import * as path from 'node:path'
 
-const SCAN_DIRS = ['db']
+const SCAN_DIRS = ['db', path.resolve(process.env.HOME || '', 'Documents/my_note/LLM-Wiki/data')]
 const MAX_DEPTH = 2
 
 async function scanDir(root: string, prefix: string, depth = 0): Promise<any[]> {

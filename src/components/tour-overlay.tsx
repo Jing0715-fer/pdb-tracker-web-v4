@@ -196,12 +196,18 @@ export function TourOverlay({
   tourActive,
   tourStep,
   setTourStep,
+  nextStep,
+  prevStep,
   finishTour,
   steps,
 }: {
   tourActive: boolean;
   tourStep: number;
   setTourStep: (s: number) => void;
+  /** Advance with skip-DB-step awareness. Returns true if the tour ended. */
+  nextStep: () => boolean;
+  /** Move one step back with skip-DB-step awareness. */
+  prevStep: () => void;
   finishTour: () => void;
   steps: TourStepConfig[];
 }) {
@@ -301,15 +307,15 @@ export function TourOverlay({
       } else if (e.key === 'ArrowRight' || e.key === 'Enter') {
         e.preventDefault();
         if (isLastStep) finishTour();
-        else setTourStep(tourStep + 1);
+        else nextStep();
       } else if (e.key === 'ArrowLeft') {
         e.preventDefault();
-        if (tourStep > 0) setTourStep(tourStep - 1);
+        if (tourStep > 0) prevStep();
       }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [tourActive, tourStep, isLastStep, setTourStep, finishTour]);
+  }, [tourActive, tourStep, isLastStep, nextStep, prevStep, finishTour]);
 
   if (!tourActive || !currentStep || !stepConfig) return null;
 
@@ -434,7 +440,7 @@ export function TourOverlay({
               <div className="flex items-center gap-2">
                 {tourStep > 0 && (
                   <button
-                    onClick={() => setTourStep(tourStep - 1)}
+                    onClick={() => prevStep()}
                     className="flex items-center gap-0.5 px-2.5 h-7 rounded-md text-[11px] font-medium text-claude-text-secondary hover:text-claude-text hover:bg-black/[0.04] dark:hover:bg-white/[0.06] transition-colors"
                   >
                     <ChevronLeft className="h-3.5 w-3.5" /> {t.tourPrev}
@@ -448,7 +454,7 @@ export function TourOverlay({
                   {t.tourSkip}
                 </button>
                 <button
-                  onClick={() => { if (isLastStep) finishTour(); else setTourStep(tourStep + 1); }}
+                  onClick={() => { if (isLastStep) finishTour(); else nextStep(); }}
                   className={`flex items-center gap-1 px-3.5 h-7 rounded-md text-[11px] font-semibold transition-all ml-auto ${
                     isLastStep
                       ? 'bg-emerald-500 text-white hover:bg-emerald-600'

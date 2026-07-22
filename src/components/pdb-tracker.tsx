@@ -362,6 +362,13 @@ function MiniSparkline({ data, width = 60, height = 20, globalMin, globalMax }: 
 
 // ─── AI Analysis Types ────────────────────────────────────────────────────────
 
+/** State machine for the first-run DB check.
+ *  - "checking" — initial fetch is in flight; wait for it
+ *  - "done"     — fetch has completed and we made an open/no-open decision
+ *  Re-checked after the tour finishes (see useEffect below) so that an
+ *  unconfirmed DB still surfaces the wizard even when the tour was skipped. */
+type DbCheckState = 'checking' | 'done'
+
 interface AiAnalysisSection {
   id: string;
   title: string;
@@ -389,7 +396,16 @@ export default function PdbTracker() {
   // Center immediately read/write the same DB.
   const [dbWizardOpen, setDbWizardOpen] = useState(false);
   const [dbWizardAllowSkip, setDbWizardAllowSkip] = useState(true);
-  const [dbWizardChecked, setDbWizardChecked] = useState(false);
+  // First-run DB check state machine:
+  //   • "checking" — initial /api/db-config fetch in flight, wait
+  //   • "done"     — fetch returned and we've decided whether to open wizard
+  // During the tour we defer the open/no-open decision so the post-tour
+  // re-check can act (covers tour-skipped and tour-closed-early cases).
+  const [dbWizardChecked, setDbWizardChecked] = useState<DbCheckState>('checking');
+  // True once /api/db-config reports confirmed=true AND hasSchema=true.
+  // Drives `skipDbStep` for the tour and gates the "force setup on first
+  // run" branch in the effect below.
+  const [hasConfirmedDb, setHasConfirmedDb] = useState(false);
 
   // Mode state
   const [mode, setMode] = useState<Mode>('weekly');
@@ -1109,6 +1125,8 @@ export default function PdbTracker() {
     tourActive,
     tourStep,
     setTourStep,
+    nextStep: tourNextStep,
+    prevStep: tourPrevStep,
     finishTour,
     startTour,
     steps: tourSteps,
@@ -1134,35 +1152,88 @@ export default function PdbTracker() {
     onSwitchEval: () => setRunCenterTab('evaluation'),
     onSwitchLit: () => setRunCenterTab('literature'),
     onSwitchWeekly: () => setRunCenterTab('weekly'),
+    // Skip the "数据库配置" tour step when the user already has a confirmed
+    // DB. Re-derived from `dbWizardChecked` + the cached `hasConfirmedDb`.
+    // See the first-run DB check effect below.
+    skipDbStep: dbWizardChecked === 'done' && hasConfirmedDb,
   });
 
   // ── First-run DB check ────────────────────────────────────────────────
-  // Pop the setup wizard AFTER the tour completes (or if no tour needed).
-  // This ensures the user sees the onboarding tour first, then is forced
-  // to set up a database (cannot skip when no confirmed DB exists).
+  // We always want to make sure the user lands on a configured DB.
+  //
+  // Decision matrix:
+  //   • dbWizardChecked === "checking"   — initial fetch in flight, wait
+  //   • dbWizardChecked === "done"       — fetch finished, decision made
+  //
+  // During the tour we MAY skip the wizard (step 2 opens it on its own), so
+  // we re-check when `tourActive` flips to false: if the tour was skipped or
+  // closed early, we still need to surface the wizard for an unconfirmed DB.
+  //
+  // The key fix vs. the previous logic: we only flip `dbWizardChecked` from
+  // "checking" → "done" when the fetch has actually returned AND we've
+  // decided whether to open the wizard. During the tour, the fetch return
+  // leaves the decision open so the tour-finished re-check can act.
+
+  // Re-check the DB state whenever the tour finishes. If we deferred the
+  // decision (tour was running while the initial fetch resolved) or the
+  // user closed the wizard without confirming, we want to re-open it here.
+  const recheckDbAfterTour = useCallback(async () => {
+    if (dbWizardChecked === 'checking') return
+    try {
+      const res = await fetch('/api/db-config')
+      const data = await res.json()
+      const confirmedOk = !!data.confirmed && !!data.hasSchema
+      setHasConfirmedDb(confirmedOk)
+      const needsSetup = !confirmedOk
+      if (needsSetup) {
+        setDbWizardAllowSkip(false) // force DB setup on first run — cannot skip
+        setDbWizardOpen(true)
+      }
+    } catch {
+      /* network error — don't block the app */
+    }
+  }, [dbWizardChecked])
+
   useEffect(() => {
-    if (dbWizardChecked) return;
-    // Wait for tour to finish before showing DB wizard (avoids overlap)
-    if (tourActive) return;
-    let cancelled = false;
-    (async () => {
+    if (dbWizardChecked !== 'checking') return
+    // While the tour is running we still need to read the DB state so we
+    // know whether to skip step 2 — but we must NOT auto-open the wizard
+    // here (the tour step 2 opens it itself).
+    let cancelled = false
+    ;(async () => {
       try {
-        const res = await fetch('/api/db-config');
-        const data = await res.json();
-        if (cancelled) return;
-        const needsSetup = !data.confirmed || !data.hasSchema;
+        const res = await fetch('/api/db-config')
+        const data = await res.json()
+        if (cancelled) return
+        const confirmedOk = !!data.confirmed && !!data.hasSchema
+        setHasConfirmedDb(confirmedOk)
+        const needsSetup = !confirmedOk
+        if (tourActive) {
+          // Defer: tour will either skip (already-confirmed DB) or open it
+          // itself via step 2's onEnter=openDbWizard. Re-check after tour.
+          return
+        }
         if (needsSetup) {
-          setDbWizardAllowSkip(false); // force DB setup on first run — cannot skip
-          setDbWizardOpen(true);
+          setDbWizardAllowSkip(false)
+          setDbWizardOpen(true)
         }
       } catch {
-        /* network error — don't block the app */
+        /* ignore — server may be cold-starting */
       } finally {
-        if (!cancelled) setDbWizardChecked(true);
+        if (!cancelled) setDbWizardChecked('done')
       }
-    })();
-    return () => { cancelled = true; };
-  }, [dbWizardChecked, tourActive]);
+    })()
+    return () => { cancelled = true }
+  }, [dbWizardChecked, tourActive])
+
+  // When the tour finishes, re-run the check: if the user never confirmed
+  // a database, surface the wizard one more time. If they already have a
+  // confirmed DB, this is a no-op.
+  useEffect(() => {
+    if (tourActive) return
+    if (dbWizardChecked === 'checking') return
+    recheckDbAfterTour()
+  }, [tourActive, dbWizardChecked, recheckDbAfterTour])
 
   // Apply saved settings on first load
   useEffect(() => {
@@ -4945,6 +5016,7 @@ export default function PdbTracker() {
         onClose={() => setDbWizardOpen(false)}
         onComplete={() => {
           setDbWizardOpen(false);
+          setHasConfirmedDb(true);
           setFetchError(null); // Auto-dismiss error banner when DB is restored
           // Re-fetch all data so the UI reflects the newly-active DB.
           (async () => {
@@ -4965,6 +5037,8 @@ export default function PdbTracker() {
         tourActive={tourActive}
         tourStep={tourStep}
         setTourStep={setTourStep}
+        nextStep={tourNextStep}
+        prevStep={tourPrevStep}
         finishTour={finishTour}
         steps={tourSteps}
       />

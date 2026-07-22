@@ -22,7 +22,7 @@
  * confusing "Unexpected token '<'" JSON parse error.
  */
 
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Database, FilePlus2, FolderOpen, Loader2, CheckCircle2, XCircle,
@@ -166,6 +166,12 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
   const [dbListError, setDbListError] = useState('')
   const [dbListSearch, setDbListSearch] = useState('')
   const [selectedDbUrl, setSelectedDbUrl] = useState<string | null>(null)
+  // Guard against re-entry on the loadDbList effect — without this, an
+  // empty db/ directory causes an infinite re-render loop that floods the
+  // dev server with /api/db-list calls until it 502s and the browser shows
+  // a misleading "fail to fetch" error. Reset on wizard (re)open and on
+  // explicit retry from the catch branch in loadDbList.
+  const dbListAttemptedRef = useRef(false)
 
   // Reset to the initial step every time the wizard is (re)opened.
   useEffect(() => {
@@ -179,24 +185,29 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
       setResultStatus(null)
       setSelectedDbUrl(null)
       setDbListSearch('')
+      dbListAttemptedRef.current = false
     }
   }, [open, initialMode])
 
   // Fetch the list of existing databases when entering "select" mode.
-  const loadDbList = useCallback(async () => {
-    setDbListLoading(true)
-    setDbListError('')
-    try {
-      const res = await fetch('/api/db-list')
-      const data = await safeJson(res)
-      setDbList(data.databases || [])
-    } catch (err: any) {
-      setDbListError(err?.message || (locale === 'zh' ? '加载列表失败' : 'Failed to load list'))
-      setDbList([])
-    } finally {
-      setDbListLoading(false)
-    }
-  }, [])
+    const loadDbList = useCallback(async () => {
+      if (dbListAttemptedRef.current) return
+      dbListAttemptedRef.current = true
+      setDbListLoading(true)
+      setDbListError('')
+      try {
+        const res = await fetch('/api/db-list')
+        const data = await safeJson(res)
+        setDbList(data.databases || [])
+      } catch (err: any) {
+        setDbListError(err?.message || (locale === 'zh' ? '加载列表失败' : 'Failed to load list'))
+        setDbList([])
+        // Allow a manual retry via the "刷新列表" button.
+        dbListAttemptedRef.current = false
+      } finally {
+        setDbListLoading(false)
+      }
+    }, [locale])
 
   useEffect(() => {
     if (mode === 'select' && dbList.length === 0 && !dbListLoading) {
