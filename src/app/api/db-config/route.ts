@@ -57,7 +57,7 @@ async function writeConfig(cfg: DbConfig): Promise<void> {
 }
 
 /** Return true if the SQLite file at `fsPath` contains all expected tables. */
-async function checkSchema(fsPath: string): Promise<{ exists: boolean; hasSchema: boolean; tableCount: number; tables: string[] }> {
+async function checkSchema(fsPath: string): Promise<{ exists: boolean; hasSchema: boolean; tableCount: number; tables: string[]; error?: string }> {
   const exists = await fs.access(fsPath).then(() => true).catch(() => false)
   if (!exists) return { exists: false, hasSchema: false, tableCount: 0, tables: [] }
   // Use Prisma to query the schema — this avoids spawning sqlite3 CLI.

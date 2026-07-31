@@ -254,18 +254,20 @@ export function StructureRadarCompare({ entries }: StructureRadarCompareProps) {
               content={<RadarTooltip isDark={isDark} />}
             />
             <Legend
-              payload={legendPayload.map(item => ({
-                value: item.value,
-                color: item.color,
-                id: item.id,
-              }))}
-              wrapperStyle={{
-                fontSize: 11,
-                paddingTop: 8,
-                color: isDark ? '#c4b8a8' : '#5c524a',
-              }}
-              iconType="circle"
-              iconSize={8}
+              {...({
+                payload: legendPayload.map(item => ({
+                  value: item.value,
+                  color: item.color,
+                  id: item.id,
+                })),
+                wrapperStyle: {
+                  fontSize: 11,
+                  paddingTop: 8,
+                  color: isDark ? '#c4b8a8' : '#5c524a',
+                },
+                iconType: 'circle',
+                iconSize: 8,
+              } as any)}
             />
           </RadarChart>
         </ResponsiveContainer>

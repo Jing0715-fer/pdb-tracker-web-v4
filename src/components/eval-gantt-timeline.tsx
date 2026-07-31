@@ -43,7 +43,7 @@ function getBarColorDark(coverage: number): string {
   return '#3db5b5';
 }
 
-function buildMilestones(eval_: Evaluation): Milestone[] {
+function buildMilestones(eval_: Evaluation, locale: 'en' | 'zh' = 'en'): Milestone[] {
   const milestones: Milestone[] = [];
 
   // Created milestone (always present)
@@ -287,7 +287,7 @@ export function EvalGanttTimeline({
     if (evaluations.length === 0) return [];
 
     return evaluations.map(eval_ => {
-      const milestones = buildMilestones(eval_);
+      const milestones = buildMilestones(eval_, locale);
       const dates = milestones.map(m => m.date.getTime());
       const startDate = new Date(Math.min(...dates));
       const endDate = new Date(Math.max(...dates));

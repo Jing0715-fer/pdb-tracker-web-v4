@@ -435,6 +435,7 @@ interface BatchCardProps {
 }
 
 function BatchSummaryCard({ batch, subTargets, evaluations, onView, index }: BatchCardProps) {
+  const { locale } = useI18n();
   // Find evaluations that belong to this batch
   const batchEvals = evaluations.filter(e => e.batchId === batch.batchId);
   const evalCount = batchEvals.length;

@@ -36,7 +36,7 @@ export function WeeklyStatCards({ snapshot, entries, loading, snapshots = [] }: 
 
   // Method distribution segments for the donut
   const methodSegments = useMemo(() => {
-    const segs = [];
+    const segs: { label: string; value: number; color: string }[] = [];
     if (xrayCount > 0) segs.push({ label: 'X-ray', value: xrayCount, color: '#7c5cbf' });
     if (cryoemCount > 0) segs.push({ label: 'Cryo-EM', value: cryoemCount, color: '#2d8f8f' });
     if (nmrCount > 0) segs.push({ label: 'NMR', value: nmrCount, color: '#c9872e' });

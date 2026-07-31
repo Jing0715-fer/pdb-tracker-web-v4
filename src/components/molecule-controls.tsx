@@ -354,6 +354,7 @@ export function ViewerToolbar({
   onAssemblyChange,
   onEdMapLevelChange,
 }: ViewerToolbarProps) {
+  const { locale } = useI18n();
   return (
     <>
       {/* ─── Enhanced Overlay Toolbar (Top-Left) ─── */}

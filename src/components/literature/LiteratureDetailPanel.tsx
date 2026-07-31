@@ -231,6 +231,11 @@ export function LiteratureDetailPanel({
         readingProgress={readingProgress}
         onProgressChange={onProgressChange}
         onMarkComplete={onMarkComplete}
+        paperTags={paperTags}
+        onAddTag={onAddTag}
+        onRemoveTag={onRemoveTag}
+        allPapers={allPapers}
+        onSelectPaper={onSelectPaper}
       />
     </>
   );
@@ -242,6 +247,11 @@ interface DetailPanelBodyProps {
   readingProgress: number;
   onProgressChange?: (pmid: string, value: number) => void;
   onMarkComplete?: (pmid: string) => void;
+  paperTags?: string[];
+  onAddTag?: (pmid: string, tag: string) => void;
+  onRemoveTag?: (pmid: string, tag: string) => void;
+  allPapers?: LitPaper[];
+  onSelectPaper?: (paper: LitPaper) => void;
 }
 
 function DetailPanelBody({
@@ -250,6 +260,11 @@ function DetailPanelBody({
   readingProgress,
   onProgressChange,
   onMarkComplete,
+  paperTags = [],
+  onAddTag,
+  onRemoveTag,
+  allPapers = [],
+  onSelectPaper,
 }: DetailPanelBodyProps) {
   const { t, locale } = useI18n();
   const [aiSummary, setAiSummary] = useState<string | null>(null);

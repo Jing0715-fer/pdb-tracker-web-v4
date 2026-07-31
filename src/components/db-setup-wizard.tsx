@@ -311,7 +311,7 @@ export function DbSetupWizard({ open, onComplete, onClose, allowSkip, initialMod
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && allowSkip && onClose) onClose(); /* if !allowSkip, prevent closing — user must complete setup */ }}>
       <DialogContent
-        ref={contentRef}
+        ref={contentRef as React.Ref<HTMLDivElement> | undefined}
         className="max-w-2xl w-[92vw] !max-w-2xl p-0 overflow-hidden gap-0"
         /* When allowSkip is false we are in "forced setup" mode (first run,
            or post-tour with no confirmed DB). Block ALL dismiss gestures so

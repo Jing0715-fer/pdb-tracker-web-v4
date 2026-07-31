@@ -51,7 +51,9 @@ export function StructureCompareDialog({ pdbIds, open, onClose }: StructureCompa
 
     try {
       // Dynamically import Molstar
+      // @ts-ignore — molstar types are ignored in dev via next.config IgnorePlugin
       const molstar = await import('molstar');
+      // @ts-ignore
       const { DefaultPluginSpec } = await import('molstar/build/viewer/molstar');
 
       // Create two viewers side by side

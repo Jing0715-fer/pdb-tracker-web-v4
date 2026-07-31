@@ -99,7 +99,7 @@ async function generateMethodReport(opts: {
     const userPrompt = buildWeeklyChapterPrompt({
       weekId, startDate, endDate, methodLabel, methodKey, pdbCount, pdbSummary,
       chapterKey: ch.key, chapterTitle: ch.title, chapterDesc: ch.desc,
-      chapterIndex, chapterTotal: totalChapters,
+      chapterIndex: chapterIdx, chapterTotal: totalChapters,
     });
     const t0 = Date.now();
     // Each weekly chapter is a SEPARATE short LLM call (~1-5KB output

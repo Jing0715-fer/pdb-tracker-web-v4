@@ -4,8 +4,8 @@ import React from 'react';
 
 // ─── Shared Shimmer Block ──────────────────────────────────────────────────
 
-function ShimmerBlock({ className = '' }: { className?: string }) {
-  return <div className={`shimmer-skeleton ${className}`} />;
+function ShimmerBlock({ className = '', style }: { className?: string; style?: React.CSSProperties }) {
+  return <div className={`shimmer-skeleton ${className}`} style={style} />;
 }
 
 // ─── Stat Card Skeleton ───────────────────────────────────────────────────

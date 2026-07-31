@@ -213,8 +213,8 @@ export function WelcomeState({
   const modeConfig = buildModeConfig(locale)[mode];
 
   // Build stats based on mode
-  const getWeeklyStats = () => [
-    { label: locale === 'zh' ? '结构总数' : 'Total Structures', value: totalEntries, icon: Layers, color: '#2d8f8f' },
+  const getWeeklyStats = (): Array<{ label: string; value: number | string; suffix?: string; icon: typeof Layers; color: string }> => [
+    { label: locale === 'zh' ? '结构总数' : 'Total Structures', value: totalEntries, suffix: undefined, icon: Layers, color: '#2d8f8f' },
     {
       label: locale === 'zh' ? '平均分辨率' : 'Avg Resolution',
       value: avgResolution ? avgResolution.toFixed(1) : '—',
@@ -231,10 +231,11 @@ export function WelcomeState({
     },
   ];
 
-  const getEvaluationStats = () => [
+  const getEvaluationStats = (): Array<{ label: string; value: number | string; suffix?: string; icon: typeof Layers; color: string }> => [
     {
       label: locale === 'zh' ? '评估总数' : 'Total Evaluations',
       value: totalEvaluations ?? 0,
+      suffix: undefined,
       icon: Eye,
       color: '#7c5cbf',
     },
@@ -248,15 +249,17 @@ export function WelcomeState({
     {
       label: locale === 'zh' ? '跟踪目标数' : 'Targets Tracked',
       value: totalEntries || 0,
+      suffix: undefined,
       icon: FlaskConical,
       color: '#c9872e',
     },
   ];
 
-  const getLiteratureStats = () => [
+  const getLiteratureStats = (): Array<{ label: string; value: number | string; suffix?: string; icon: typeof Layers; color: string }> => [
     {
       label: locale === 'zh' ? '论文总数' : 'Total Papers',
       value: totalPapers ?? 0,
+      suffix: undefined,
       icon: BookOpen,
       color: '#c9872e',
     },

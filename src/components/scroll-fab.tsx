@@ -12,6 +12,7 @@ interface ScrollFabProps {
 }
 
 export default function ScrollFab({ scrollProgress, onScroll, visible }: ScrollFabProps) {
+  const { locale } = useI18n();
   // SVG circular progress dimensions
   const size = 48;
   const strokeWidth = 3;

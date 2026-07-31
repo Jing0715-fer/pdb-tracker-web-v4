@@ -2095,7 +2095,7 @@ export function PdbStructureViewer({ pdbId, className = '', layout = 'stacked' }
 
   const handleColorDotClick = useCallback((e: React.MouseEvent, type: 'entity' | 'ligand', key: string) => {
     e.stopPropagation();
-    const anchorEl = e.currentTarget;
+    const anchorEl = e.currentTarget as HTMLElement;
     setColorPickerTarget(prev => {
       if (prev?.type === type && prev?.key === key) return null;
       return { type, key, anchor: anchorEl };

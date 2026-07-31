@@ -2,7 +2,7 @@
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { Treemap, ResponsiveContainer, Tooltip } from 'recharts';
-import { Map, X } from 'lucide-react';
+import { Map as MapIcon, X } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import type { LitPaper } from '@/lib/pdb-types';
 
@@ -285,11 +285,11 @@ export function LiteratureJournalTreemap({ papers, onJournalClick }: LiteratureJ
     return (
       <div className="journal-treemap-section rounded-xl border border-claude-border dark:border-[#3d3832] bg-claude-surface dark:bg-[#242220] p-6">
         <div className="flex items-center gap-2 mb-4">
-          <Map className="h-4 w-4 text-claude-accent" />
+          <MapIcon className="h-4 w-4 text-claude-accent" />
           <h3 className="text-sm font-semibold text-claude-text">Journal Impact Treemap</h3>
         </div>
         <div className="flex flex-col items-center justify-center py-10 text-claude-text-muted">
-          <Map className="h-8 w-8 mb-2 opacity-30" />
+          <MapIcon className="h-8 w-8 mb-2 opacity-30" />
           <p className="text-xs">No papers available to generate treemap</p>
         </div>
       </div>
@@ -301,7 +301,7 @@ export function LiteratureJournalTreemap({ papers, onJournalClick }: LiteratureJ
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <Map className="h-4 w-4 text-claude-accent" />
+          <MapIcon className="h-4 w-4 text-claude-accent" />
           <h3 className="text-sm font-semibold text-claude-text">Journal Impact Treemap</h3>
           <span className="text-[10px] text-claude-text-muted">
             Size = paper count · Color = avg impact factor
@@ -344,7 +344,7 @@ export function LiteratureJournalTreemap({ papers, onJournalClick }: LiteratureJ
       <div className="h-[350px]">
         <ResponsiveContainer width="100%" height="100%">
           <Treemap
-            data={treemapData}
+            data={treemapData as any}
             dataKey="size"
             nameKey="name"
             stroke="none"

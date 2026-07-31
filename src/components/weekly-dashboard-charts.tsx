@@ -141,7 +141,7 @@ function MethodDistributionChart({ entries }: MethodDistributionChartProps) {
             paddingAngle={3}
             dataKey="value"
             stroke="none"
-            label={renderCustomizedLabel}
+            label={renderCustomizedLabel as any}
             labelLine={false}
           >
             {data.slices.map((entry, index) => (

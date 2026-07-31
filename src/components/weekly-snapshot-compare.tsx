@@ -159,7 +159,7 @@ function MiniCompareChart({ current, previous, isDark, metricKey }: {
             color: isDark ? '#e8e4dd' : '#1a1a1a',
             padding: '4px 8px',
           }}
-          formatter={(value: number) => [value.toLocaleString(), '']}
+          formatter={((value: any) => [Number(value).toLocaleString(), '']) as any}
         />
         <Bar dataKey="value" radius={[3, 3, 0, 0]} barSize={20}>
           {data.map((entry, index) => (
@@ -194,6 +194,7 @@ function MetricCard({
   isBestWeek: boolean;
   isDark: boolean;
 }) {
+  const { locale } = useI18n();
   const delta = computeDelta(metric.current, metric.previous);
   const hasData = metric.current !== null || metric.previous !== null;
 

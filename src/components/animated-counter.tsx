@@ -26,7 +26,7 @@ export function AnimatedCounter({
 }: AnimatedCounterProps) {
   const [displayValue, setDisplayValue] = useState(0);
   const startTime = useRef<number | null>(null);
-  const rafId = useRef<number>();
+  const rafId = useRef<number | undefined>(undefined);
   const prevValue = useRef(value);
 
   useEffect(() => {

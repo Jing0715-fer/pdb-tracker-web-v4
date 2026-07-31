@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
   const dotIdx = iconPath.toLowerCase().lastIndexOf(".");
   const ext = dotIdx >= 0 ? iconPath.toLowerCase().slice(dotIdx) : ".ico";
   const contentType = MIME[ext] || "application/octet-stream";
-  return new Response(data, {
+  return new Response(new Uint8Array(data), {
     status: 200,
     headers: {
       "Content-Type": contentType,

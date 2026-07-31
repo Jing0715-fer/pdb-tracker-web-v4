@@ -64,6 +64,8 @@ export interface EvaluationViewProps {
   onSetEvalSubView: (v: 'default' | 'compare' | 'dashboard' | 'timeline' | 'batch') => void;
   onSetEvalDetailTab: (tab: string) => void;
   onSetSelectedEvalStructure: (s: any) => void;
+  // Open the parent detail panel (used by the PDB picker when a blast row is selected).
+  onSetDetailPanelOpen?: (open: boolean) => void;
   // Batch detail integration
   selectedBatchId?: string | null;
   batchFetchedEvals?: Record<string, Evaluation>;

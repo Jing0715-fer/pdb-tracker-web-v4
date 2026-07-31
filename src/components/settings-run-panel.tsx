@@ -85,7 +85,7 @@ import {
   FolderOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { DbSetupWizard } from '@/components/db-setup-wizard';
+import { DbSetupWizard, type DbStatus } from '@/components/db-setup-wizard';
 import { SearchPathStats } from '@/components/search-path-stats';
 
 /* ──────────────────────────────────────────────────────────────────────── */
@@ -405,6 +405,7 @@ function LLMPreview({
 }) {
   const [expanded, setExpanded] = useState(true);
   const [copied, setCopied] = useState(false);
+  const { locale } = useI18n();
 
   // Failure case: no content but we have an error — show a failure card.
   const isFailure = ok === false || (fallback && !content);
@@ -752,6 +753,7 @@ function ChapterStream({
 }) {
   // Collapse state for the whole chapter list — click header to toggle.
   const [collapsed, setCollapsed] = useState(false);
+  const { locale } = useI18n();
   // Pull ordered chapters from the event stream.
   // Two flavors:
   //   chapter_done    — finalised, has chapterContent (real Markdown)
@@ -1662,7 +1664,7 @@ export function SettingsRunPanel({
         .then((d: any) => setLitExistingReports(d.reports || []))
         .catch(() => { /* ignore */ });
     } else if (s.error) {
-      Promise.resolve().then(() => log({ ts: new Date().toISOString(), module: 'literature', status: 'error', summary: s.error }));
+      Promise.resolve().then(() => log({ ts: new Date().toISOString(), module: 'literature', status: 'error', summary: s.error || 'Unknown error' }));
     }
     Promise.resolve().then(() => markDone('lit'));
      
@@ -1688,7 +1690,7 @@ export function SettingsRunPanel({
         durationMs: d.durationMs,
       }));
     } else if (s.error) {
-      Promise.resolve().then(() => log({ ts: new Date().toISOString(), module: 'eval', status: 'error', summary: s.error }));
+      Promise.resolve().then(() => log({ ts: new Date().toISOString(), module: 'eval', status: 'error', summary: s.error || 'Unknown error' }));
     }
     Promise.resolve().then(() => markDone('eval'));
     // ★ Notify parent so the evaluation list (including new batch entries) is
@@ -1737,7 +1739,7 @@ export function SettingsRunPanel({
         .then((d: any) => { if (d?.dbCounts) setWeeklyDbCounts(d.dbCounts); })
         .catch(() => { /* ignore */ });
     } else if (s.error) {
-      Promise.resolve().then(() => log({ ts: new Date().toISOString(), module: 'weekly', status: 'error', summary: s.error }));
+      Promise.resolve().then(() => log({ ts: new Date().toISOString(), module: 'weekly', status: 'error', summary: s.error || 'Unknown error' }));
     }
     Promise.resolve().then(() => markDone('weekly'));
      
@@ -1765,7 +1767,7 @@ export function SettingsRunPanel({
         </Button>
       </DialogTrigger>
 
-      <DialogContent ref={contentRef} className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
+      <DialogContent ref={contentRef as React.Ref<HTMLDivElement>} className="max-w-6xl sm:!max-w-6xl w-[95vw] max-h-[92vh] p-0 gap-0 overflow-hidden flex flex-col">
         {/* ── Header band (compact) ──────────────────────────────────── */}
         <div className="relative px-6 pt-4 pb-3 border-b border-border/60 bg-gradient-to-br from-muted/40 via-background to-background flex-shrink-0">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,var(--tw-gradient-stops))] from-primary/5 via-transparent to-transparent pointer-events-none" />
@@ -2126,7 +2128,7 @@ export function SettingsRunPanel({
             </TabsList>
 
             {/* Tab content panel — spotlighted by the tour (steps 4/5/6) */}
-            <div ref={tabContentRef} className="mt-2">
+            <div ref={tabContentRef as React.Ref<HTMLDivElement>} className="mt-2">
             {/* ═══ Module ① Target Evaluation ═══════════════════════════ */}
             <TabsContent value="evaluation" className="mt-0">
               <ModuleCard
@@ -2171,7 +2173,7 @@ export function SettingsRunPanel({
                         placeholder={evalSeqType === 'dna'
                           ? (locale === 'zh'
                               ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nATGGCGAGC...\n\nATGTTACGT...'
-                              : locale === 'zh' ? '支持多序列输入，用空行分隔。每条序列独立进行 BLAST 搜索和评估。\n\n例:\nATGGCGAGC...\n\nATGTTACGT...' : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...')
+                              : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nATGGCGAGC...\n\nATGTTACGT...')
                           : (locale === 'zh'
                               ? '支持多条序列输入，以空行分隔。每条序列独立进行 BLAST 与评估。\n\n示例：\nMAGSCKLP...\n\nMKLTVFGV...'
                               : 'Supports multiple sequence inputs, separated by blank lines. Each sequence is independently BLASTed and evaluated.\n\nExample:\nMAGSCKLP...\n\nMKLTVFGV...')}

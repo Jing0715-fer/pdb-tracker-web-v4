@@ -3629,7 +3629,7 @@ export default function PdbTracker() {
         const allStructures = subTargetEvals.flatMap(e => e.pdbStructures || []);
         const allBlast = subTargetEvals.flatMap(e => e.blastResults || []);
         // Average scores across sub-targets
-        const scoreAgg: Record<string, { score: number; max: number; rating: string }> = {};
+        const scoreAgg: Record<string, { score: number; max: number; rating: string; count: number }> = {};
         for (const e of subTargetEvals) {
           if (!e.scores) continue;
           try {
@@ -3638,12 +3638,12 @@ export default function PdbTracker() {
               const sv = v as { score: number; max: number; rating: string };
               if (!scoreAgg[k]) scoreAgg[k] = { score: 0, max: sv.max || 10, rating: sv.rating || '', count: 0 };
               scoreAgg[k].score += sv.score || 0;
-              (scoreAgg[k] as any).count = ((scoreAgg[k] as any).count || 0) + 1;
+              scoreAgg[k].count = (scoreAgg[k].count || 0) + 1;
             }
           } catch { /* ignore parse errors */ }
         }
         for (const k of Object.keys(scoreAgg)) {
-          const cnt = (scoreAgg[k] as any).count || 1;
+          const cnt = scoreAgg[k].count || 1;
           scoreAgg[k].score = scoreAgg[k].score / cnt;
         }
         return {
@@ -3656,6 +3656,7 @@ export default function PdbTracker() {
           coverage: avgCoverage,
           scores: Object.keys(scoreAgg).length > 0 ? JSON.stringify(scoreAgg) : null,
           report: combinedReport,
+          provenance: null,
           batchId: selectedBatchId,
           createdAt: batch?.createdAt || new Date().toISOString(),
           updatedAt: batch?.createdAt || new Date().toISOString(),
@@ -4833,10 +4834,10 @@ export default function PdbTracker() {
               totalEvaluations={allEvaluations.length}
               avgCoverage={allEvaluations.length > 0 ? allEvaluations.reduce((sum, e) => sum + (e.coverage ?? 0), 0) / allEvaluations.length : undefined}
               totalPapers={litPapers.length}
-              avgIf={litPapers.length > 0 ? litPapers.reduce((sum, p) => sum + (p.journalIf ?? 0), 0) / litPapers.length : undefined}
+              avgIf={litPapers.length > 0 ? litPapers.reduce((sum, p) => sum + (p.IF ?? 0), 0) / litPapers.length : undefined}
               recentItems={[
                 ...(snapshots.slice(0, 2).map(s => ({ id: s.weekId, title: `Week ${s.weekId} — ${s.totalStructures} structures`, type: 'structure' as const, date: s.date }))),
-                ...(allEvaluations.slice(0, 1).map(e => ({ id: e.id ?? e.targetName, title: e.targetName ?? 'Evaluation', type: 'evaluation' as const, date: e.createdAt ?? new Date().toISOString() }))),
+                ...(allEvaluations.slice(0, 1).map(e => ({ id: e.uniprotId, title: e.proteinName ?? 'Evaluation', type: 'evaluation' as const, date: e.createdAt }))),
               ].slice(0, 3)}
               onSelectWeekly={() => { setShowWelcome(false); setMode('weekly'); }}
               onSelectEvaluation={() => { setShowWelcome(false); setMode('evaluation'); }}
@@ -4992,6 +4993,7 @@ export default function PdbTracker() {
                     onSetEvalSubView={setEvalSubView}
                     onSetEvalDetailTab={setEvalDetailTab}
                     onSetSelectedEvalStructure={setSelectedEvalStructure}
+                    onSetDetailPanelOpen={setDetailPanelOpen}
                     selectedBatchId={selectedBatchId}
                     batchFetchedEvals={batchFetchedEvals}
                     onSelectSubTarget={handleSelectSubTarget}

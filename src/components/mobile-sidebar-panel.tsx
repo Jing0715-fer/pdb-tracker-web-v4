@@ -13,6 +13,7 @@ interface MobileSidebarPanelProps {
 }
 
 export default function MobileSidebarPanel({ open, onClose, sidebarProps }: MobileSidebarPanelProps) {
+  const { locale } = useI18n();
   return (
     <AnimatePresence>
       {open && (

@@ -643,7 +643,7 @@ ${blastTable}${litBlock}
         let crossReport: any = undefined;
         if (isMulti) {
           // Find common PDB IDs across sequences (pairwise + intersection of all).
-          const allPdbSets = seqResults.map(r => ({ seqId: r.seqId, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
+          const allPdbSets = seqResults.map(r => ({ seqId: r.seqId, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set<string>((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
           const commonPdbIds = allPdbSets.length > 0
             ? [...allPdbSets[0].pdbIds].filter(id => allPdbSets.every(s => s.pdbIds.has(id)))
             : [];
@@ -745,8 +745,8 @@ ${overlapSummary}${crossLitBlock}
           // `commonPdbIds` already computed above — reuse it for the batch record.
           const commonPdbIdsJson = JSON.stringify(commonPdbIds);
           const crossReportContent = crossReport?.ok ? crossReport.content : null;
+          const batchId = 'mseq-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
           try {
-            const batchId = 'mseq-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
             await db.$executeRaw`INSERT INTO EvaluationBatch (batchId, title, combinedReport, commonPdbIds, crossReportOk, crossReportProvider, crossReportModel, crossReportDurationMs, crossReportChars, targetCount, createdAt, updatedAt) VALUES (${batchId}, ${batchTitle}, ${crossReportContent}, ${commonPdbIdsJson}, ${crossReport?.ok ?? false}, ${crossReport?.provider || null}, ${crossReport?.model || null}, ${crossReport?.durationMs || 0}, ${crossReport?.contentChars || 0}, ${seqResults.length}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`;
             for (const r of seqResults) {
               try { await db.$executeRaw`UPDATE Evaluation SET batchId = ${batchId} WHERE uniprotId = ${r.seqId}`; } catch {}
@@ -1170,6 +1170,11 @@ ${overlapSummary}${crossLitBlock}
         }
 
         const chaptersTotalMs = Date.now() - tReportStart;
+        // Re-declare stage names for the rescue pass below (originally
+        // declared inside the per-chapter for-loop scope).
+        const chapterStage = (isBatch && targets.length > 1) ? 'batch-0-chapter' : 'chapter';
+        const chapterDoneStage = (isBatch && targets.length > 1) ? 'batch-0-chapter_done' : 'chapter_done';
+        const batchPrefix = (isBatch && targets.length > 1) ? `[Target 1] ` : '';
 
         // ── Final rescue pass: regenerate any chapter that still failed ────
         // After the per-chapter retry loop, some chapters may still be missing
@@ -1229,7 +1234,7 @@ ${overlapSummary}${crossLitBlock}
             { source: 'rcsb', query: uniprot, resultCount: directPdbCount, queriedAt: new Date().toISOString(), endpoint: 'https://data.rcsb.org' },
           ];
           if (!shouldSkipBlast) {
-            dataSources.push({ source: 'ncbi-blast', query: `blastp pdbaa ${uniprot} (${(await fetchUniprotSequence(uniprot).catch(() => ({ length: 0 } as string))).length || sequence?.length || 0}aa)`, resultCount: blastHits.length, queriedAt: new Date().toISOString(), endpoint: 'https://blast.ncbi.nlm.nih.gov' });
+            dataSources.push({ source: 'ncbi-blast', query: `blastp pdbaa ${uniprot} (${(await fetchUniprotSequence(uniprot).catch(() => ({ length: 0 } as string))).length}aa)`, resultCount: blastHits.length, queriedAt: new Date().toISOString(), endpoint: 'https://blast.ncbi.nlm.nih.gov' });
           }
           const llmCalls: LlmTrace[] = chapters.map((ck) => ({
             provider,
@@ -1732,7 +1737,7 @@ ${overlapSummary}${crossLitBlock}
         // target's pdbDetails array. Do NOT clear pdbDetails until after
         // allPdbSets has extracted the IDs, otherwise batchResults[0] will
         // have 0 PDBs and common-structure detection breaks.
-        const allPdbSets = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
+        const allPdbSets = batchResults.map(r => ({ uniprot: r.uniprot, proteinName: r.uniprotInfo?.proteinName, pdbIds: new Set<string>((r.pdbDetails || []).map((e: PdbEntryDetail) => e.pdbId)) }));
         // Log per-target PDB counts so the user can verify all targets
         // contributed to cross-analysis.
         for (let i = 0; i < batchResults.length; i++) {

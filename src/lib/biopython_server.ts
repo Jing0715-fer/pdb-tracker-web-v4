@@ -4,7 +4,27 @@
  */
 
 import { spawn } from 'child_process';
-import { createTempFile } from './temp';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+
+/** Minimal temp-file helper (replacement for the removed `./temp` module). */
+function createTempFile(content: string, filename: string): { path: string; cleanup: () => void } {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pdb-'));
+  const filePath = path.join(dir, filename);
+  fs.writeFileSync(filePath, content, 'utf-8');
+  return {
+    path: filePath,
+    cleanup: () => {
+      try {
+        fs.unlinkSync(filePath);
+        fs.rmdirSync(dir);
+      } catch {
+        /* ignore */
+      }
+    },
+  };
+}
 
 interface RamaPoint {
   resId: number;

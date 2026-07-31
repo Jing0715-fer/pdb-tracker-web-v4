@@ -39,6 +39,7 @@ function timeAgo(timestamp: number): string {
 }
 
 export function RecentActionsPanel({ open, onClose, actions, onClear, onSelectEntry }: RecentActionsPanelProps) {
+  const { locale } = useI18n();
   const { todayActions, earlierActions } = useMemo(() => {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();

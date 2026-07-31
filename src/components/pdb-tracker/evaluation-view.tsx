@@ -600,6 +600,7 @@ function BatchDetailView({
       coverage: avgCov,
       scores: JSON.stringify(aggregatedScores),
       report: null,
+      provenance: null,
       batchId,
       createdAt: batch?.createdAt || new Date().toISOString(),
       updatedAt: batch?.createdAt || new Date().toISOString(),
@@ -1484,6 +1485,7 @@ export function EvaluationView({
   onSetEvalSubView,
   onSetEvalDetailTab,
   onSetSelectedEvalStructure,
+  onSetDetailPanelOpen,
   selectedBatchId,
   batchFetchedEvals,
   onSelectSubTarget,
@@ -1681,7 +1683,7 @@ export function EvaluationView({
                   pubmedAuthors: blastRow.pubmedAuthors || null,
                   pubmedAbstract: blastRow.pubmedAbstract || null,
                 });
-                setDetailPanelOpen(true);
+                onSetDetailPanelOpen?.(true);
               }
             }}
           />

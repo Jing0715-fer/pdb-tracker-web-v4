@@ -72,6 +72,7 @@ const iconMap: Record<string, React.ElementType> = {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function FilterPresets({ currentFilters, onApplyPreset, activePresetId }: FilterPresetsProps) {
+  const { locale } = useI18n();
   const [customPresets, setCustomPresets] = useLocalStorage<FilterPreset[]>(
     'pdb-filter-presets',
     [],
