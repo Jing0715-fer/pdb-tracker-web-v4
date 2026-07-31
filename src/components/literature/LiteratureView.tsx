@@ -45,6 +45,14 @@ const LiteratureStatsChart = dynamic(
     loading: () => <div className="animate-pulse h-64 bg-claude-border-light dark:bg-claude-border/30 rounded-lg" />,
   }
 );
+// Journal IF × Date Heatmap — lazy-loaded
+const JournalIfHeatmap = dynamic(
+  () => import('./journal-if-heatmap').then(m => ({ default: m.JournalIfHeatmap })),
+  {
+    ssr: false,
+    loading: () => <div className="animate-pulse h-40 bg-claude-border-light dark:bg-claude-border/30 rounded-lg" />,
+  }
+);
 
 const LiteratureJournalTreemap = dynamic(
   () => import('./LiteratureJournalTreemap').then(mod => ({ default: mod.LiteratureJournalTreemap })),
@@ -574,8 +582,9 @@ export function LiteratureContent({
 
       {/* Charts section — CSS-only animation instead of framer-motion */}
       {showCharts && stats && (
-        <div className="px-4 flex-shrink-0 max-h-[60vh] overflow-y-auto custom-scrollbar lit-section-enter">
+        <div className="px-4 flex-shrink-0 max-h-[60vh] overflow-y-auto custom-scrollbar lit-section-enter space-y-3">
           <LiteratureStatsChart stats={stats} />
+          {papers.length > 0 && <JournalIfHeatmap papers={papers} />}
         </div>
       )}
 

@@ -1363,3 +1363,39 @@ Stage Summary:
   2. **PDB 周报 POST 端到端测试**: RCSB + 16 章 LLM，仍待执行
   3. **4GB 环境 OOM**: dev + chrome 无法长时间共存
   4. **雷达图端到端验证**: 需在有 swap 的环境确认 polygon 渲染
+
+---
+Task ID: journal-if-heatmap
+Agent: main (Z.ai Code)
+Task: 新增 Literature 模块"期刊影响力×日期热力图"可视化功能
+
+Work Log:
+- **依赖漏洞评估**: 48 个漏洞主要是 transitive dependencies（brace-expansion/minimatch/lodash/defu），非运行时风险。next-auth 只在 pdb-sidebar.tsx 引用。`bun update --latest` 有 breaking change 风险，暂不升级
+- **新功能开发**: Literature 模块新增 JournalIfHeatmap 组件
+  - **新组件** `src/components/literature/journal-if-heatmap.tsx` (220行)
+  - 热力图矩阵: 行=IF 区间(6 级: ≥40/20-40/10-20/5-10/<5/Unknown)，列=月份(最近12个月)
+  - 颜色编码: 每个 IF tier 有独立颜色(红/橙/黄/绿/灰)，单元格透明度按数量密度
+  - Tooltip: 显示月份·IF·论文数 + 前3篇论文标题/期刊
+  - 底部图例: 活跃的 IF tier + 密度梯度
+  - 支持 light/dark 主题 + 中英双语
+  - parseDate 函数: 兼容 YYYY-MM-DD / YYYY-MM / YYYY 格式
+  - 空状态处理: 无论文日期时显示提示
+- **集成到 LiteratureView**: 在 showCharts 区域内，LiteratureStatsChart 下方用 dynamic import 懒加载
+- **验证结果**:
+  - lint: PASS 318 files, 0 errors, 0 warnings ✓ (新增 1 文件)
+  - tsc: **0 错误** ✓
+  - 首页 `GET /` → HTTP 200 (19.6s) ✓
+  - API: db-config/literature-stats 全部 200 ✓
+  - literature papers API: 51 篇论文，51 篇有 IF，avgIf 14.1，pubdate 格式正确 ✓
+  - **agent-browser 端到端验证未完成**: 4GB 环境 dev + chrome 反复 OOM
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，lint 全绿，tsc 0 错误，新增期刊影响力热力图
+- **已完成修改**:
+  1. 新增 JournalIfHeatmap 组件（IF×日期热力图，6级IF×12月）
+  2. LiteratureView 集成: dynamic import + showCharts 条件渲染
+- **未解决风险/建议下一阶段**:
+  1. **48 个依赖漏洞**: 主要是 transitive deps，建议后续 `bun update --latest`（注意 breaking changes）
+  2. **PDB 周报 POST 端到端测试**: RCSB + 16 章 LLM，仍待执行
+  3. **4GB 环境 OOM**: dev + chrome 无法共存，建议 swap 或生产模式
+  4. **新组件端到端验证**: JournalIfHeatmap 需在有 swap 环境用 agent-browser 确认渲染
