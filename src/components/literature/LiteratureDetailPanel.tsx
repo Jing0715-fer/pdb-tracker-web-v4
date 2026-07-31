@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import dynamic from 'next/dynamic';
 import { X, ExternalLink, Link2, BookOpen, Users, Calendar, Tag, Sparkles, Loader2, CheckCircle2, Circle, Box, ExternalLink as ExtLink } from 'lucide-react';
 import type { LitPaper } from '@/lib/pdb-types';
 import { getMethodColor, getMethodLabel } from '@/components/pdb-helpers';
@@ -9,10 +10,27 @@ import { LiteratureRelatedPapers } from './LiteratureRelatedPapers';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
-import { PdbStructureViewer } from '@/components/PdbStructureViewer';
 import { CitationFormatSelector } from './CitationFormatSelector';
 import { toast } from 'sonner';
 import { useI18n } from '@/lib/i18n';
+
+// PdbStructureViewer is only rendered when the user clicks "View 3D structure"
+// on a PDB entry (isViewerOpen gate). Statically importing it forces the
+// molstar CSS + 2800-line viewer + framer-motion + radix hover-card/collapsible
+// to be parsed eagerly whenever the literature detail panel chunk loads.
+// Lazy-load so the heavy 3D viewer code only compiles when actually opened.
+const PdbStructureViewer = dynamic(
+  () => import('@/components/PdbStructureViewer').then(m => ({ default: m.PdbStructureViewer })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-32 text-xs text-claude-text-muted">
+        <Loader2 className="h-3.5 w-3.5 animate-spin mr-2" />
+        Loading 3D viewer…
+      </div>
+    ),
+  }
+);
 
 interface LiteratureDetailPanelProps {
   paper: LitPaper | null;

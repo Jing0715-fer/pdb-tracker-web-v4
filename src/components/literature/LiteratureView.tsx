@@ -6,24 +6,65 @@ import type { LitPaper, LitReport, LitStats } from '@/lib/pdb-types';
 import { LiteratureStatCards } from './LiteratureStatCards';
 import { LiteratureToolbar, LiteratureToolbarMain, LiteratureToolbarChips, type ViewMode, type SortField, type DateFilter, type IfFilter } from './LiteratureToolbar';
 import { LiteraturePaperList } from './LiteraturePaperList';
-import { LiteratureDetailPanel } from './LiteratureDetailPanel';
 import { LiteratureDateSidebar } from './LiteratureDateSidebar';
-import { LiteratureStatsChart } from './LiteratureStatsChart';
-import { LiteratureCitationNetwork } from './LiteratureCitationNetwork';
 import { ReadingListSidebar, type ReadingList, useReadingLists } from './LiteratureReadingList';
 import { PaperNotesEditor, usePaperNotes, type NoteData } from './LiteraturePaperNotes';
 import { LiteratureAdvancedFilter, DEFAULT_ADVANCED_FILTERS, countActiveFilters, applyAdvancedFilters, type AdvancedFilterState } from './LiteratureAdvancedFilter';
 import { usePaperTags, TagFilterBar } from './LiteraturePaperTags';
 import { useReadingProgress, type ReadingProgressMap } from '@/hooks/use-reading-progress';
 import { LiteratureReadingProgress } from './LiteratureReadingProgress';
-import { LiteraturePaperCompare } from './LiteraturePaperCompare';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import dynamic from 'next/dynamic';
 
+// ─── Dynamic imports for heavy components ────────────────────────────────────
+// LiteratureDetailPanel statically imports PdbStructureViewer (molstar CSS +
+// 2800-line 3D viewer + framer-motion + radix hover-card/collapsible). Pulling
+// it in eagerly forces the entire molstar chain to be parsed whenever the
+// literature-view chunk loads. Lazy-load so the detail panel + its 3D viewer
+// only compile when needed.
+const LiteratureDetailPanel = dynamic(
+  () => import('./LiteratureDetailPanel').then(m => ({ default: m.LiteratureDetailPanel })),
+  {
+    ssr: false,
+    loading: () => null,
+  }
+);
+
+// LiteratureStatsChart pulls in recharts. Lazy-load to keep recharts out of
+// the main literature-view chunk until the user actually opens the charts view.
+const LiteratureStatsChart = dynamic(
+  () => import('./LiteratureStatsChart').then(m => ({ default: m.LiteratureStatsChart })),
+  {
+    ssr: false,
+    loading: () => <div className="animate-pulse h-64 bg-claude-border-light dark:bg-claude-border/30 rounded-lg" />,
+  }
+);
+
 const LiteratureJournalTreemap = dynamic(
   () => import('./LiteratureJournalTreemap').then(mod => ({ default: mod.LiteratureJournalTreemap })),
   { ssr: false }
+);
+
+// LiteratureCitationNetwork (1100 lines) statically imports framer-motion and
+// is only rendered when the user enables the citation graph view. Lazy-load so
+// the heavy graph rendering code only compiles on demand.
+const LiteratureCitationNetwork = dynamic(
+  () => import('./LiteratureCitationNetwork').then(m => ({ default: m.LiteratureCitationNetwork })),
+  {
+    ssr: false,
+    loading: () => <div className="animate-pulse h-64 bg-claude-border-light dark:bg-claude-border/30 rounded-lg" />,
+  }
+);
+
+// LiteraturePaperCompare pulls in framer-motion + comparison logic. Only shown
+// when user enters compare mode. Lazy-load.
+const LiteraturePaperCompare = dynamic(
+  () => import('./LiteraturePaperCompare').then(m => ({ default: m.LiteraturePaperCompare })),
+  {
+    ssr: false,
+    loading: () => <div className="animate-pulse h-64 bg-claude-border-light dark:bg-claude-border/30 rounded-lg" />,
+  }
 );
 
 // ─── LiteratureContent ─────────────────────────────────────────────────────────

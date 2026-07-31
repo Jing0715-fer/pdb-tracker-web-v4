@@ -35,10 +35,13 @@ function getTimeAgo(date: Date): string {
 import { computeQualityScore, getQualityBorderClass } from '@/lib/pdb-utils';
 import { queuedFetchWithRetry } from '@/lib/request-queue';
 import { getMethodColor, getMethodLabel, formatDate, formatEvalue, parseLigands } from '@/components/pdb-helpers';
-import { WeeklyPageControls } from '@/components/weekly-page';
-import { EvalPageControls } from '@/components/EvalPageControls';
-import { useReadingLists } from '@/components/literature/LiteratureReadingList';
-import { usePaperNotes } from '@/components/literature/LiteraturePaperNotes';
+// `useReadingLists` / `usePaperNotes` are imported from dedicated hook files
+// (literature/useReadingLists.ts, literature/usePaperNotes.ts) rather than
+// their sibling component files, so that framer-motion + dompurify (used only
+// by ReadingListSidebar / PaperNotesEditor) stay out of pdb-tracker's
+// first-compile graph. See worklog task `qa-deep-lazy-load-siblings`.
+import { useReadingLists } from '@/components/literature/useReadingLists';
+import { usePaperNotes } from '@/components/literature/usePaperNotes';
 import { usePaperTags } from '@/components/literature/LiteraturePaperTags';
 import { useLocalStorageSet } from '@/hooks/use-local-storage';
 import { useReadingProgress } from '@/hooks/use-reading-progress';
@@ -47,10 +50,7 @@ import { toast } from 'sonner';
 import { useAppSettings } from '@/hooks/use-app-settings';
 import { generateBibTeX, generateRIS, generateAPA, generateVancouver, generateMLA, downloadFile } from '@/lib/citation-utils';
 // fallback-data import removed — errors now surface as error messages, not demo data.
-import { TourOverlay } from '@/components/tour-overlay';
 import { useTour } from '@/hooks/use-tour';
-import { EnhancedFooter } from '@/components/enhanced-footer';
-import { WeeklyViewSkeleton, EvaluationViewSkeleton, LiteratureViewSkeleton, ModeTransitionWrapper } from '@/components/enhanced-skeleton';
 import { exportToCSV, exportToJSON, formatPdbEntryForExport, formatEvalForExport, formatLitPaperForExport } from '@/lib/export-utils';
 
 // QuickStatsPanel and WeeklyDiffCompare loaded dynamically to avoid bundle size issues
@@ -205,6 +205,27 @@ const ProvenancePanel = dynamic(
   { ssr: false, loading: () => <div className="animate-pulse h-40 bg-claude-border-light rounded" /> }
 );
 
+// Skeletons are themselves lazy-loaded so their (small but non-zero) JSX stays
+// out of pdb-tracker's main chunk. They render a simple pulse fallback until
+// their chunk loads (a few ms — skeletons are React-only, no heavy deps).
+// Declared BEFORE WeeklyView/EvaluationView/LiteratureView because those
+// dynamic components reference them in `loading` callbacks — keeping the
+// declaration order forward avoids any TDZ ambiguity in the closure capture.
+// `ModeTransitionWrapper` was previously imported alongside these but had no
+// consumers in this file, so it has been dropped rather than converted.
+const WeeklyViewSkeleton = dynamic(() => import('@/components/enhanced-skeleton').then(m => ({ default: m.WeeklyViewSkeleton })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
+const EvaluationViewSkeleton = dynamic(() => import('@/components/enhanced-skeleton').then(m => ({ default: m.EvaluationViewSkeleton })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
+const LiteratureViewSkeleton = dynamic(() => import('@/components/enhanced-skeleton').then(m => ({ default: m.LiteratureViewSkeleton })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
+
 const WeeklyView = dynamic(() => import('@/components/pdb-tracker/weekly-view').then(m => ({ default: m.WeeklyView })), {
   ssr: false,
   loading: () => <WeeklyViewSkeleton />,
@@ -322,6 +343,28 @@ const Slider = dynamic(() => import('@/components/ui/slider').then(m => ({ defau
 const CitationFormatSelector = dynamic(() => import('@/components/literature/CitationFormatSelector').then(m => ({ default: m.CitationFormatSelector })), {
   ssr: false,
   loading: () => <div className="animate-pulse h-20 bg-claude-border-light dark:bg-claude-border/30 rounded" />,
+});
+
+// ─── Lazy-loaded sibling components (extracted from static imports to keep
+//     pdb-tracker's first-compile graph small — see worklog task
+//     `qa-deep-lazy-load-siblings`). Each pulls framer-motion / sonner /
+//     ui/* only when actually rendered. ────────────────────────────────────────
+
+const WeeklyPageControls = dynamic(() => import('@/components/weekly-page').then(m => ({ default: m.WeeklyPageControls })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-10 w-full" />,
+});
+const EvalPageControls = dynamic(() => import('@/components/EvalPageControls').then(m => ({ default: m.EvalPageControls })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-10 w-full" />,
+});
+const TourOverlay = dynamic(() => import('@/components/tour-overlay').then(m => ({ default: m.TourOverlay })), {
+  ssr: false,
+  loading: () => null,
+});
+const EnhancedFooter = dynamic(() => import('@/components/enhanced-footer').then(m => ({ default: m.EnhancedFooter })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-10 w-full" />,
 });
 
 // ─── Mode Tab Config ──────────────────────────────────────────────────────────

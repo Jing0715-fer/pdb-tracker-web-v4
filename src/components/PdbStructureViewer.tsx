@@ -1,6 +1,9 @@
 'use client';
 
-import "molstar/build/viewer/molstar.css";
+// molstar CSS: imported lazily inside the component (see loadViewerResources)
+// to keep it out of the initial compile graph. A static `import "molstar/...css"`
+// forces webpack/turbopack to trace molstar's package.json exports on first
+// compile, which OOMs 4GB/no-swap sandboxes.
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTheme } from 'next-themes';
@@ -207,6 +210,12 @@ async function getMolstarModules(): Promise<MolstarModules> {
     return molstarModulesCache;
   }
   molstarModulesCache = null;
+
+  // Lazily load molstar CSS only when the viewer is actually mounted.
+  // A static top-level `import "molstar/...css"` forces webpack/turbopack
+  // to trace molstar's package.json exports on first compile, which OOMs
+  // 4GB/no-swap sandboxes. Dynamic import keeps it in a separate chunk.
+  await import('molstar/build/viewer/molstar.css');
 
   const [pc, color, script, ssq, msb, comp, ss, pso, sp, se] = await Promise.all([
     importWithRetry(() => import('molstar/lib/mol-plugin/commands.js')),

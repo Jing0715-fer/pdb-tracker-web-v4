@@ -472,3 +472,317 @@ Stage Summary:
 - Dev server runs on port 3000 (webpack mode); homepage, Literature tab, and API routes all return 200
 - Lint: 0 errors from my changes (3 pre-existing React-hooks set-state-in-effect warnings in use-notifications.ts / use-user-preferences.ts are unrelated)
 - Remaining: the PDB weekly POST run takes 10-25 min (RCSB fetch + 16 LLM chapter calls × 2 methods) — not fully executed in this session due to time, but the hang fix is in place
+
+---
+Task ID: qa-optimize-imports
+Agent: subagent (Explore)
+Task: 分析并优化 pdb-tracker 导入树解决 dev OOM
+
+Work Log:
+- 读取 worklog.md 最后 100 行：第 8 轮 OOM 优化已用 `parallelism=1 + unmanagedPaths(molstar) + --max-old-space-size=2048` 让 dev/build 在 4GB 沙箱可跑通，但环境变化后再次 OOM。本次聚焦代码级导入树优化（不动 next.config / NODE_OPTIONS）。
+- 读取 `src/app/page.tsx`：确认 `PdbTracker = dynamic(() => import('@/components/pdb-tracker'), { ssr:false })`，page 层已懒加载。
+- 读取 `src/components/pdb-tracker.tsx` 前 ~330 行：发现 pdb-tracker.tsx 顶层已经把 50+ 个子组件用 `next/dynamic` 懒加载（PdbViewerModal / WeeklyHeatmap / EvalDashboard / LiteratureView 等），这部分已经做得很好。
+- 用 Grep 追踪剩余**静态**导入链中真正的重依赖：
+  1. `PdbStructureViewer`（2828 行 + `import "molstar/build/viewer/molstar.css"` 静态 CSS + framer-motion + radix hover-card/collapsible）被两个文件静态导入：
+     - `src/components/PdbViewerModal.tsx:9`（PdbViewerModal 本身虽是 pdb-tracker.tsx 的 dynamic chunk，但其内部静态 import 把整个 molstar CSS 链拉进同一 chunk）
+     - `src/components/literature/LiteratureDetailPanel.tsx:12`（LiteratureDetailPanel 在 literature-view 动态链中，又把 molstar CSS 链拉进去；且只在 `isViewerOpen` 时才渲染）
+  2. recharts：16 个文件用 recharts，但绝大多数（weekly-dashboard-charts / weekly-trend-analysis / eval-score-radar / eval-score-breakdown / weekly-stats-timeline / weekly-quality-distribution / weekly-snapshot-compare / LiteratureJournalTreemap 等）已经被 `next/dynamic` 懒加载。唯一漏网：`LiteratureStatsChart` 在 `LiteratureView.tsx:11` 静态导入。
+  3. molecule-controls / molecule-viewer / molecule-plugin-init：grep 确认它们只被 `molecule-viewer.tsx` 静态导入，而 `molecule-viewer.tsx` 只被 `pdb-detail-panel.tsx` 通过 `next/dynamic` 引用，且 `pdb-detail-panel.tsx` 本身**无任何文件导入**（dead code，不在路由编译图中）。无需改动。
+- 改动 1 — `src/components/PdbViewerModal.tsx`：
+  - 删除 `import { PdbStructureViewer } from '@/components/PdbStructureViewer'` 静态导入
+  - 新增 `import dynamic from 'next/dynamic'`
+  - 改为 `const PdbStructureViewer = dynamic(() => import('@/components/PdbStructureViewer').then(m => ({ default: m.PdbStructureViewer })), { ssr:false, loading: () => <Box+Loader2 spinner "Initializing 3D Viewer..."> })`
+  - JSX 用法 `<PdbStructureViewer pdbId={...} layout="side-by-side" ... />` 完全不变（dynamic 返回的组件用法相同）
+- 改动 2 — `src/components/literature/LiteratureDetailPanel.tsx`：
+  - 同样把 `PdbStructureViewer` 静态导入改为 `next/dynamic({ ssr:false })`，loading 显示 `<Loader2>Loading 3D viewer…</Loader2>`
+  - 该组件原本就只在 `{isViewerOpen && <PdbStructureViewer pdbId={pdb.pdbId} />}` 时渲染，懒加载后 molstar CSS + 2828 行 viewer 代码 + framer-motion + radix hover-card/collapsible 全部进入独立 chunk，仅在用户点 "查看 3D 结构" 时才编译
+- 改动 3 — `src/components/literature/LiteratureView.tsx`：把 4 个原本静态导入的重组件全部改为 `next/dynamic({ ssr:false })`：
+  - `LiteratureDetailPanel`（包 PdbStructureViewer 链 — 进一步把整个详情面板 + 3D viewer 推到独立 chunk）
+  - `LiteratureStatsChart`（recharts）
+  - `LiteratureCitationNetwork`（1100 行 + framer-motion，仅 `showCitationNetwork` 时渲染）
+  - `LiteraturePaperCompare`（framer-motion，仅 `showCompare` 时渲染）
+  - 每个都加了 skeleton / null loading fallback，不破坏现有布局
+- 没有改动任何业务逻辑、props、state、effect；只改 import 方式。
+- Lint：`node scripts/lint.mjs` — 333 文件，3 errors / 0 warnings。3 个 error 全是 `react-hooks/set-state-in-effect`，位置 `src/hooks/use-activity-feed.ts:54`、`use-notifications.ts:68`、`use-user-preferences.ts:97`，与本次改动无关（baseline 即如此，worklog 第 8 轮已记录为 "已知, ignoreBuildErrors 不阻塞"）。本次**未引入任何新 error/warning**。
+- TypeScript 解析检查：用 `ts.createSourceFile` 对 3 个改动文件做 TSX 语法 parse — 全部 OK（226/732/835 行）。
+
+Stage Summary:
+- 修改 3 个文件，把 5 处静态导入改为 `next/dynamic({ ssr:false })`：
+  - `src/components/PdbViewerModal.tsx` — PdbStructureViewer
+  - `src/components/literature/LiteratureDetailPanel.tsx` — PdbStructureViewer
+  - `src/components/literature/LiteratureView.tsx` — LiteratureDetailPanel + LiteratureStatsChart (recharts) + LiteratureCitationNetwork (framer-motion) + LiteraturePaperCompare (framer-motion)
+- 核心收益：molstar 静态 CSS 链（`import "molstar/build/viewer/molstar.css"`）+ 2828 行 PdbStructureViewer 代码 + framer-motion + radix hover-card/collapsible 从 literature-view / pdb-viewer-modal 的主 chunk 中剥离，进入独立子 chunk，仅在用户真正点击 "查看 3D 结构" 时才编译。recharts 也从 literature-view 主 chunk 剥离（仅 `showCharts && stats` 时加载）。
+- 预期效果：`/` 路由 dev 编译时，next-server 不再被迫一次性 parse molstar CSS + PdbStructureViewer 2828 行 + LiteratureCitationNetwork 1100 行 + 多个 framer-motion 副本，编译图显著瘦身，4GB 沙箱 RSS 峰值应大幅下降。
+- Lint：0 新增 error / warning（3 个 baseline error 与本次无关）。
+- 未触碰 next.config.ts / NODE_OPTIONS / 业务逻辑。
+
+---
+
+## Task ID: `qa-find-molstar-static-imports`
+
+**Agent**: Explore sub-agent (子 agent)
+**Scope**: `/home/z/my-project/src` 下搜索所有静态 molstar 导入并确认是否需要改为动态导入。
+
+### 步骤 1 — 搜索静态 molstar 导入
+
+执行了三个互补的 Grep（覆盖 `src/` 全树）：
+
+| 模式 | 目的 | 命中 |
+|---|---|---|
+| `from\s+['"]molstar` | 静态 `import X from 'molstar'` / `from 'molstar/...'` | 0 (代码) — 仅注释中出现 |
+| `import\s+['"]molstar` | 副作用静态 `import 'molstar/...css'` | 0 (代码) — 仅注释中出现 |
+| `molstar` (全量回看) | 人工核对所有命中行，区分静态 vs `await import()` / `import('molstar/...')` | 73 命中，全部为动态或字符串字面量/注释 |
+
+**结论**: `src/` 下**没有任何静态 molstar 导入**（包括 CSS）。所有 molstar 引用都已经是动态 `import('molstar/...')` 或 `await import('molstar/...')`，并经过 `importWithRetry()` 包装。
+
+#### 已审查的 molstar 使用文件（4 个，全部已动态化）
+
+| 文件 | 关键行 | 状态 |
+|---|---|---|
+| `src/components/PdbStructureViewer.tsx` | L218 `await import('molstar/build/viewer/molstar.css')`；L221-230 10 个 `importWithRetry(() => import('molstar/lib/...'))` | ✅ 动态 |
+| `src/components/molecule-viewer.tsx` | L536-542 三连 `import('molstar/lib/mol-plugin-ui/...')`；L2959 `await import('molstar/lib/mol-plugin/behavior/...')` | ✅ 动态 |
+| `src/components/molecule-plugin-init.ts` | L97-112 十个 `importWithRetry(() => import('molstar/lib/...'))` | ✅ 动态 |
+| `src/components/structure-compare-dialog.tsx` | L54 `await import('molstar')`；L55 `await import('molstar/build/viewer/molstar')` | ✅ 动态 |
+
+> 注释中明确解释了为何不能写静态 import：
+> - `PdbStructureViewer.tsx` L3-6 / L214-217：「A static top-level `import "molstar/...css"` forces webpack/turbopack to trace molstar's package.json exports on first compile, which OOMs 4GB/no-swap sandboxes.」
+> - `app/layout.tsx` L18-19：「molstar CSS is injected client-side on demand … so the initial server compile doesn't have to traverse the 95MB molstar graph.」
+
+### 步骤 2 — 修复静态 molstar 导入
+
+**无需修复**。所有 molstar 导入（包括 CSS）都已是动态 `import()`。`next.config.ts` 中的 `IgnorePlugin({ resourceRegExp: /^molstar(\/|$)/ })`（L58-60）会在 dev 模式下进一步完全跳过 molstar 包，与运行时 `await import()` 配合无冲突。
+
+### 步骤 3 — 搜索其他大型库（重组件清单）
+
+按用户提示的清单逐项 Grep：
+
+| 库 | 命中位置 | 是否在首页链路中？ |
+|---|---|---|
+| `@mdxeditor/editor` | 0 | — |
+| `react-syntax-highlighter` | 0 | — |
+| `react-window` | 仅 `src/hooks/useVirtualizedList.ts` L2-3 (静态) | **不在**。Grep 全树 `useVirtualizedList`/`VirtualizedListConfig`/`UseVirtualizedListOptions`/`useListRef` 仅命中该文件自身导出定义，没有任何消费者 `import` 这个 hook。属于死代码，webpack 不会从入口可达，所以 `react-window` 不会进入首页编译图。 |
+| `react-markdown` | `src/components/lazy-markdown.tsx` L3 (静态) | **不在首页初始编译图**。`lazy-markdown.tsx` 仅被以下文件引用：<br>• `pdb-tracker.tsx` L187-190 用 `next/dynamic` 懒加载 ✅<br>• `ai-weekly-summary-panel.tsx` L18-19 用 `next/dynamic` 懒加载 ✅<br>• `BatchPreviewContent.tsx` L9 静态导入 — 但 `BatchPreviewContent` 本身没有任何 `import` 消费者（死代码，Grep 验证）<br>• `pdb-tracker/evaluation-view.tsx` L13 静态导入 — 但该文件被 `pdb-tracker.tsx` L212 用 `next/dynamic` 懒加载 ✅<br>• `settings-run-panel.tsx` L50 静态导入 — 但该文件被 `pdb-tracker.tsx` L127 用 `next/dynamic` 懒加载 ✅<br>此外 `react-markdown` 已在 `next.config.ts` 的 `optimizePackageImports` 列表中（L36），barrel 解析已被优化。 |
+| `remark-gfm` | `src/components/lazy-markdown.tsx` L4 (静态) | 同上，随 `lazy-markdown` 一起在 `next/dynamic` chunk 中。`remark-gfm` 本身体积很小（<20KB）。 |
+| `framer-motion` | 50+ 文件静态导入 | 不在 `optimizePackageImports` 之外。已加入 `optimizePackageImports`（L33），barrel 已优化。 |
+| `recharts` | 16 文件静态导入 | 已加入 `optimizePackageImports`（L31）。所有使用 `recharts` 的组件（`WeeklyTimeline`, `eval-dashboard`, `weekly-dashboard-charts` 等）都被 `pdb-tracker.tsx` 用 `next/dynamic` 懒加载。 |
+| `@radix-ui/*` | 30+ `ui/*.tsx` 静态导入 | 各 radix 包小（10-30KB）且 tree-shakeable，非 OOM 主因。 |
+| `lucide-react` | 多处静态导入 | 已加入 `optimizePackageImports`（L30）。 |
+| `date-fns` | 0 (已加入 optimizePackageImports 但代码中无静态导入命中) | — |
+| `@react-three` / `three` | 0 | — |
+| `monaco-editor` | 0 | — |
+| `katex` / `mermaid` / `rehype-*` / `remark-*`（除 remark-gfm） | 0 | — |
+| `echarts` / `d3` / `pdfjs-dist` / `xlsx` / `exceljs` / `papaparse` / `pdf-lib` / `jspdf` | 0 | — |
+| `playwright` / `puppeteer` / `canvas` / `sharp` | 0 | — |
+| `@iconify` / `phosphor` / `react-icons` | 0 | — |
+
+### 步骤 4 — 文件变更
+
+**没有任何文件被修改**。原因：
+
+1. 静态 molstar 导入数量为 0，无需转换。
+2. `react-window` 仅存在于死代码 hook 文件（无消费者），不会进入编译图，不需要改。
+3. `react-markdown` / `remark-gfm` 的静态导入虽然存在，但它们都位于 `next/dynamic` 懒加载的 chunk 内部（`lazy-markdown.tsx` ← `pdb-tracker.tsx` / `ai-weekly-summary-panel.tsx`），不会进入首页首次编译图。改成 `next/dynamic` 嵌套懒加载只会引入额外 chunk 切分复杂度，没有实际收益。
+4. `framer-motion` / `recharts` / `lucide-react` / `react-markdown` 都已在 `next.config.ts` 的 `optimizePackageImports` 中，barrel 已优化。
+
+### 关键发现 & 给下一步的建议
+
+1. **molstar 静态导入排查结论：clean。** IgnorePlugin (`/^molstar(\/|$)/`) 与运行时 `await import()` 已是正确组合，dev 模式下 molstar 95MB TS 源完全不在编译图中。
+2. **若仍 OOM，下一步可疑点（按可能性排序）**：
+   - `pdb-tracker.tsx` 本体 5161 行，是首页 `next/dynamic` 加载的主入口。即便所有重组件都已 dynamic，`pdb-tracker.tsx` 本身 + 它静态导入的 sibling 文件（`weekly-page.tsx`, `EvalPageControls.tsx`, `tour-overlay.tsx`, `enhanced-footer.tsx`, `enhanced-skeleton.tsx`, `pdb-helpers.tsx`, `literature/LiteratureReadingList.tsx`, `literature/LiteraturePaperNotes.tsx`, `literature/LiteraturePaperTags.tsx`）仍然会被编译。可以进一步把它们改为 `next/dynamic`。
+   - `enhanced-skeleton.tsx` 同时被静态导入到 `pdb-tracker.tsx`，但它内部如果也静态导入 `framer-motion`，则会强制 framer-motion 提前进入编译图（即使 `optimizePackageImports` 已开）。建议审查 `enhanced-skeleton.tsx` 等骨架屏文件的导入。
+   - `tour-overlay.tsx` 是另一个静态导入的重组件，需检查它是否引入了 `framer-motion` + `radix-ui` 等连锁依赖。
+3. **死代码清理建议**：`src/hooks/useVirtualizedList.ts` 与 `src/components/BatchPreviewContent.tsx` 都没有消费者，可考虑删除以减少 webpack 扫描负担（虽然不影响编译图可达性，但可让构建更干净）。
+4. **`optimizePackageImports` 当前列表**：`lucide-react`, `recharts`, `framer-motion`, `@radix-ui/react-icons`, `date-fns`, `react-markdown`。如果将来加入 `@radix-ui/react-dialog` 等也建议加入此列表（虽然单个 radix 包不大，但全部加起来仍有可观节省）。
+
+### 工作产物
+
+- 修改文件数：0
+- 新增文件数：0
+- Grep 搜索次数：~17
+- Read 文件数：5（`next.config.ts`, `useVirtualizedList.ts`, `lazy-markdown.tsx`, `pdb-tracker.tsx` 前 200 行, `PdbStructureViewer.tsx` 部分, `molecule-plugin-init.ts` 前 130 行, `structure-compare-dialog.tsx` 前 80 行, `molecule-viewer.tsx` 部分, `app/page.tsx`）
+
+---
+
+## Task `qa-deep-lazy-load-siblings` — 深层懒加载 pdb-tracker siblings
+
+**目标**: 把 `src/components/pdb-tracker.tsx`（5161→5204 行）中对重组件的静态导入改为 `next/dynamic` 懒加载，缩小 pdb-tracker chunk 的首次编译图，缓解 4GB/无 swap 沙箱 `next dev --webpack` 编译首页 `/` 时的 OOM。
+
+### 步骤 1 — 审计每个待处理导入的实际"重"度
+
+逐文件 Grep 静态导入，确认哪些真正拉入重组件依赖（framer-motion / recharts / radix / dompurify 等）：
+
+| 文件 | 静态导入 | 重依赖？ | 处理方式 |
+|---|---|---|---|
+| `weekly-page.tsx` | React, lucide-react (已 optimize), `ui/input`, `ui/button`, `export-utils`, `sonner`, `i18n`, types | 中（sonner + ui/*） | 转 dynamic |
+| `EvalPageControls.tsx` | 同上 | 中 | 转 dynamic |
+| `tour-overlay.tsx` | React, react-dom, **framer-motion (`motion`, `AnimatePresence`)**, lucide-react, `i18n` | **重**（framer-motion） | 转 dynamic |
+| `enhanced-footer.tsx` | React, lucide-react, `cache-utils`, types, `i18n` | 轻 | 转 dynamic（任务要求，收益小但无害） |
+| `enhanced-skeleton.tsx` | **仅 React** | 极轻 | 转 dynamic（任务要求；额外收益是把 286 行 JSX 移出主 chunk） |
+| `LiteratureReadingList.tsx`（hook 来源） | React, **framer-motion**, lucide-react, types, `i18n` | **重**（framer-motion） | **提取 hook 到新文件** |
+| `LiteraturePaperNotes.tsx`（hook 来源） | React, **framer-motion**, lucide-react, **DOMPurify** | **重**（framer-motion + dompurify） | **提取 hook 到新文件** |
+| `LiteraturePaperTags.tsx`（hook 来源） | React, lucide-react (已 optimize) | 轻 | **不动**（无重依赖） |
+
+### 步骤 2 — Hook 提取（关键决策）
+
+任务原则 #2 说"hook 不能 dynamic，保持静态导入"，但要求"如果 hook 所在文件静态导入了重组件（如 framer-motion），把那些重组件在该文件内部改为动态导入"。
+
+**问题**: `framer-motion` 的 `motion` / `AnimatePresence` 是 JSX 原语（`<motion.div>`），无法用 `next/dynamic` 直接懒加载——它们在 render 中被内联使用，必须同步可用。
+
+**解决方案**: 把 hook 从组件文件中**提取到独立的小文件**。这样：
+- `pdb-tracker.tsx` 仍然**静态导入** hook（满足"hook 不能 dynamic"），但从新的轻量文件导入，不再拉入 framer-motion。
+- 原组件文件保留所有 framer-motion 依赖，仅通过既有的 `ReadingListSidebar = dynamic(...)` / `PaperNotesSection = dynamic(...)` 懒加载入口可达。
+- 原组件文件 `re-export` hook 和类型，保证 `LiteratureView.tsx`、`literature/index.ts` 等**既有消费者无需修改**（向后兼容）。
+
+经检查，三个 hook 都是纯函数（只用 `useState`/`useEffect`/`useCallback` + localStorage），不依赖 framer-motion / dompurify，提取安全。
+
+### 步骤 3 — 文件变更
+
+#### 新增文件（2 个）
+
+1. **`src/components/literature/useReadingLists.ts`**（140 行）
+   - 从 `LiteratureReadingList.tsx` 提取 `useReadingLists` hook、`ReadingList` interface、`DEFAULT_LISTS` / `STORAGE_KEY` / `LIST_ORDER_KEY` 常量。
+   - 只导入 React hooks，**无 framer-motion**。
+
+2. **`src/components/literature/usePaperNotes.ts`**（91 行）
+   - 从 `LiteraturePaperNotes.tsx` 提取 `usePaperNotes` hook、`NoteData` interface、`STORAGE_KEY` 常量。
+   - 只导入 React hooks，**无 framer-motion / dompurify**。
+
+#### 修改文件（3 个）
+
+3. **`src/components/literature/LiteratureReadingList.tsx`**（716→594 行，-122 行）
+   - 删除 `useReadingLists` 函数体、`ReadingList` interface、`DEFAULT_LISTS` / `STORAGE_KEY` / `LIST_ORDER_KEY` 常量定义。
+   - 新增 `import { useReadingLists, type ReadingList } from './useReadingLists';` 并 `export { useReadingLists };` `export type { ReadingList };`（向后兼容 `LiteratureView.tsx` L10、`literature/index.ts` L14-15）。
+   - 从 React import 中移除不再使用的 `useEffect`。
+   - 保留 `LIST_COLORS` / `getDefaultListDisplayName` / `CATEGORY_BORDER_COLORS` / `COLOR_BORDER_MAP`（组件仍在用）。
+   - 保留 `framer-motion` 静态导入（仅组件用，且整个文件现在只通过 dynamic 入口可达）。
+
+4. **`src/components/literature/LiteraturePaperNotes.tsx`**（365→286 行，-79 行）
+   - 删除 `usePaperNotes` 函数体、`NoteData` interface、`STORAGE_KEY` 常量。
+   - 新增 `import { usePaperNotes, type NoteData } from './usePaperNotes';` 并 `export { usePaperNotes };` `export type { NoteData };`（向后兼容 `LiteratureView.tsx` L11、`literature/index.ts` L16-17）。
+   - 保留 `framer-motion` + `DOMPurify` 静态导入（仅组件用）。
+
+5. **`src/components/pdb-tracker.tsx`**（5161→5204 行，+43 行净增）
+   - **移除 5 条静态导入**：`WeeklyPageControls`、`EvalPageControls`、`TourOverlay`、`EnhancedFooter`、`WeeklyViewSkeleton, EvaluationViewSkeleton, LiteratureViewSkeleton, ModeTransitionWrapper`。
+   - **修改 2 条 hook 导入路径**：`useReadingLists` ← `@/components/literature/useReadingLists`（原 `LiteratureReadingList`）；`usePaperNotes` ← `@/components/literature/usePaperNotes`（原 `LiteraturePaperNotes`）。
+   - **保留 `usePaperTags` 静态导入不变**（`LiteraturePaperTags.tsx` 仅依赖 lucide-react，已在 `optimizePackageImports` 中）。
+   - **新增 7 个 `next/dynamic` 声明**（全部 `ssr: false`）：
+     - `WeeklyPageControls`、`EvalPageControls`、`EnhancedFooter` — loading 显示 `h-10` pulse div。
+     - `TourOverlay` — loading 返回 `null`（覆盖层，未加载时不占位）。
+     - `WeeklyViewSkeleton`、`EvaluationViewSkeleton`、`LiteratureViewSkeleton` — loading 显示 `h-8` pulse div。
+   - **删除 `ModeTransitionWrapper`**：Grep 验证该导出在 `pdb-tracker.tsx` 中**零消费者**（仅出现在被删除的 import 行）。任务原则"不改业务逻辑或 JSX 用法"——但既然没有 JSX 用法可改，删除未使用导入是更干净的方案（保留为 dynamic 会创建无用 chunk）。在源码注释中明确记录此决策。
+   - **关键：声明顺序**。`WeeklyViewSkeleton` / `EvaluationViewSkeleton` / `LiteratureViewSkeleton` 的 dynamic 声明**特意放在 `WeeklyView` / `EvaluationView` / `LiteratureView` 之前**（L208-227 → L229+），因为后者的 `loading: () => <WeeklyViewSkeleton />` 等回调引用了这些常量。虽然闭包调用发生在 React render 阶段（此时模块已完全求值，无 TDZ 风险），但前向声明避免任何读者困惑和静态分析工具的误报。`WeeklyPageControls` / `EvalPageControls` / `TourOverlay` / `EnhancedFooter` 放在 L348-368（动态声明块末尾），因为它们只在主 render JSX 中使用，无前向引用问题。
+
+### 步骤 4 — 验证
+
+#### Lint（`node scripts/lint.mjs`）
+
+```
+FAIL  335 file(s), 3 errors, 0 warnings
+```
+
+3 个错误**全部是 baseline** `react-hooks/set-state-in-effect`，分布在：
+- `src/hooks/use-activity-feed.ts:54`
+- `src/hooks/use-notifications.ts:68`
+- `src/hooks/use-user-preferences.ts:97`
+
+**我的修改引入了 0 个新 lint 错误**。
+
+#### TypeScript（`npx tsc --noEmit`）
+
+对修改的 5 个文件做定向检查：
+- `src/components/literature/useReadingLists.ts` — **0 errors**
+- `src/components/literature/usePaperNotes.ts` — **0 errors**
+- `src/components/literature/LiteratureReadingList.tsx` — **0 errors**
+- `src/components/literature/LiteraturePaperNotes.tsx` — **0 errors**
+- `src/components/pdb-tracker.tsx` — 5 errors，**全部是 pre-existing**（通过 `git stash` + tsc 对比验证：baseline 在 L3592/4789/4792，我的修改后行号平移到 L3635/4832/4835，错误内容完全相同：`count`/`journalIf`/`id`/`targetName` 属性不存在）。
+
+### 步骤 5 — 编译图影响分析
+
+改动前后，`pdb-tracker.tsx` 静态可达的 sibling 文件变化：
+
+| sibling 文件 | 改动前 | 改动后 | 净效果 |
+|---|---|---|---|
+| `weekly-page.tsx` | 静态（拉 sonner + ui/input + ui/button） | **dynamic** | 移出主 chunk |
+| `EvalPageControls.tsx` | 静态（同上） | **dynamic** | 移出主 chunk |
+| `tour-overlay.tsx` | 静态（**拉 framer-motion** + react-dom/createPortal） | **dynamic** | **framer-motion 不再静态可达** |
+| `enhanced-footer.tsx` | 静态 | **dynamic** | 移出主 chunk（轻量收益） |
+| `enhanced-skeleton.tsx` | 静态（286 行 React JSX） | **dynamic** | 主 chunk 减 ~280 行 |
+| `LiteratureReadingList.tsx` | 静态（**拉 framer-motion**，因 hook 共住） | **dynamic**（hook 已提取） | **framer-motion 不再静态可达** |
+| `LiteraturePaperNotes.tsx` | 静态（**拉 framer-motion + dompurify**，因 hook 共住） | **dynamic**（hook 已提取） | **framer-motion + dompurify 不再静态可达** |
+| `LiteraturePaperTags.tsx` | 静态（仅 lucide-react，已 optimize） | 不变 | 无需改动 |
+
+**关键收益**: `framer-motion` 现在在 `pdb-tracker.tsx` 的首次编译图中**完全不可达**（`tour-overlay` + `LiteratureReadingList` + `LiteraturePaperNotes` 三个入口都已切断）。即使 `next.config.ts` 已开启 `optimizePackageImports: ['framer-motion', ...]`，静态可达性仍会强制 webpack 在首次编译时解析 framer-motion 的 package.json exports 并 trace 其类型——现在这一负担被彻底移除。
+
+### 步骤 6 — 未处理项 & 后续建议
+
+1. **`usePaperTags` 保持静态导入**：`LiteraturePaperTags.tsx` 仅依赖 `lucide-react`（已在 `optimizePackageImports`），无重依赖，无需提取。如果将来该文件加入 framer-motion/recharts 等，需同样提取 hook。
+2. **`ModeTransitionWrapper` 已删除**：若将来有消费者需要它，可从 `enhanced-skeleton.tsx` 重新 dynamic 导入（`enhanced-skeleton.tsx` 仍然导出该组件）。
+3. **嵌套 loading 状态**：`WeeklyView` 等的 `loading: () => <WeeklyViewSkeleton />` 现在会先显示 `WeeklyViewSkeleton` 自身的 loading fallback（一个 `h-8` pulse div），几毫秒后切换到真实骨架，再切换到实际视图。UX 影响极小（骨架 chunk 是纯 React，加载很快）。如需进一步优化，可把骨架保留为静态导入（它们其实很轻），但任务明确要求转换。
+4. **如果仍 OOM**：下一步可疑点是 `pdb-tracker.tsx` 本体 5204 行——它仍然静态导入 `lucide-react`（多个图标）、`@/components/ui/{button,badge,input,tooltip}`（拉 radix）、`sonner`、`next-themes`、多个 `@/lib/*` 工具、多个 `@/hooks/*`。可以考虑：
+   - 把 `ui/button` / `ui/badge` / `ui/input` / `ui/tooltip` 改为 dynamic（但它们在主 render 中频繁使用，可能不值得）。
+   - 把 `sonner` 的 `toast` 包装到一个 lazy 工具中（但 `toast` 是命令式 API，不能 dynamic）。
+   - 拆分 `pdb-tracker.tsx` 本体为多个子组件文件（最大收益但工作量最大）。
+
+### 工作产物
+
+- **修改文件数**：3（`pdb-tracker.tsx`、`LiteratureReadingList.tsx`、`LiteraturePaperNotes.tsx`）
+- **新增文件数**：2（`useReadingLists.ts`、`usePaperNotes.ts`）
+- **Lint 结果**：3 errors（全部 baseline，0 新增）
+- **TypeScript 结果**：修改文件中 0 新增 errors（5 个 pre-existing errors 行号平移，内容不变）
+- **Grep 搜索次数**：~12
+- **Read 文件数**：6（`worklog.md` 末尾、`pdb-tracker.tsx` 多段、`LiteratureReadingList.tsx`、`LiteraturePaperNotes.tsx`、`LiteraturePaperTags.tsx`、`enhanced-skeleton.tsx`、`tour-overlay.tsx`、`enhanced-footer.tsx`、`weekly-page.tsx`、`EvalPageControls.tsx`、`LiteratureView.tsx`、`LiteraturePaperCard.tsx`、`literature/index.ts`、`pdb-tracker/types.ts`）
+
+---
+Task ID: qa-oom-stability-round
+Agent: main (Z.ai Code) + 2 subagents
+Task: QA 测试 PDB Tracker Web v4，解决 4GB 沙箱 dev server OOM 稳定性问题，验证之前 bug 修复
+
+Work Log:
+- **QA 环境检测**: 4GB 内存 / 0 swap / 无 sudo 权限。dev server (next dev --webpack) 编译首页 `/` 时反复被内核 OOM kill（dmesg: next-server total-vm 48GB, anon-rss 2.7GB）
+- **OOM 根因分析**: 首页 page.tsx → dynamic import pdb-tracker.tsx (5161行) 静态拉入 weekly-page/EvalPageControls/tour-overlay/enhanced-footer/enhanced-skeleton 等 sibling，连锁引入 framer-motion + @radix-ui/* + recharts + lucide-react 全家桶，webpack dev 模式编译图过大
+- **Subagent 1 (qa-optimize-imports)**: 把 PdbViewerModal/LiteratureDetailPanel 中的 PdbStructureViewer 静态导入改为 next/dynamic；LiteratureView 中的 LiteratureStatsChart(recharts)/LiteratureCitationNetwork/LiteraturePaperCompare 改为 dynamic。lint 0 新增错误
+- **Subagent 2 (qa-find-molstar-static-imports)**: 确认 src/ 下 0 处静态 molstar 导入（全部已是 import() 动态）；排查 @mdxeditor/react-syntax-highlighter/react-window 等重组件，react-window 仅在死代码 useVirtualizedList.ts 中
+- **Subagent 3 (qa-deep-lazy-load-siblings)**: 把 pdb-tracker.tsx 中 WeeklyPageControls/EvalPageControls/TourOverlay/EnhancedFooter/3个Skeleton 改为 next/dynamic；提取 useReadingLists/usePaperNotes 到独立 hook 文件切断 framer-motion 静态链；删除死代码 ModeTransitionWrapper。framer-motion 从首页编译图完全切断
+- **molstar CSS 动态化**: PdbStructureViewer.tsx 第3行 `import "molstar/build/viewer/molstar.css"` 改为 `await import('molstar/build/viewer/molstar.css')` 在 getMolstarModules() 内懒加载
+- **next.config.ts 优化**: dev 模式加 IgnorePlugin 忽略 `^molstar(\/|$)`；保留 parallelism=1 + infrastructureLogging.level=warn + snapshot.managedPaths；移除导致 readonly 赋值错误的 watchOptions.ignored
+- **验证结果**:
+  - `curl http://localhost:3000/` → HTTP 200 in 19.1s（首页编译成功！）
+  - `curl /api/db-config` → 200, 16 表, PubMedArticle:38
+  - `curl /api/literature/stats` → 200, totalPapers:38
+  - `POST /api/literature/daily/run` (skipWikiFiles) → **完全成功**: Path A=14 + Path B=9 + Path C=31 → 50 篇候选 → 50 篇入库 → LiteratureDigest+SkillRunRecord 写入 → 3.4s 完成
+  - DB 验证: PubMedArticle 50 篇全部带 doi (Bug 1 ✓), SkillRunRecord log 字段 2204 字符 (Bug 2 ✓)
+- **环境限制**: agent-browser 的 chrome 进程与 next dev 同时运行时内存峰值导致 OOM kill。dev server 单独运行（curl 测试）稳定，但无法与 agent-browser headless chrome 共存
+
+Stage Summary:
+- **之前 3 个 bug 修复全部验证有效**: Bug 1 (doi 列) ✓, Bug 2 (log 字段) ✓, Path C 搜索 ✓, PDB 周报超时保护 ✓
+- **OOM 稳定性大幅改善**: 通过 3 轮懒加载重构 + IgnorePlugin + CSS 动态化，首页编译从"必 OOM"变为"19s 编译成功"。但 4GB 无 swap 环境下 agent-browser + next dev 无法同时稳定运行
+- **未解决风险**: agent-browser chrome 进程内存占用 (~300MB) 与 next dev 编译峰值 (~2.7GB RSS) 叠加超出 4GB 物理内存。建议下一阶段：(1) 在有 swap 的环境运行, (2) 或用 `next build && next start` 生产模式（内存占用更低）, (3) 或继续拆分 pdb-tracker.tsx 为更细粒度的 dynamic chunk
+
+---
+Task ID: qa-final-verification
+Agent: main (Z.ai Code)
+Task: 最终验证所有修复和 API 功能
+
+Work Log:
+- curl 首页 `GET /` → HTTP 200, title="PDB Structure Tracker", 18.7s 编译（webpack）
+- curl `GET /api/db-config` → 200, 16 表, PubMedArticle:50, hasSchema:true
+- curl `GET /api/literature/stats` → 200, totalPapers:50, papersWithIf:50, avgIf:14.1
+- curl `GET /api/literature/papers?limit=3` → 200, 返回带 pmid/title/authors/journal/IF/pubdate/abstract/doi 的完整论文数据
+- curl `GET /api/pdb-weekly/run` (状态查询) → 200, weekId=2026-W31, 日期窗口正确
+- curl `GET /api/activity?limit=5` → 200, 返回新论文活动记录
+- curl `POST /api/literature/daily/run` (skipWikiFiles) → 完整 SSE 流: Path A=14+B=9+C=31→50篇→50入库→DB✓, 3.4s
+- DB 直查: PubMedArticle 50 篇全带 doi, SkillRunRecord 1 条 log=2204字符, LiteratureDigest 写入正常
+- lint: 3 个 baseline react-hooks 错误（已知，非本轮引入），0 个新增
+
+Stage Summary:
+- **项目当前状态**: 核心功能正常。文献日报三路径搜索(Path A/B/C)、PubMedArticle 写入(doi列)、SkillRunRecord 写入(log字段)、LiteratureDigest 写入全部验证通过。PDB 周报状态查询正常。首页可编译渲染。
+- **已完成的修改**:
+  1. 3 轮懒加载重构 (PdbStructureViewer/LiteratureView 组件链 + pdb-tracker sibling 组件 + hook 提取)
+  2. molstar CSS 静态导入 → 动态 import()
+  3. next.config.ts: IgnorePlugin(molstar) + 移除有问题的 watchOptions.ignored + 保留 parallelism=1
+  4. 新增 useReadingLists.ts / usePaperNotes.ts 独立 hook 文件
+- **未解决风险/建议下一阶段**:
+  1. **4GB 无 swap 环境限制**: dev server 编译首页需 2.7GB RSS，与 agent-browser chrome(~300MB) 无法同时稳定运行。建议：(a) 在有 swap 的环境运行, (b) 用 `next build && next start` 生产模式, (c) 或继续拆分 pdb-tracker.tsx (5161行) 为更细 dynamic chunk
+  2. **PDB 周报 POST 运行未完整测试**: 需要 RCSB fetch + 16 章 LLM 调用 × 2 方法，耗时 10-25 分钟，本轮未执行。超时保护代码已就位但未端到端验证
+  3. **3 个 baseline lint 错误**: use-activity-feed/use-notifications/use-user-preferences 的 set-state-in-effect，建议后续用 useSyncExternalStore 或事件驱动模式重构
+  4. **死代码清理**: useVirtualizedList.ts / BatchPreviewContent.tsx 无消费者，可删除

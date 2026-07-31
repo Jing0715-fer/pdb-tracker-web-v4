@@ -1,15 +1,38 @@
 'use client';
 
 import React, { useState, useRef, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Dialog,
   DialogContent,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { PdbStructureViewer } from '@/components/PdbStructureViewer';
 import { X, Loader2, Box } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useI18n } from '@/lib/i18n';
+
+// PdbStructureViewer pulls in the entire molstar CSS chain + 2800+ lines of
+// 3D viewer code + framer-motion + radix hover-card/collapsible. Loading it
+// statically forces Next.js dev to parse all of that even when the modal is
+// closed. Lazy-load with ssr:false so it goes into its own chunk and is only
+// compiled when the user actually opens a 3D structure.
+const PdbStructureViewer = dynamic(
+  () => import('@/components/PdbStructureViewer').then(m => ({ default: m.PdbStructureViewer })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex-1 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Box className="h-8 w-8 text-claude-accent animate-pulse" />
+          <div className="flex items-center gap-2 text-xs text-claude-text-muted">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            <span>Initializing 3D Viewer...</span>
+          </div>
+        </div>
+      </div>
+    ),
+  }
+);
 
 interface PdbViewerModalProps {
   pdbId: string | null;
