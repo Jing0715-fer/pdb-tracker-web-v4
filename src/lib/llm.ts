@@ -301,6 +301,19 @@ interface CliAdapter {
   probeTimeoutMs?: number;
   /** Call timeout (ms). Default 240000. */
   callTimeoutMs?: number;
+  /**
+   * Optional extra filesystem locations to probe before falling through to
+   * `where`/`which` — useful for CLIs whose binary lives outside PATH (e.g.
+   * WorkBuddy's electron-asar.unpacked bundled binary, or `npm i -g`
+   * install locations on multi-machine setups).
+   */
+  extraProbePaths?: string[];
+  /**
+   * Set to true when the CLI binary is a Node.js script (e.g. WorkBuddy's
+   * shim) that must be launched via `node <bin> ...args` rather than spawned
+   * directly. Affects both the probe and the real call.
+   */
+  needsNode?: boolean;
 }
 
 const HERMES_BANNER_RE = /(?:^|\n)\s*session_id:\s*\S+\s*(?=\n|$)/i;
@@ -1274,7 +1287,7 @@ function runCli(adapter: CliAdapter, bin: string, prompt: string, model: string 
   let args = rawArgs;
   if (adapter.outputFile) {
     const ext = adapter.id === 'codex' ? '.md' : '.txt';
-    outputFilePath = path.join(os.tmpdir(), `pdb-llm-${adapter.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+    outputFilePath = join(tmpdir(), `pdb-llm-${adapter.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
     // Pre-touch the file so the CLI doesn't fail with ENOENT on some shells
     try { writeFileSync(outputFilePath, ''); } catch { /* best-effort */ }
     args = rawArgs.map((a) => a === '$OUTPUT_FILE' ? outputFilePath! : a);

@@ -20,10 +20,15 @@ export type TranslationKeys = EnLocale;
 
 const LOCALE_STORAGE_KEY = 'pdb-tracker:locale';
 
-// Merge: en is the base (all keys guaranteed), zh overrides
+// Merge: en is the base (all keys guaranteed), zh overrides.
+// `as unknown as` is required because both `en` and `zh` are declared `as const`,
+// so their inferred types carry *literal* string values ("Run Center" vs "运行中心")
+// that TypeScript cannot directly compare. The double cast asserts structural
+// key-for-key compatibility (verified by key-set diff) while keeping key-name
+// autocompletion intact via `TranslationKeys`.
 const translations: Record<LocaleId, TranslationKeys> = {
   en: en as TranslationKeys,
-  zh: zh as TranslationKeys,
+  zh: zh as unknown as TranslationKeys,
 };
 
 // ─── Context ────────────────────────────────────────────────────────────────

@@ -252,7 +252,6 @@ export const en = {
   resetConfirmDesc: 'This will restore all preferences to their defaults. This action cannot be undone.',
   defaultBehavior: 'DEFAULT BEHAVIOR',
   dataDisplay: 'DATA DISPLAY',
-  notifications: 'NOTIFICATIONS',
 
   // ─── Sidebar & breadcrumb ────────────────────────────────────────────────
   pdbTracker: 'PDB Tracker',
@@ -294,7 +293,6 @@ export const en = {
   // ─── Evaluation mode ─────────────────────────────────────────────────────
   individualEvalsFull: 'Individual Evaluations',
   evalBatchesFull: 'Evaluation Batches',
-  compare: 'Compare',
   dashboard: 'Dashboard',
   timeline: 'Timeline',
   batchMatrix: 'Batch Matrix',
@@ -302,7 +300,6 @@ export const en = {
   noEvaluationsYet: 'No evaluations yet',
 
   // ─── Literature mode ─────────────────────────────────────────────────────
-  noPapersFound: 'No papers found',
   readingList: 'Reading List',
   source: 'Source',
   sourceAll: 'All',

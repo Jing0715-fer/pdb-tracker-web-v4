@@ -252,7 +252,6 @@ export const zh = {
   resetConfirmDesc: '此操作将恢复所有偏好为默认值，且不可撤销。',
   defaultBehavior: '默认行为',
   dataDisplay: '数据显示',
-  notifications: '通知',
 
   // ─── Sidebar & breadcrumb ────────────────────────────────────────────────
   pdbTracker: 'PDB 追踪器',
@@ -294,7 +293,6 @@ export const zh = {
   // ─── Evaluation mode ─────────────────────────────────────────────────────
   individualEvalsFull: '单独评估',
   evalBatchesFull: '批量评估',
-  compare: '对比',
   dashboard: '仪表盘',
   timeline: '时间线',
   batchMatrix: '批量矩阵',
@@ -302,7 +300,6 @@ export const zh = {
   noEvaluationsYet: '暂无评估',
 
   // ─── Literature mode ─────────────────────────────────────────────────────
-  noPapersFound: '暂无论文',
   readingList: '阅读列表',
   source: '来源',
   sourceAll: '全部',

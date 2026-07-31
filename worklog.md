@@ -1164,3 +1164,122 @@ Stage Summary:
   2. **4GB 环境 OOM**: 建议 `next build && next start` 生产模式或创建 swap
   3. PDB 周报 POST 端到端测试仍待执行
   4. 雷达图 polygon 项目内端到端验证仍待完成（上轮已通过独立 HTML 测试确认 recharts 3.x 渲染正确）
+
+---
+
+## Task: code-review-ts-errors (2025-01)
+
+**Scope**: 全面代码审查 — 修复 `tsc --noEmit` 报告的 5 类 TypeScript 错误（i18n 重复键、i18n 类型转换、llm CliAdapter、sse __controller、target-evaluation maxScore）。
+
+### 修复清单
+
+| # | 文件 | 错误码 | 根因 | 修复方式 |
+|---|------|--------|------|----------|
+| 1 | `src/lib/i18n/en.ts` | TS1117 ×3 | `notifications`(L132/L255)、`compare`(L142/L297)、`noPapersFound`(L187/L305) 三个键在同一对象字面量中重复定义 | 删除后一处定义（L255/L297/L305），保留首次定义（值分别为 `'Notifications'`/`'Compare'`/`'No papers found'`） |
+| 2 | `src/lib/i18n/zh.ts` | TS1117 ×3 | 同 en.ts，三个键重复 | 同上，删除后一处定义，保留首次定义 |
+| 3 | `src/lib/i18n/index.tsx` | TS2352 | `en`/`zh` 均 `as const`，推断出字面量类型（`"Run Center"` vs `"运行中心"`），`zh as TranslationKeys` 直接转换因字面量不重叠而失败 | 改为 `zh as unknown as TranslationKeys`（双断言），保留键名自动补全；附注释说明原因。重复键修复后此错误**未自动消失**（任务假设的字面量重叠问题仍存在），故主动应用双断言 |
+| 4 | `src/lib/llm.ts` | TS2353 ×2, TS2339 ×3, TS2304 ×2, TS2345 ×1 | (a) `CliAdapter` interface 缺 `extraProbePaths`/`needsNode` 属性，但 `CLI_ADAPTERS` 中 codex/codebuddy 条目使用了它们；(b) L1290 使用 `path.join(os.tmpdir(), …)` 但顶层只 import 了 `{ join }`/`{ tmpdir }`（`path`/`os` 仅在 `findBrandIcon`/`resolveIconFor` 内局部 import）；(c) L1292 `writeFileSync(outputFilePath, …)` 因 `outputFilePath` 仍为 `string \| null` 报错（根因同 b——`path.join` 返回 `any` 无法收窄） | (a) 在 `CliAdapter` interface 末尾新增 `extraProbePaths?: string[]` 和 `needsNode?: boolean` 两个可选属性并附 JSDoc；(b) L1290 改用已 import 的 `join(tmpdir(), …)`（与 L756/L758 顶层用法一致）；(c) 修复 (b) 后 `outputFilePath` 被正确收窄为 `string`，自动解决 |
+| 5 | `src/lib/sse.ts` | TS2339 | `sseStream()` 内 `function send(…)` 被 `start(controller)` 回调赋值 `send.__controller = controller`，但函数类型 `(eventName, data) => void` 无此属性 | 定义 `type SendFn = { (eventName: string, data: unknown): void; __controller?: ReadableStreamDefaultController<Uint8Array> }`，将 `function send` 改为 `const send: SendFn`；同时移除 `done`/`error` 中 3 处 `(send as any).__controller` 强转，改为类型安全的 `send.__controller` |
+| 6 | `src/lib/target-evaluation.ts` | TS2339 | L749 `scores.overall.maxScore` 访问不存在的属性；`EvaluationScores.overall` 类型为 `{ score; rating }`，评分逻辑 `clamp(s, 1, 10)` 实际 max=10 但未暴露到类型 | 在 `EvaluationScores` interface 的 4 个子对象（xray/cryoem/nmr/overall）类型中新增 `maxScore: number`；`scoreAll()` 返回值 + 两处 fallback（L704-709 / L812-817）均补 `maxScore: 10`（与 `clamp(…, 1, 10)` 上界一致） |
+
+### 修改文件清单（6 个）
+- `src/lib/i18n/en.ts` — 删 3 行重复键
+- `src/lib/i18n/zh.ts` — 删 3 行重复键
+- `src/lib/i18n/index.tsx` — 1 处类型断言 + 注释
+- `src/lib/llm.ts` — CliAdapter interface +2 属性；L1290 改用 `join`/`tmpdir`
+- `src/lib/sse.ts` — `sseStream()` 重构为类型安全的 `SendFn`
+- `src/lib/target-evaluation.ts` — `EvaluationScores` +3 处构造点补 `maxScore`
+
+### 验证结果
+- **目标文件 tsc**: `node node_modules/.bin/tsc --noEmit 2>&1 | rg "src/lib/i18n/|src/lib/llm\.ts|src/lib/sse\.ts|src/lib/target-evaluation\.ts"` → **0 行** ✓（修复前 17 行错误）
+- **lint**: `node scripts/lint.mjs` → `PASS 316 file(s) scanned, 0 errors, 0 warnings` ✓（无新增 lint 错误）
+- **全量 tsc**: 仍有 126 个 TS 错误，全部位于**本次任务范围外**的文件（`src/components/*.tsx`、`src/app/api/*/route.ts`、`examples/`、`skills/`、`e2e/`），为既有遗留问题，未在本次 5 类错误清单内
+
+### 备注
+- 任务背景称"15 个 TS 错误"，实际分配的 5 类共 17 条具体错误（i18n 6 + index.tsx 1 + llm 8 + sse 1 + target-eval 1），已全部修复
+- i18n/index.tsx 的类型转换错误**未**如任务假设的那样在修复重复键后自动消失——根因是 `as const` 字面量类型不重叠，非重复键所致；已主动应用 `as unknown as` 双断言修复
+- llm.ts L1290 的 `path`/`os` 未导入问题，未选择"添加 namespace import"而是改用已有的 `join`/`tmpdir` 命名导入，与同文件 L756/L758 顶层用法保持一致，避免冗余 import
+
+---
+Task ID: comprehensive-code-review-e2e
+Agent: main (Z.ai Code) + 1 subagent
+Task: 全面代码审查、QA 测试和 E2E 测试，提出下一阶段开发计划
+
+Work Log:
+
+## 1. 代码审查结果
+
+### ESLint: ✅ PASS 316 files, 0 errors, 0 warnings
+
+### TypeScript: ⚠️ 126 错误（从 143 降至 126）
+- **核心库文件已修复** (subagent `code-review-ts-errors`): 17 错误 → 0
+  - i18n 重复键 (notifications/compare/noPapersFound) → 删除重复定义
+  - llm.ts CliAdapter 缺 extraProbePaths/needsNode → 添加可选属性
+  - sse.ts __controller 属性 → 定义 SendFn 类型
+  - target-evaluation.ts maxScore → 添加类型属性
+- **剩余 126 错误分布**:
+  - src/components/*.tsx (~80): locale 未定义、ref 类型、recharts 类型
+  - src/app/api/evaluations/run/route.ts (~15): 未定义变量名
+  - examples/skills/e2e (~31): 遗留问题
+
+### 依赖审计: ⚠️ 48 漏洞 (1 critical, 26 high, 18 moderate, 3 low)
+- **Critical**: Auth.js (next-auth) homoglyph @ 绕过 — 项目无登录系统，实际风险低
+- **High**: Picomatch ReDoS 等 — 多为 transitive dependencies
+- 建议: `bun update --latest` 升级（注意 breaking changes）
+
+## 2. 数据库完整性: ✅
+- 17 表全部存在，schema 与 Prisma 一致
+- PubMedArticle 有 doi 列 ✓ (Bug 1 修复确认)
+- SkillRunRecord 有 log 列 ✓ (Bug 2 修复确认)
+- 数据: 5 PdbStructure + 50 PubMedArticle + 3 SkillRunRecord
+
+## 3. API E2E 测试: ✅ 8/8 通过
+| 端点 | 状态 | 验证内容 |
+|------|------|---------|
+| /api/db-config | 200 | hasSchema:true, 16 表 |
+| /api/entries | 200 | total:5, 正确返回 |
+| /api/literature/stats | 200 | totalPapers:50, avgIf:14.1 |
+| /api/literature/papers | 200 | 带 doi/IF/摘要完整数据 |
+| /api/pdb-weekly/run | 200 | weekId:2026-W31 |
+| /api/snapshots | 200 | 正确返回 |
+| /api/activity | 200 | 正确返回 |
+| /api/evaluations | 200 | 正确返回（空） |
+
+## 4. 文献日报 POST E2E: ✅ 完整通过
+- Path A=14 + Path B=9 + Path C=30 → 50 篇候选
+- 50 篇入库（doi 列写入）
+- LiteratureDigest + SkillRunRecord 写入（log 字段 2204 字符）
+- 4.0s 完成, dbSaved:true
+
+## 5. 前端 UI 渲染: ✅ (生产模式验证)
+- 首页 HTML 渲染正确 (title + Loading PDB)
+- agent-browser 生产模式成功渲染 Database Setup 向导
+- 4GB 环境 dev + chrome 无法共存（OOM），生产模式可短暂运行
+
+## 6. 安全审查
+- .env: DATABASE_URL 指向 custom.db（测试库），db-config.json 指向 pdb-tracker.db（实际使用）—— 建议统一
+- API 认证: 56 路由无认证（本地桌面应用，可接受）
+- 硬编码密钥: 无 ✓
+- SQL 注入: $queryRawUnsafe 用 ? 占位符（参数化）✓; db-config 路由有表名拼接（低风险，表名来自固定列表）
+
+## 下一阶段开发计划
+
+### P0 — 高优先级（稳定性）
+1. **修复剩余 126 个 TS 错误**: 分模块处理 components/api，建议用 `tsc --noEmit` 逐目录修复
+2. **依赖升级**: `bun update --latest` 解决 48 个漏洞（注意 next-auth v5 breaking change）
+3. **.env 统一**: DATABASE_URL 改为指向 pdb-tracker.db，与 db-config.json 一致
+
+### P1 — 中优先级（功能完善）
+4. **PDB 周报 POST 端到端测试**: RCSB fetch + 16 章 LLM 调用 × 2 方法，验证超时保护和心跳
+5. **雷达图端到端验证**: 在有 swap 的环境用 agent-browser 确认 path.recharts-polygon ≥ 2
+6. **MethodReadingHeatmap 端到端验证**: 确认热力图在 Literature 模式正确渲染
+
+### P2 — 低优先级（增强）
+7. **4GB 环境 OOM 根治**: 创建 swap 文件或优化 pdb-tracker.tsx 进一步拆分
+8. **db-config 表名拼接修复**: 用白名单验证替代直接拼接
+9. **死代码全量扫描**: scripts 检测 src/components 下零消费者文件
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定（API 8/8 通过、文献日报 E2E 通过），lint 全绿，核心库 TS 错误已修复，数据库完整
+- **主要风险**: 126 个非核心 TS 错误、48 个依赖漏洞、4GB 环境 OOM 限制
+- **下一阶段重点**: P0 修复 TS 错误 + 依赖升级；P1 PDB 周报端到端测试 + 雷达图验证

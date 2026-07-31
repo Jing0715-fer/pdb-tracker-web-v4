@@ -42,14 +42,17 @@ export function withLog<T extends (ev: SseEvent) => void>(
 
 export function sseStream() {
   const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      send.__controller = controller;
-    },
-  });
 
-  function send(eventName: string, data: unknown) {
-    const ctrl = (send as any).__controller as ReadableStreamDefaultController<Uint8Array> | undefined;
+  // `send` carries the stream's controller as an attached property so the
+  // `start(controller)` callback (which runs synchronously during ReadableStream
+  // construction) can hand it off to the closure created below.
+  type SendFn = {
+    (eventName: string, data: unknown): void;
+    __controller?: ReadableStreamDefaultController<Uint8Array>;
+  };
+
+  const send: SendFn = (eventName: string, data: unknown) => {
+    const ctrl = send.__controller;
     if (!ctrl) return;
     const payload = typeof data === 'string' ? data : JSON.stringify(data);
     const frame = `event: ${eventName}\ndata: ${payload}\n\n`;
@@ -58,7 +61,13 @@ export function sseStream() {
     } catch {
       /* controller already closed */
     }
-  }
+  };
+
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      send.__controller = controller;
+    },
+  });
 
   function progress(ev: SseEvent) {
     send('progress', { ts: new Date().toISOString(), ...ev });
@@ -66,13 +75,13 @@ export function sseStream() {
 
   function done(result: unknown) {
     send('done', result);
-    const ctrl = (send as any).__controller as ReadableStreamDefaultController<Uint8Array> | undefined;
+    const ctrl = send.__controller;
     try { ctrl?.close(); } catch { /* ignore */ }
   }
 
   function error(message: string) {
     send('error', { message });
-    const ctrl = (send as any).__controller as ReadableStreamDefaultController<Uint8Array> | undefined;
+    const ctrl = send.__controller;
     try { ctrl?.close(); } catch { /* ignore */ }
   }
 

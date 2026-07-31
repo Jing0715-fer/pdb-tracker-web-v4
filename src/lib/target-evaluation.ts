@@ -27,10 +27,10 @@ import { llmComplete, LlmConfig } from './llm';
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface EvaluationScores {
-  xray: { score: number; rating: string };
-  cryoem: { score: number; rating: string };
-  nmr: { score: number; rating: string };
-  overall: { score: number; rating: string };
+  xray: { score: number; maxScore: number; rating: string };
+  cryoem: { score: number; maxScore: number; rating: string };
+  nmr: { score: number; maxScore: number; rating: string };
+  overall: { score: number; maxScore: number; rating: string };
 }
 
 export interface EvaluationRunOptions {
@@ -607,10 +607,10 @@ function scoreAll(
 
   const overall = Math.max(xrayBoosted, cryoemBoosted, nmr);
   return {
-    xray: { score: xrayBoosted, rating: rating(xrayBoosted) },
-    cryoem: { score: cryoemBoosted, rating: rating(cryoemBoosted) },
-    nmr: { score: nmr, rating: rating(nmr) },
-    overall: { score: overall, rating: rating(overall) },
+    xray: { score: xrayBoosted, maxScore: 10, rating: rating(xrayBoosted) },
+    cryoem: { score: cryoemBoosted, maxScore: 10, rating: rating(cryoemBoosted) },
+    nmr: { score: nmr, maxScore: 10, rating: rating(nmr) },
+    overall: { score: overall, maxScore: 10, rating: rating(overall) },
   };
 }
 
@@ -702,10 +702,10 @@ export async function runTargetEvaluation(opts: EvaluationRunOptions): Promise<E
       blastHitCount: 0,
       coverage: 0,
       scores: {
-        xray: { score: 0, rating: 'Unknown' },
-        cryoem: { score: 0, rating: 'Unknown' },
-        nmr: { score: 0, rating: 'Unknown' },
-        overall: { score: 0, rating: 'Unknown' },
+        xray: { score: 0, maxScore: 10, rating: 'Unknown' },
+        cryoem: { score: 0, maxScore: 10, rating: 'Unknown' },
+        nmr: { score: 0, maxScore: 10, rating: 'Unknown' },
+        overall: { score: 0, maxScore: 10, rating: 'Unknown' },
       },
       durationMs: Date.now() - t0,
       error: 'Invalid UniProt ID format (expected 6-char alphanum like P00533)',
@@ -810,10 +810,10 @@ export async function runTargetEvaluation(opts: EvaluationRunOptions): Promise<E
       blastHitCount: 0,
       coverage: 0,
       scores: {
-        xray: { score: 0, rating: 'Unknown' },
-        cryoem: { score: 0, rating: 'Unknown' },
-        nmr: { score: 0, rating: 'Unknown' },
-        overall: { score: 0, rating: 'Unknown' },
+        xray: { score: 0, maxScore: 10, rating: 'Unknown' },
+        cryoem: { score: 0, maxScore: 10, rating: 'Unknown' },
+        nmr: { score: 0, maxScore: 10, rating: 'Unknown' },
+        overall: { score: 0, maxScore: 10, rating: 'Unknown' },
       },
       durationMs: Date.now() - t0,
       error: e?.message || String(e),
