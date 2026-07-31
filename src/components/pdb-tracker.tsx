@@ -183,6 +183,10 @@ const WeeklyDashboardCharts = dynamic(() => import('@/components/weekly-dashboar
   ssr: false,
   loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
 });
+const QualityScoreDashboard = dynamic(() => import('@/components/quality-score-dashboard').then(m => ({ default: m.QualityScoreDashboard })), {
+  ssr: false,
+  loading: () => <div className="animate-pulse bg-claude-border-light rounded h-8 w-full" />,
+});
 
 const LazyMarkdown = dynamic(
   () => import('@/components/lazy-markdown').then(m => ({ default: m.LazyMarkdown })),
@@ -4881,7 +4885,12 @@ export default function PdbTracker() {
                     correct parent dimensions on first render. Mounting inside
                     a maxHeight:0 container causes recharts to compute 0-size
                     and skip rendering the Radar polygon (path.recharts-polygon). */}
-                {showDashboard && <WeeklyDashboardCharts entries={entries} snapshots={snapshots} />}
+                {showDashboard && (
+                  <div className="space-y-3">
+                    <QualityScoreDashboard entries={entries} locale={locale} />
+                    <WeeklyDashboardCharts entries={entries} snapshots={snapshots} />
+                  </div>
+                )}
               </div>
             </div>
           )}
