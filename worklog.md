@@ -1687,3 +1687,93 @@ Stage Summary:
 - **项目当前状态**: 核心功能稳定，全面 E2E 通过（静态检查 + 8 API + 文献日报 POST + PDB 周报核心流水线），依赖漏洞从 48 降至 29（0 critical），死代码扫描完成（55 文件 13,294 行待清理）
 - **本轮关键进展**: 依赖升级（0 critical）+ 死代码全量扫描 + db-config 安全修复 + PDB 周报核心流水线验证
 - **主要风险**: 4GB 环境 OOM 限制端到端验证；29 个依赖漏洞（低风险 transitive deps）
+
+
+---
+
+## Task: `dead-code-cleanup-exec` — 死代码清理执行（21 文件，5,202 行）
+
+**时间**: 2026-07-31T17:25:00Z
+**前置任务**: `dead-code-full-scan`（worklog L1486）
+**操作类型**: 文件删除 + lint/tsc 验证（未运行 dev server）
+**初始状态**: baseline lint PASS 318 files / 0 errors；tsc 0 errors；git working tree clean
+
+### 执行流程
+
+#### 批次 1 — shadcn/ui 未消费原语（14 个文件，1,761 行）✅
+低风险删除：标准 shadcn/ui 安装但项目未 import 的 UI 原语。
+预检：`rg "@/components/ui/(accordion|alert|avatar|...)"` 在 src/ 下零命中（唯一命中是 `alert-dialog`，不同模块，未删）。
+删除方式：`git rm`（暂存到 index，便于回滚）。
+删除清单：
+| 文件 | 行数 |
+|---|---|
+| src/components/ui/chart.tsx | 355 |
+| src/components/ui/menubar.tsx | 276 |
+| src/components/ui/carousel.tsx | 244 |
+| src/components/ui/navigation-menu.tsx | 168 |
+| src/components/ui/form.tsx | 167 |
+| src/components/ui/breadcrumb.tsx | 109 |
+| src/components/ui/card.tsx | 92 |
+| src/components/ui/toggle-group.tsx | 73 |
+| src/components/ui/accordion.tsx | 66 |
+| src/components/ui/alert.tsx | 66 |
+| src/components/ui/resizable.tsx | 63 |
+| src/components/ui/avatar.tsx | 53 |
+| src/components/ui/textarea.tsx | 18 |
+| src/components/ui/aspect-ratio.tsx | 11 |
+批次后 lint: **PASS 304 files / 0 errors / 0 warnings** ✓
+批次后 tsc: **0 errors** ✓
+
+#### 批次 2 — 业务死代码（7 个文件，3,441 行）✅
+逐一删除 + lint 验证（每删一个跑一次 lint，全部 0 errors，无需 git checkout 恢复任何文件）。
+删除清单：
+| 文件 | 行数 | 主导出 |
+|---|---|---|
+| src/components/LiteratureSection.tsx | 1098 | LiteratureSection |
+| src/components/WeeklyTimeline.tsx | 500 | WeeklyTimeline |
+| src/components/WeeklySummary.tsx | 420 | WeeklySummary |
+| src/components/ComplexEvalSummary.tsx | 414 | ComplexEvalSummary |
+| src/components/pdb-batch-actions.tsx | 342 | PdbBatchActions |
+| src/components/pdb-command-palette.tsx | 337 | PdbCommandPalette |
+| src/components/data-export-panel.tsx | 330 | DataExportPanel |
+每步 lint 输出（仅记录 files 数）：
+- LiteratureSection 删后 → 303 files / 0 errors ✓
+- WeeklyTimeline 删后 → 302 files / 0 errors ✓
+- WeeklySummary 删后 → 301 files / 0 errors ✓
+- ComplexEvalSummary 删后 → 300 files / 0 errors ✓
+- pdb-batch-actions 删后 → 299 files / 0 errors ✓
+- pdb-command-palette 删后 → 298 files / 0 errors ✓
+- data-export-panel 删后 → 297 files / 0 errors ✓
+
+#### 跳过的高风险文件（按任务指示保留，未删除）
+- `pdb-detail-panel.tsx`（1447 行）— 可能被动态引用，留待人工复核
+- `structure-comparison-modal.tsx`（688 行）— 可能被 pdb-tracker 引用
+- `preferences-dialog.tsx`（557 行）— 可能被设置面板引用
+
+### 最终验证
+- **ESLint**: `node scripts/lint.mjs` → **PASS 297 files / 0 errors / 0 warnings** ✓
+- **TypeScript**: `node node_modules/.bin/tsc --noEmit 2>&1 | grep -c "error TS"` → **0 errors** ✓
+- **重扫描**: `node scripts/scan-dead-components.mjs` → 候选死代码从 55 → **35**（删除 21 个文件后剩余的待复核文件，含上面 3 个跳过的 + 14 个未在本任务范围内的其他候选）
+
+### 恢复文件
+**无**。所有 21 个删除的文件均未触发 lint/tsc 错误，无需 `git checkout` 恢复。
+
+### 减少代码量
+- 删除文件数：**21**
+- 减少行数（git diff --cached --numstat 累计）：**5,202 行**
+  - 批次 1（ui/*）: 1,761 行
+  - 批次 2（业务文件）: 3,441 行
+- src/components/ 文件总数：205 → **184**（−21）
+- 候选死代码剩余：55 → **35**（仍有 35 个候选未删，含 3 个本任务跳过的高风险文件 + 32 个未在本批次处理范围的其他候选）
+
+### 未提交说明
+本任务仅做 `git rm` 暂存到 index，未执行 `git commit`（任务范围仅"删除和验证"）。
+当前 index 状态：21 个 staged deletions，可由下一轮 agent 或人工执行 commit：
+```bash
+git commit -m "chore: remove 21 dead code files (5,202 lines) — UI primitives + business components"
+```
+
+### Stage Summary
+- **本轮成果**: 安全删除 21 个确认无外部引用的死代码文件，减少 5,202 行代码（约占扫描发现的 55 文件 13,294 行的 39%）
+- **lint/tsc 状态**: 全绿（lint 0 errors / tsc 0 errors）
+- **未处理项**: 35 个候选死代码仍保留，其中 3 个为任务指示跳过的高风险文件（pdb-detail-panel / structure-comparison-modal / preferences-dialog），其余 32 个未在本任务删除清单内
