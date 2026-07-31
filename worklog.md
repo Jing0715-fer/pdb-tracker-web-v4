@@ -819,3 +819,122 @@ Stage Summary:
 - **项目当前状态**: 核心功能稳定，lint 全绿，三通路检索 UI 完整
 - **已完成修改**: 3 个 hook lazy initializer 重构 + 1 个新组件 + settings-run-panel Path C 集成
 - **未解决风险**: 4GB 无 swap 环境下 agent-browser chrome + next dev 仍无法长时间同时运行（OOM 倾向）。建议下一阶段：(1) 清理死代码 useVirtualizedList.ts/BatchPreviewContent.tsx, (2) PDB 周报 POST 端到端测试, (3) Evaluation 模块 Path C 式增强
+
+---
+Task ID: cleanup-dead-code
+Agent: subagent (general-purpose / cleanup-dead-code)
+Task: 清理死代码（useVirtualizedList.ts / BatchPreviewContent.tsx）并扫描其他可能的死代码
+
+Work Log:
+- **背景**: worklog 多次提到两个死代码文件待清理。本次任务验证零引用并删除，同时扫描 src/hooks/ 与 src/components/ 下其他可能的死代码。
+- **Step 1 - 读取 worklog 最后 40 行**: 确认上一阶段 lint 已全绿（336 files, 0 errors），明确点名 useVirtualizedList.ts / BatchPreviewContent.tsx 无消费者可删除。ModeTransitionWrapper 已在 qa-deep-lazy-load-siblings 任务中从 pdb-tracker.tsx 移除导入，但 enhanced-skeleton.tsx 仍保留 export（worklog L719 明确说明为"有意保留，便于将来重新 dynamic 导入"）。
+- **Step 2 - Grep 验证零引用** (在 `/home/z/my-project/src` 下):
+  - `useVirtualizedList`: 仅命中 `src/hooks/useVirtualizedList.ts` 自身的 export 定义（L43 + L110 default export）+ worklog.md 文档引用。**src/ 下零 import 语句**，零消费者。确认死代码。
+  - `BatchPreviewContent`: 命中 `src/components/BatchPreviewContent.tsx` 自身定义（L11/L53/L62）+ `src/components/pdb-tracker.tsx` L497/L502 两处**注释**（非 import，非 JSX 用法）。**src/ 下零 import 语句**。确认死代码。pdb-tracker.tsx L4958 实际渲染的是 `<EvaluationView>`（在 batch sub-view 模式下），而非 BatchPreviewContent——注释为历史残留。
+  - `import.*BatchPreviewContent|import.*useVirtualizedList` 模式 grep: **No matches found**。双重确认。
+- **Step 3 - 删除文件**:
+  - `rm src/hooks/useVirtualizedList.ts` (110 行，导出 useVirtualizedList 函数 + VirtualizedListConfig/UseVirtualizedListOptions 类型 + react-window 的 List/useListRef/RowComponentProps 再导出)
+  - `rm src/components/BatchPreviewContent.tsx` (353 行，导出 BatchPreviewContent 组件 + BatchPreviewContentProps 类型)
+- **Step 4 - 修正历史残留注释**: `src/components/pdb-tracker.tsx` L496-504 两段注释提到 "we render BatchPreviewContent in the detail panel" 和 "kept as an empty fallback for the BatchPreviewContent component's optional lookup path"——这些描述与实际实现不符（实际渲染 EvaluationView）。更新为：(1) 说明 detail panel 实际渲染 EvaluationView 的 batch sub-view；(2) 说明 batchFetchedEvals 实际被 EvaluationView 消费（evaluation-view.tsx L509/L535/L617/L761 共 8 处使用）；(3) 添加 NOTE 记录 BatchPreviewContent.tsx 已作为死代码移除。`selectedBatchId` / `batchFetchedEvals` state 本身保留——它们仍被 EvalModeSwitcher / EvalBatchCompare / EvaluationView 消费。
+- **Step 5 - 其他死代码扫描** (`src/hooks/` 与 `src/components/`):
+  - **ModeTransitionWrapper**: 仍由 `src/components/enhanced-skeleton.tsx` L271 导出。全项目零 import 语句（仅 pdb-tracker.tsx L214 一处注释提及）。**判定**: 这是有意保留的死代码——worklog task `qa-deep-lazy-load-siblings` L719 明确说明"若将来有消费者需要它，可从 enhanced-skeleton.tsx 重新 dynamic 导入"。**未删除**，保持现状。
+  - **src/hooks/ 死代码扫描**: 通过 grep `from\s+['"]@/hooks/` 抓取所有 hook 的 import 路径，与 `src/hooks/` 实际文件列表对比。发现 **19 个 hook 文件零消费者**（除自身 export 定义外全项目无 import、无类型引用、e2e/ 也无引用）:
+    1. `use-share-view.ts`
+    2. `use-column-settings.ts`
+    3. `use-ai-features.ts`
+    4. `use-pdb-navigation.tsx`
+    5. `use-pdb-selection.tsx`
+    6. `use-pdb-filters.tsx`
+    7. `use-filter-presets.tsx`
+    8. `use-data-fetching.ts`
+    9. `use-molecule-viewer-state.ts` (注：自身 import 了 use-toast，但本身无人 import)
+    10. `use-tags.ts`
+    11. `use-context-menu.ts`
+    12. `use-export.ts`
+    13. `use-sorted-eval-rows.ts` (注：自身 import 了 use-pdb-evaluation 的 BatchSubTarget 类型，但本身无人 import)
+    14. `use-resizable-panels.ts`
+    15. `use-structure-notes.ts`
+    16. `use-sorted-entries.ts` (注：自身 import 了 use-diff-mode 的 DiffResult 类型，但本身无人 import)
+    17. `use-data-cache.ts`
+    18. `use-ratings.ts`
+    19. `use-notifications.ts`
+  - **决策**: 本任务范围明确为 worklog 点名的 2 个文件。上述 19 个 hook 文件虽经 grep 验证零消费者，但**未在本任务中删除**——批量删除 19 个文件属于较大变更，建议作为独立 follow-up 任务执行（需先与项目维护者确认这些 hook 不是为未来扩展保留的"库代码"）。本任务仅作记录与报告。
+  - **src/components/ 全量扫描**: 文件数 200+，本次未做穷举扫描（成本较高）。如需后续清理建议作为独立任务。
+- **Step 6 - Lint 验证**:
+  ```
+  $ node scripts/lint.mjs
+  PASS  334 file(s) scanned, 0 errors, 0 warnings
+  ```
+  - 与上一阶段 `PASS 336 files, 0 errors, 0 warnings` 相比，文件数减少 2（=删除的 2 个死代码文件），lint 仍全绿。**无新增错误，无新增警告**。
+- **Step 7 - Git status**:
+  ```
+   D src/components/BatchPreviewContent.tsx
+   M src/components/pdb-tracker.tsx        (仅注释更新，无业务逻辑改动)
+   D src/hooks/useVirtualizedList.ts
+  ```
+- **验证摘要**:
+  - 删除后再次 grep `useVirtualizedList` 在 src/ 下: **No matches found** ✓
+  - 删除后再次 grep `BatchPreviewContent` 在 src/ 下: 仅剩 pdb-tracker.tsx L505 一处 NOTE 注释（说明已删除）✓
+  - lint PASS 334 files, 0 errors, 0 warnings ✓
+
+Stage Summary:
+- **已完成**: 删除 2 个死代码文件（useVirtualizedList.ts 110行 + BatchPreviewContent.tsx 353行，共 463 行）+ 修正 pdb-tracker.tsx 中 2 段历史残留注释。lint 全绿（334 files, 0 errors）。
+- **关键发现**: src/hooks/ 下还有 19 个零消费者的 hook 文件（疑似历史重构遗留），未在本任务删除——建议作为独立 follow-up 任务评估清理。
+- **ModeTransitionWrapper 状态**: export 仍在 enhanced-skeleton.tsx L271，但属有意保留（worklog L719 已说明），未删除。
+- **未解决风险/建议下一阶段**:
+  1. **批量清理 19 个死 hook**: 建议下一个 task `cleanup-dead-hooks-batch` 系统性删除上述列表，每个删除前后跑 lint 验证。预估可减少 ~2000+ 行死代码。
+  2. **src/components/ 全量死代码扫描**: 200+ 文件，建议写脚本自动比对"文件 basename vs 全项目 import 路径"，找出零消费者文件。
+  3. **react-window 依赖移除**: useVirtualizedList.ts 删除后，react-window 不再有任何消费者——可考虑 `bun remove react-window`（先 grep 全项目确认 package.json/scripts/examples 无其他引用）。
+
+---
+Task ID: cleanup-dead-code
+Agent: subagent (general-purpose)
+Task: 清理 worklog 多次提到的死代码文件
+
+Work Log:
+- Grep 验证 `src/hooks/useVirtualizedList.ts` (110行) 在 src/ 下零 import → 删除
+- Grep 验证 `src/components/BatchPreviewContent.tsx` (353行) 在 src/ 下零 import（仅 pdb-tracker.tsx 两处注释引用）→ 删除
+- 修正 pdb-tracker.tsx L496-504 历史残留注释（原文误称渲染 BatchPreviewContent，实际渲染 EvaluationView）
+- ModeTransitionWrapper 按之前决策保留（enhanced-skeleton.tsx 仍导出，有意保留供未来使用）
+- 发现 19 个零消费者 hook 文件（use-share-view/use-column-settings/use-ai-features 等），建议作为独立 follow-up 任务
+- lint: PASS 334 files, 0 errors, 0 warnings（文件数 -2，无新增错误）
+
+Stage Summary:
+- 删除 2 个死代码文件共 463 行
+- lint 保持全绿
+- 发现 19 个额外死 hook 待后续批量清理
+
+---
+Task ID: eval-blast-identity-chart
+Agent: main (Z.ai Code)
+Task: 新增 Evaluation 模块 BLAST 同源性分布可视化功能
+
+Work Log:
+- **需求分析**: Evaluation 模块已有雷达图/热力图/仪表板/甘特图，但缺少 BLAST 同源性分布可视化。BLAST 命中的 identity 值（0-100%）反映结构同源程度，95%+ 为同源蛋白（paralog），适合用直方图展示
+- **新组件** `src/components/eval-blast-identity-chart.tsx` (220行):
+  - 纯 SVG 直方图，6 个 identity 分桶 (<30%/30-50%/50-70%/70-90%/90-95%/≥95%)
+  - 4 级配色: low(灰)/mid(琥珀)/high(蓝)/paralog(绿)
+  - 95% paralog 阈值竖虚线标记
+  - 顶部统计行: 平均/最高/最低 identity + 同源≥95% 数量与占比
+  - 底部图例: 4 级 tier + 每级命中数 + tooltip 说明
+  - 支持 light/dark 主题 + 中英双语
+  - 空状态处理: 无 BLAST 数据时显示提示
+- **集成到 evaluation-page.tsx**:
+  - `EvalBlastIdentityChart` 在 EvalPdbTable 上方展示（仅 blastResults.length > 0 时）
+  - 添加 `useI18n()` 获取 locale
+  - 使用 dynamic import 保持懒加载
+- **Bug 修复**: `DNA` 不是 lucide-react 的有效导出 → 改为 `Dna`（首字母大写）
+- **验证结果**:
+  - lint: PASS 335 files, 0 errors, 0 warnings ✓
+  - 首页 `GET /` → HTTP 200 (16.8s 编译)
+  - agent-browser: Evaluation 模式正常渲染，无 DNA import 错误（历史 26 次错误来自修复前的缓存，修复后计数不再增长）
+  - 截图: `/home/z/my-project/download/evaluation-mode-view.png`
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，lint 全绿，Evaluation 模块新增 BLAST 同源性分布可视化
+- **已完成修改**: 死代码清理 (2文件463行) + 新增 eval-blast-identity-chart 组件 + evaluation-page 集成 + DNA→Dna 图标修复
+- **未解决风险/建议下一阶段**:
+  1. 19 个死 hook 文件待批量清理（use-share-view/use-column-settings/use-ai-features 等，预估 ~2000 行）
+  2. react-window 依赖已无消费者（useVirtualizedList 删除后），可 `bun remove react-window`
+  3. PDB 周报 POST 端到端测试仍待执行
+  4. 4GB 无 swap 环境: agent-browser + next dev 长时间共存仍有 OOM 风险

@@ -6,6 +6,7 @@ import { FlaskConical, Search, ArrowRight, Database, Dna, BarChart3, Microscope 
 import { Skeleton } from '@/components/ui/skeleton';
 import { EvalPdbTable } from '@/components/EvalPdbTable';
 import { EvaluationToolbar } from '@/components/EvaluationToolbar';
+import { EvalBlastIdentityChart } from '@/components/eval-blast-identity-chart';
 import type { Evaluation, EvalRow, EvalStructureRow, EvalBlastRow } from '@/lib/pdb-types';
 import { exportToCSV, exportToJSON, formatEvalForExport } from '@/lib/export-utils';
 import { EnhancedEmptyState } from '@/components/enhanced-empty-state';
@@ -76,6 +77,7 @@ export function EvaluationPage({
   onSelectPdb,
   selectedPdbId,
 }: EvaluationPageProps) {
+  const { locale } = useI18n();
   const [searchQuery, setSearchQuery] = useState('');
   const [compact, setCompact] = useState(false);
   const [filterType, setFilterType] = useState<'all' | 'structure' | 'blast'>('all');
@@ -152,7 +154,11 @@ export function EvaluationPage({
         onFilterTypeChange={setFilterType}
       />
 
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 flex flex-col gap-2">
+        {/* BLAST identity distribution chart — only shown when BLAST hits exist */}
+        {evaluation.blastResults && evaluation.blastResults.length > 0 && (
+          <EvalBlastIdentityChart evaluation={evaluation} locale={locale} height={180} />
+        )}
         <EvalPdbTable
           rows={rows}
           loading={false}

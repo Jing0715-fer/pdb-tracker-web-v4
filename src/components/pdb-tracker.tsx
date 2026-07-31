@@ -494,13 +494,17 @@ export default function PdbTracker() {
   const [selectedEval, setSelectedEval] = useState<Evaluation | null>(null);
   const [evalLoading, setEvalLoading] = useState(true);
   // Batch detail integration — when a batch is selected (and no individual
-  // sub-target is open) we render BatchPreviewContent in the detail panel.
+  // sub-target is open) the detail panel renders EvaluationView in its
+  // batch sub-view mode (see EvaluationView's `evalSubView === 'batch'`).
   const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
   // Lazy per-batch fetched evaluations (full Evaluation objects keyed by
   // uniprotId). Currently the /api/evaluations endpoint already returns full
   // data for every evaluation (including batch members) via `allEvaluations`,
-  // so this map is kept as an empty fallback for the BatchPreviewContent
-  // component's optional lookup path.
+  // so this map is kept as an empty fallback for EvaluationView's optional
+  // per-uniprot lookup path (see evaluation-view.tsx L509/L535/L617/L761).
+  // NOTE: `BatchPreviewContent.tsx` (a previous consumer candidate) was
+  // removed as dead code in task `cleanup-dead-code` — it was never wired
+  // up to any render path.
   const [batchFetchedEvals] = useState<Record<string, Evaluation>>({});
 
   // Literature data
