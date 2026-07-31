@@ -1777,3 +1777,70 @@ git commit -m "chore: remove 21 dead code files (5,202 lines) — UI primitives 
 - **本轮成果**: 安全删除 21 个确认无外部引用的死代码文件，减少 5,202 行代码（约占扫描发现的 55 文件 13,294 行的 39%）
 - **lint/tsc 状态**: 全绿（lint 0 errors / tsc 0 errors）
 - **未处理项**: 35 个候选死代码仍保留，其中 3 个为任务指示跳过的高风险文件（pdb-detail-panel / structure-comparison-modal / preferences-dialog），其余 32 个未在本任务删除清单内
+
+---
+Task ID: complete-dev-plan-round-2
+Agent: main (Z.ai Code) + 1 subagent
+Task: 完成上轮全部开发计划 + 全面 QA/E2E 测试 + 推送 GitHub
+
+Work Log:
+
+## P0 — 死代码清理执行: ✅ 完成 (subagent)
+- 删除 21 个文件，共 5,202 行
+  - 批次 1: 14 个未用 shadcn/ui 原语（accordion/alert/avatar/breadcrumb/card/carousel/chart/form/menubar/navigation-menu/resizable/textarea/toggle-group/aspect-ratio）
+  - 批次 2: 7 个业务死代码（LiteratureSection/WeeklyTimeline/WeeklySummary/ComplexEvalSummary/pdb-batch-actions/pdb-command-palette/data-export-panel）
+- 跳过高风险文件: pdb-detail-panel.tsx (1447行) / structure-comparison-modal.tsx (688行) / preferences-dialog.tsx (557行)
+- lint: PASS 297 files (从 318 减少 21) | tsc: 0 errors
+
+## P1 — Evaluation 模块端到端: ✅ 核心流水线通过
+- POST /api/evaluations/run with EGFR sequence (120aa)
+- UniProt 元数据获取: ✓ (EGFR, 1210aa)
+- RCSB PDB 检索: ✓ 返回 5 条真实 PDB
+- SIFTS 覆盖率: ✓ 25%
+- BLAST 自动判定: ✓ (直接 PDB < 5 或覆盖率 < 50%)
+- DB 写入: ✓ 1 Evaluation + 10 EvaluationPdbStructure
+- BLAST 阶段需 biopython 服务（自动检测）
+
+## P2 — .env gitignore: ✅ 完成
+- .env 添加到 .gitignore
+- git rm --cached .env（从跟踪移除，含本地路径）
+- .env.local 也添加到 .gitignore
+
+## 全面 QA/E2E 测试结果
+
+### 1. 静态检查: ✅
+- ESLint: PASS 297 files, 0 errors, 0 warnings
+- TypeScript: 0 错误
+
+### 2. API E2E: ✅ 5/5 通过
+- /api/db-config: 200 | /api/entries: 200 | /api/literature/stats: 200
+- /api/evaluations: 200 | /api/pdb-weekly/run: 200
+
+### 3. Evaluation POST E2E: ✅ 核心通过
+- UniProt + RCSB + SIFTS + DB 写入 全部成功
+
+## Git 推送
+- Commit: d1d50d4
+- Remote: https://github.com/Jing0715-fer/pdb-tracker-web-v4
+- 推送成功（fast-forward）
+
+## 下一阶段开发计划
+
+### P0 — 高优先级
+1. **剩余 35 个候选死代码**: 人工复核高风险文件（pdb-detail-panel 1447行等），确认后删除
+2. **PDB 周报 LLM 完整测试**: 在有 swap 环境运行 10-25 分钟完整 8 章 × 2 方法流程
+
+### P1 — 中优先级
+3. **BLAST 服务集成**: 启动 biopython mini-service，完成 Evaluation BLAST 端到端
+4. **新组件 agent-browser 验证**: 雷达图/热力图/仪表盘在 swap 环境
+5. **依赖深度升级**: `bun update --latest`（注意 next-auth v5 breaking change）
+
+### P2 — 低优先级
+6. 4GB 环境 OOM 根治（swap 文件）
+7. Evaluation LLM 报告生成测试（generateReport: true）
+8. 批量评估测试（多序列 + 跨序列分析）
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，死代码清理 5,202 行，.env 安全修复，Evaluation 端到端验证通过
+- **本轮关键进展**: 死代码清理执行（21文件/5202行）+ Evaluation 核心流水线首次验证 + .env gitignore
+- **主要风险**: 4GB 环境 OOM；35 个候选死代码待复核；BLAST 服务未集成
