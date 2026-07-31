@@ -339,7 +339,10 @@ export function jsonToEntries(json: string): PdbEntry[] {
   }
 }
 
-// ─── Advanced search helpers for use-pdb-filters.tsx ─────────────────────────
+// ─── Advanced search helpers ────────────────────────────────────────────────
+// NOTE: was originally "for use-pdb-filters.tsx" which was deleted as dead
+// code (Task cleanup-dead-hooks-batch). These helpers themselves have no
+// current consumers in src/ — left in place as a follow-up cleanup candidate.
 
 export function hasAdvancedSyntax(query: string): boolean {
   // Check for field:value, quotes, or special operators

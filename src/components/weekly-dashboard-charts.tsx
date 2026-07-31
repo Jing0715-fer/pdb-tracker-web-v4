@@ -6,6 +6,7 @@ import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   AreaChart, Area,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Legend,
 } from 'recharts';
 import { useTheme } from 'next-themes';
 import type { PdbEntry, WeeklySnapshot } from '@/lib/pdb-types';
@@ -461,6 +462,145 @@ function JournalImpactChart({ entries }: JournalImpactChartProps) {
   );
 }
 
+// ─── Method Comparison Radar Chart ───────────────────────────────────────────
+
+function MethodComparisonRadarChart({ entries, locale }: { entries: PdbEntry[]; locale: 'zh' | 'en' }) {
+  const { resolvedTheme } = useTheme();
+  const isDark = resolvedTheme === 'dark';
+
+  const data = useMemo(() => {
+    const cryoem = entries.filter(e => (e.method || '').toUpperCase().includes('ELECTRON') || (e.method || '').toUpperCase().includes('CRYO'));
+    const xray = entries.filter(e => (e.method || '').toUpperCase().includes('X-RAY') || (e.method || '').toUpperCase().includes('XRAY'));
+
+    const calcMetrics = (list: PdbEntry[]) => {
+      const n = list.length;
+      if (n === 0) return { count: 0, avgRes: 0, highIfPct: 0, avgIf: 0, highResPct: 0 };
+      const withRes = list.filter(e => e.resolution != null);
+      const avgRes = withRes.length > 0 ? withRes.reduce((s, e) => s + (e.resolution || 0), 0) / withRes.length : 0;
+      // Better resolution = lower Å. Normalize: <2Å = 100, >4Å = 0
+      const resScore = avgRes > 0 ? Math.max(0, Math.min(100, ((4 - avgRes) / 2) * 100)) : 0;
+      const highIfCount = list.filter(e => (e.journalIf || 0) >= 10).length;
+      const highIfPct = (highIfCount / n) * 100;
+      const withIf = list.filter(e => e.journalIf != null && e.journalIf > 0);
+      const avgIf = withIf.length > 0 ? withIf.reduce((s, e) => s + (e.journalIf || 0), 0) / withIf.length : 0;
+      // High resolution (<2.5Å) percentage
+      const highResCount = list.filter(e => e.resolution != null && e.resolution < 2.5).length;
+      const highResPct = withRes.length > 0 ? (highResCount / withRes.length) * 100 : 0;
+      // Count normalized to 0-100 (assume max ~150 structures per method per week)
+      const countScore = Math.min(100, (n / 150) * 100);
+      // IF normalized: avg IF of 20 = 100
+      const ifScore = Math.min(100, (avgIf / 20) * 100);
+      return { count: countScore, resScore, highIfPct, ifScore, highResPct, rawCount: n, avgRes, avgIf };
+    };
+
+    const cryo = calcMetrics(cryoem);
+    const xr = calcMetrics(xray);
+
+    return [
+      {
+        metric: locale === 'zh' ? '结构数量' : 'Structure Count',
+        'Cryo-EM': cryo.count,
+        'X-ray': xr.count,
+        cryoRaw: cryo.rawCount,
+        xrayRaw: xr.rawCount,
+      },
+      {
+        metric: locale === 'zh' ? '分辨率质量' : 'Resolution Quality',
+        'Cryo-EM': cryo.resScore,
+        'X-ray': xr.resScore,
+        cryoRaw: cryo.avgRes.toFixed(2) + 'Å',
+        xrayRaw: xr.avgRes.toFixed(2) + 'Å',
+      },
+      {
+        metric: locale === 'zh' ? '高IF占比' : 'High-IF Ratio',
+        'Cryo-EM': cryo.highIfPct,
+        'X-ray': xr.highIfPct,
+        cryoRaw: cryo.highIfPct.toFixed(0) + '%',
+        xrayRaw: xr.highIfPct.toFixed(0) + '%',
+      },
+      {
+        metric: locale === 'zh' ? '平均IF' : 'Avg Impact Factor',
+        'Cryo-EM': cryo.ifScore,
+        'X-ray': xr.ifScore,
+        cryoRaw: cryo.avgIf.toFixed(1),
+        xrayRaw: xr.avgIf.toFixed(1),
+      },
+      {
+        metric: locale === 'zh' ? '高分辨率占比' : 'High-Res Ratio',
+        'Cryo-EM': cryo.highResPct,
+        'X-ray': xr.highResPct,
+        cryoRaw: cryo.highResPct.toFixed(0) + '%',
+        xrayRaw: xr.highResPct.toFixed(0) + '%',
+      },
+    ];
+  }, [entries, locale]);
+
+  const cryoCount = entries.filter(e => (e.method || '').toUpperCase().includes('ELECTRON') || (e.method || '').toUpperCase().includes('CRYO')).length;
+  const xrayCount = entries.filter(e => (e.method || '').toUpperCase().includes('X-RAY') || (e.method || '').toUpperCase().includes('XRAY')).length;
+
+  if (cryoCount === 0 && xrayCount === 0) {
+    return <ChartEmpty message={locale === 'zh' ? '暂无方法数据' : 'No method data'} />;
+  }
+
+  const axisColor = getChartAxisColor(isDark);
+  const tickColor = getChartTickColor(isDark);
+
+  return (
+    <div style={{ width: '100%', minHeight: 240, display: 'flex', justifyContent: 'center' }}>
+      <RadarChart
+        width={500}
+        height={240}
+        data={data}
+        margin={{ top: 10, right: 30, left: 30, bottom: 10 }}
+        outerRadius="70%"
+      >
+          <PolarGrid stroke={axisColor} strokeOpacity={0.4} />
+          <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9, fill: tickColor }} />
+          <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8, fill: tickColor }} tickCount={5} stroke={axisColor} strokeOpacity={0.3} />
+          <Radar name="Cryo-EM" dataKey="Cryo-EM" stroke={METHOD_COLORS['Cryo-EM']} fill={METHOD_COLORS['Cryo-EM']} fillOpacity={0.25} strokeWidth={2} />
+          <Radar name="X-ray" dataKey="X-ray" stroke={METHOD_COLORS['X-ray']} fill={METHOD_COLORS['X-ray']} fillOpacity={0.25} strokeWidth={2} />
+          <Tooltip
+            content={({ active, payload }: any) => {
+              if (!active || !payload || !payload.length) return null;
+              const p = payload[0].payload;
+              return (
+                <div className="rounded-lg border border-border/60 bg-popover/95 backdrop-blur px-3 py-2 shadow-lg">
+                  <div className="text-[10px] font-semibold text-foreground mb-1">{p.metric}</div>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: METHOD_COLORS['Cryo-EM'] }} />
+                    <span className="text-muted-foreground">Cryo-EM:</span>
+                    <span className="font-mono font-bold text-foreground">{p.cryoRaw}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: METHOD_COLORS['X-ray'] }} />
+                    <span className="text-muted-foreground">X-ray:</span>
+                    <span className="font-mono font-bold text-foreground">{p.xrayRaw}</span>
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
+      </RadarChart>
+      {/* Summary stats */}
+      <div className="flex items-center justify-center gap-6 mt-1">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: METHOD_COLORS['Cryo-EM'] }} />
+          <span className="text-[9px] text-claude-text-muted">
+            {locale === 'zh' ? '冷冻电镜' : 'Cryo-EM'}: <span className="font-mono font-bold text-claude-text">{cryoCount}</span>
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: METHOD_COLORS['X-ray'] }} />
+          <span className="text-[9px] text-claude-text-muted">
+            {locale === 'zh' ? 'X射线' : 'X-ray'}: <span className="font-mono font-bold text-claude-text">{xrayCount}</span>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main WeeklyDashboardCharts Component ─────────────────────────────────────
 
 interface WeeklyDashboardChartsProps {
@@ -537,6 +677,19 @@ export function WeeklyDashboardCharts({ entries, snapshots }: WeeklyDashboardCha
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Method Comparison Radar — full width */}
+      <div className="p-4 rounded-lg border border-claude-border/50 dark:border-[#3d3832]/50 bg-claude-surface dark:bg-[#242220] md:col-span-2">
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-[11px] font-semibold text-claude-text-muted uppercase tracking-wider">
+            {locale === 'zh' ? '方法对比雷达图' : 'Method Comparison Radar'}
+          </div>
+          <div className="text-[9px] text-claude-text-muted">
+            {locale === 'zh' ? 'Cryo-EM vs X-ray 五维度对比（归一化 0-100）' : 'Cryo-EM vs X-ray across 5 dimensions (normalized 0-100)'}
+          </div>
+        </div>
+        <MethodComparisonRadarChart entries={entries} locale={locale} />
       </div>
     </div>
   );

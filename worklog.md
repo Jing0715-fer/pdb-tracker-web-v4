@@ -938,3 +938,127 @@ Stage Summary:
   2. react-window 依赖已无消费者（useVirtualizedList 删除后），可 `bun remove react-window`
   3. PDB 周报 POST 端到端测试仍待执行
   4. 4GB 无 swap 环境: agent-browser + next dev 长时间共存仍有 OOM 风险
+
+---
+Task ID: cleanup-dead-hooks-batch
+Agent: subagent (general-purpose)
+Task: 批量清理 worklog 多次提到的 19 个死 hook 文件 + react-window 依赖
+
+Work Log:
+- **背景**: 上一轮 cleanup-dead-code 删除 useVirtualizedList.ts + BatchPreviewContent.tsx 后，发现 19 个零消费者 hook 待批量清理，且 react-window 依赖已无消费者
+
+- **系统性扫描**: 对 src/hooks/ 全部 32 个 .ts/.tsx 文件逐一用 Grep 检查 `from '@/hooks/<name>'` 模式的消费者计数（排除自身）
+  - 19 个文件 0 消费者 → 确认死代码
+  - 6 个文件 1 消费者（含 use-diff-mode 由 use-sorted-entries 引用 DiffResult）
+  - 其余 7 个 ≥2 消费者，保留
+
+- **二次验证**: 对 19 个嫌疑文件额外检查 (a) 任何字符串出现 (b) 动态 `import()` 调用
+  - `use-pdb-filters`: 仅 src/lib/pdb-utils.ts:342 一处注释（"Advanced search helpers for use-pdb-filters.tsx"），不是 import → 确认死代码
+  - `use-share-view`: 仅 src/app/api/share/route.ts 两处注释（描述 share-viewer 用途），不是 import → 确认死代码
+  - `use-notifications`: useNotifications/AppNotification 仅自身文件出现，零外部消费者 → 确认死代码
+  - 其余 16 个完全无任何外部引用
+
+- **分批删除**（每批后跑 lint）:
+  | 批次 | 删除文件 | 行数 | lint |
+  |------|----------|------|------|
+  | 1 | use-ai-features / use-column-settings / use-context-menu / use-data-cache | 653 | PASS 331 files |
+  | 2 | use-data-fetching / use-export / use-filter-presets / use-molecule-viewer-state / use-notifications | 1190 | PASS 326 files |
+  | 3 | use-pdb-filters / use-pdb-navigation / use-pdb-selection / use-ratings / use-resizable-panels | 919 | PASS 321 files |
+  | 4 | use-share-view / use-sorted-entries / use-sorted-eval-rows / use-structure-notes / use-tags | 750 | PASS 316 files |
+
+- **级联清理**: 删除 use-sorted-entries.ts 后，use-diff-mode.ts 失去唯一消费者（原 DiffResult 类型引用）→ 二次扫描确认 0 消费者 → 删除（84 行）。再扫描，无新增死 hook
+
+- **react-window 处理**:
+  - Grep `react-window|@types/react-window` 在 src/ scripts/ 下零命中（仅 worklog.md / bun.lock / package.json 三处历史残留）
+  - 编辑 package.json 移除 `react-window: ^2.2.7` 和 `@types/react-window: ^1.8.8` 两条 dependencies
+  - 未运行 bun install（按任务要求只改 package.json）
+
+- **附带清理**: src/lib/pdb-utils.ts:342 原注释 "Advanced search helpers for use-pdb-filters.tsx" 已失效（被引用文件已删），更新为说明性注释，标记 hasAdvancedSyntax/SearchToken/tokenizeQuery/advancedEntryMatch 4 个 helper 现在也无消费者，作为后续清理候选
+
+- **最终 lint**: PASS 315 files, 0 errors, 0 warnings ✓（基线 335 → 315，-20 文件）
+
+Stage Summary:
+- **删除文件清单**（20 个，共 3596 行）:
+  - src/hooks/use-ai-features.ts (162)
+  - src/hooks/use-column-settings.ts (200)
+  - src/hooks/use-context-menu.ts (88)
+  - src/hooks/use-data-cache.ts (203)
+  - src/hooks/use-data-fetching.ts (194)
+  - src/hooks/use-export.ts (334)
+  - src/hooks/use-filter-presets.tsx (225)
+  - src/hooks/use-molecule-viewer-state.ts (291)
+  - src/hooks/use-notifications.ts (146)
+  - src/hooks/use-pdb-filters.tsx (143)
+  - src/hooks/use-pdb-navigation.tsx (213)
+  - src/hooks/use-pdb-selection.tsx (362)
+  - src/hooks/use-ratings.ts (87)
+  - src/hooks/use-resizable-panels.ts (114)
+  - src/hooks/use-share-view.ts (98)
+  - src/hooks/use-sorted-entries.ts (239)
+  - src/hooks/use-sorted-eval-rows.ts (163)
+  - src/hooks/use-structure-notes.ts (115)
+  - src/hooks/use-tags.ts (135)
+  - src/hooks/use-diff-mode.ts (84，级联)
+- **package.json**: 移除 react-window + @types/react-window 两条依赖（bun.lock 未同步，下次 bun install 会自动清理）
+- **lint 最终**: PASS 315 files, 0 errors, 0 warnings
+- **src/hooks/ 现状**: 12 个文件全部有 ≥1 消费者，无死代码
+- **后续清理候选**:
+  1. src/lib/pdb-utils.ts:344-424 的 advanced search helpers (hasAdvancedSyntax/SearchToken/tokenizeQuery/advancedEntryMatch) 现也无消费者，可作为下一轮清理目标
+  2. 下次 bun install 同步 bun.lock，移除 react-window 锁文件条目
+  3. PDB 周报 POST 端到端测试仍待执行（继承自上轮）
+
+---
+Task ID: cleanup-dead-hooks-batch
+Agent: subagent (general-purpose)
+Task: 批量清理 19 个死 hook 文件 + 移除 react-window 依赖
+
+Work Log:
+- 系统性扫描 src/hooks/ 下所有 .ts/.tsx 文件，Grep 验证每个文件的导出是否被其他文件 import
+- 删除 20 个零消费者 hook 文件（共 3596 行）：use-ai-features, use-column-settings, use-context-menu, use-data-cache, use-data-fetching, use-export, use-filter-presets, use-molecule-viewer-state, use-notifications, use-pdb-filters, use-pdb-navigation, use-pdb-selection, use-ratings, use-resizable-panels, use-share-view, use-sorted-entries, use-sorted-eval-rows, use-structure-notes, use-tags + 级联清理 use-diff-mode
+- 分 5 批删除，每批后跑 lint 验证：335→331→326→321→316→315 files，全程 0 errors
+- 从 package.json 移除 react-window 和 @types/react-window（src/ 下零引用）
+- 更新 pdb-utils.ts L342 失效注释
+- src/hooks/ 现有 12 个文件全部有 ≥1 消费者，无死代码
+
+Stage Summary:
+- 删除 20 个死 hook 文件共 3596 行
+- lint: PASS 315 files, 0 errors, 0 warnings（从 335→315，减少 20 个文件）
+- react-window 依赖已从 package.json 移除
+- 项目代码大幅瘦身，dev 编译图减小
+
+---
+Task ID: weekly-method-comparison-radar
+Agent: main (Z.ai Code)
+Task: 新增 PDB 周报"方法对比雷达图"可视化功能
+
+Work Log:
+- **需求分析**: Weekly Dashboard Charts 已有 4 个图表（方法分布饼图/分辨率直方图/周趋势/期刊IF），但缺少 Cryo-EM vs X-ray 多维度对比。新增雷达图让用户直观比较两方法在 5 个维度的表现
+- **新组件** `MethodComparisonRadarChart`（在 weekly-dashboard-charts.tsx 内，~130 行）:
+  - 5 维度: 结构数量 / 分辨率质量 / 高IF占比 / 平均IF / 高分辨率占比
+  - 归一化到 0-100 分（数量÷150、IF÷20、分辨率 (4-Å)/2×100 等）
+  - Cryo-EM（青绿 #2d8f8f）vs X-ray（紫色 #7c5cbf）双多边形叠加
+  - 自定义 Tooltip 显示原始值（数量/Å/%/IF 值）
+  - 底部图例 + 实际数量统计
+  - 空状态处理: cryoCount===0 && xrayCount===0 时显示提示
+  - 支持 light/dark 主题 + 中英双语
+- **集成到 WeeklyDashboardCharts**: 在 4 图表网格后新增全宽卡片（md:col-span-2），标题"方法对比雷达图"
+- **Bug 修复**: ResponsiveContainer 在折叠面板内不触发 SVG 渲染 → 改用固定 width=500/height=240 的 RadarChart（flex 居中）
+- **验证结果**:
+  - lint: PASS 315 files, 0 errors, 0 warnings ✓
+  - 首页 `GET /` → HTTP 200 (13.5s 编译)
+  - agent-browser 确认 "METHOD COMPARISON RADAR" 文字出现在 DOM 中
+  - 插入 7 条测试 PDB 数据（3 Cryo-EM + 4 X-ray）验证渲染
+  - 截图: `/home/z/my-project/download/method-comparison-radar.png`
+- **环境限制**: 4GB 无 swap 环境下 agent-browser chrome + next dev 反复 OOM，无法长时间共存做完整 VLM 渲染验证。代码层面 lint 通过、编译无错误、DOM 中有图例元素
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，lint 全绿（315 files），代码大幅瘦身（本轮删除 3596 行死代码），新增方法对比雷达图功能
+- **已完成修改**:
+  1. 死代码清理: 20 个 hook 文件 + react-window 依赖移除（-3596 行）
+  2. 新增 MethodComparisonRadarChart 组件（5 维度 Cryo-EM vs X-ray 对比）
+  3. ResponsiveContainer → 固定尺寸 RadarChart 修复
+- **未解决风险/建议下一阶段**:
+  1. **雷达图渲染验证未完成**: 4GB 环境 agent-browser+next dev 无法共存。建议在有 swap 的环境用 VLM 确认五边形雷达图正确渲染
+  2. **react-window bun install**: package.json 已移除依赖但未运行 bun install 同步 bun.lock
+  3. PDB 周报 POST 端到端测试仍待执行
+  4. 4GB 无 swap 环境: dev server 编译首页需 2-3GB RSS，稳定性受限
