@@ -13,6 +13,11 @@ import { LiteratureAdvancedFilter, DEFAULT_ADVANCED_FILTERS, countActiveFilters,
 import { usePaperTags, TagFilterBar } from './LiteraturePaperTags';
 import { useReadingProgress, type ReadingProgressMap } from '@/hooks/use-reading-progress';
 import { LiteratureReadingProgress } from './LiteratureReadingProgress';
+// Method × Reading Status Heatmap — lazy-loaded to keep the initial bundle small
+const MethodReadingHeatmap = dynamic(
+  () => import('./method-reading-heatmap').then(m => ({ default: m.MethodReadingHeatmap })),
+  { ssr: false },
+);
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip';
 import dynamic from 'next/dynamic';
@@ -484,6 +489,16 @@ export function LiteratureContent({
           progressMap={readingProgressHook.progressMap}
           totalPapersCount={totalPapersCount}
         />
+      )}
+
+      {/* Method × Reading Status Heatmap — shows reading progress breakdown by method */}
+      {readingProgressHook && papers.length > 0 && (
+        <div className="px-4 pt-2">
+          <MethodReadingHeatmap
+            papers={papers}
+            progressMap={readingProgressHook.progressMap}
+          />
+        </div>
       )}
 
       {/* Colored separator — same logic as Weekly & Evaluation: after overview, before action bar */}

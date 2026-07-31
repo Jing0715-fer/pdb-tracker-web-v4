@@ -1129,3 +1129,38 @@ Stage Summary:
   2. **4GB 环境 OOM**: 生产 build 成功但 standalone server + chrome 仍 OOM。建议创建 swap 文件
   3. PDB 周报 POST 端到端测试仍待执行
   4. 测试数据清理: db/pdb-tracker.db 有 7 条测试 PDB 数据
+
+---
+Task ID: method-reading-heatmap
+Agent: main (Z.ai Code)
+Task: 清理测试数据 + 新增 Literature 模块"方法×阅读状态热力图"可视化功能
+
+Work Log:
+- **测试数据清理**: 删除上轮的 7 条测试 PDB 数据（8CRY1-3, 8XRY1-4），插入 5 条新的最小测试数据（8TST1-5: 2 Cryo-EM + 3 X-ray）
+- **新功能开发**: Literature 模块已有 LiteratureReadingProgress（未读/阅读中/已读环形图），但缺少方法维度交叉分析。新增 MethodReadingHeatmap 组件:
+  - **新组件** `src/components/literature/method-reading-heatmap.tsx` (180行)
+  - 5×3 热力图矩阵: 行=方法(Cryo-EM/X-ray/NMR/AlphaFold/Other)，列=阅读状态(未读/阅读中/已读)
+  - 颜色编码: 未读(灰)/阅读中(琥珀)/已读(绿)，每个单元格根据数量密度调整透明度
+  - 每行末尾显示该方法总数，底部汇总进度条
+  - Tooltip 显示: 方法·状态·数量·占比
+  - 支持 light/dark 主题 + 中英双语
+  - 空状态处理: 无论文时显示提示
+  - classifyPaper 函数: 基于标题+摘要正则匹配方法关键词
+- **集成到 LiteratureView**: 在 LiteratureReadingProgress 下方用 dynamic import 懒加载（ssr: false），仅在有论文数据时渲染
+- **验证结果**:
+  - classifyPaper 逻辑单元测试: 5/5 通过（Cryo-EM/X-ray/NMR/AlphaFold/Other 分类正确）
+  - lint: PASS 316 files, 0 errors, 0 warnings ✓（新增 1 文件）
+  - 首页 `GET /` → HTTP 200 (19.5s 编译) ✓
+  - Literature APIs 编译并返回 200 ✓
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，lint 全绿（316 files），Literature 模块新增方法×阅读状态热力图
+- **已完成修改**:
+  1. 测试数据清理: 7→0→5 条 PDB 数据（2 Cryo-EM + 3 X-ray）
+  2. 新增 MethodReadingHeatmap 组件（方法维度阅读进度交叉分析）
+  3. LiteratureView 集成: dynamic import + 条件渲染
+- **未解决风险/建议下一阶段**:
+  1. **端到端渲染验证未完成**: 4GB 无 swap 环境 dev server + agent-browser chrome 无法共存。新组件是纯 React + Tailwind（无 recharts 等重组件），渲染逻辑简单，分类逻辑已单元测试验证
+  2. **4GB 环境 OOM**: 建议 `next build && next start` 生产模式或创建 swap
+  3. PDB 周报 POST 端到端测试仍待执行
+  4. 雷达图 polygon 项目内端到端验证仍待完成（上轮已通过独立 HTML 测试确认 recharts 3.x 渲染正确）
