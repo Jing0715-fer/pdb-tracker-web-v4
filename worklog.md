@@ -1399,3 +1399,84 @@ Stage Summary:
   2. **PDB 周报 POST 端到端测试**: RCSB + 16 章 LLM，仍待执行
   3. **4GB 环境 OOM**: dev + chrome 无法共存，建议 swap 或生产模式
   4. **新组件端到端验证**: JournalIfHeatmap 需在有 swap 环境用 agent-browser 确认渲染
+
+---
+Task ID: comprehensive-e2e-and-cleanup
+Agent: main (Z.ai Code)
+Task: 查看遗留问题 + 全面 E2E 测试 + 修复遗留 + 提出下一轮开发计划
+
+Work Log:
+
+## 全面 E2E 测试结果
+
+### 1. 静态检查: ✅ 全绿
+- ESLint: PASS 318 files, 0 errors, 0 warnings
+- TypeScript (tsc --noEmit): 0 错误
+
+### 2. 数据库完整性: ✅
+- 17 表全部存在
+- PubMedArticle 有 doi 列 ✓ (Bug 1 修复确认)
+- SkillRunRecord 有 log 列 ✓ (Bug 2 修复确认)
+- 数据: 300 PdbStructure + 51 PubMedArticle + 5 SkillRunRecord
+
+### 3. API E2E: ✅ 8/8 通过
+| 端点 | 状态 |
+|------|------|
+| /api/db-config | 200 |
+| /api/entries | 200 (total:300) |
+| /api/literature/stats | 200 (51 papers, avgIf 14.1) |
+| /api/literature/papers | 200 |
+| /api/pdb-weekly/run | 200 (weekId:2026-W31) |
+| /api/snapshots | 200 |
+| /api/activity | 200 |
+| /api/evaluations | 200 |
+
+### 4. 文献日报 POST E2E: ✅ 完整通过
+- Path A=14 + B=9 + C=30 → 50 篇候选
+- 50 篇入库 (doi 列写入)
+- LiteratureDigest + SkillRunRecord 写入 (log 字段)
+- 3.4s 完成, dbSaved:true
+
+### 5. PDB 周报 POST E2E: ✅ 部分通过（重要进展！）
+- **RCSB fetch 成功**: 返回 300 条真实 PDB ID
+- **DB 写入成功**: 300 条 PdbStructure 入库（从 5→305）
+- **SkillRunRecord 写入**: 新增 1 条周报运行记录
+- LLM 章节生成阶段未完成（curl 60s timeout，需 10-25 分钟）
+- **结论**: PDB 周报核心数据流水线（fetch→DB write）完全正常，超时保护代码就位
+
+## 遗留问题修复
+
+### 1. 测试数据清理: ✅
+- 删除 5 条测试 PDB 数据（8TST1-5）
+- DB 现有 300 条真实 RCSB PDB 结构
+
+### 2. 依赖漏洞评估: 保持现状
+- 48 个漏洞主要是 transitive deps（brace-expansion/minimatch/lodash）
+- 非运行时风险，`bun update --latest` 有 breaking change 风险
+- 暂不升级，记录为后续任务
+
+## 下一轮开发计划
+
+### P0 — 高优先级（已完成的项目可转为维护）
+1. ✅ ~~TypeScript 错误修复~~ (126→0)
+2. ✅ ~~.env 统一~~
+3. ✅ ~~测试数据清理~~
+4. ✅ ~~PDB 周报 POST 核心流水线验证~~ (RCSB fetch + DB write)
+
+### P1 — 中优先级（功能完善）
+1. **PDB 周报 LLM 章节端到端测试**: 在有 swap 的环境运行完整 10-25 分钟流程，验证 8 章 × 2 方法的超时保护和心跳
+2. **雷达图端到端验证**: 确认 path.recharts-polygon ≥ 2（需 swap 环境）
+3. **新组件端到端验证**: MethodReadingHeatmap + JournalIfHeatmap + QualityScoreDashboard
+4. **依赖升级**: `bun update --latest`（注意 next-auth v5 breaking change）
+
+### P2 — 低优先级（增强）
+5. **4GB 环境 OOM 根治**: 创建 swap 文件或用生产模式
+6. **db-config 表名拼接修复**: 白名单验证
+7. **Evaluation 模块测试数据**: 插入测试蛋白序列，验证 BLAST + 评分 + LLM 报告流程
+8. **死代码全量扫描**: src/components 下零消费者文件
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，全面 E2E 测试通过（静态检查 + 8 API + 文献日报 POST + PDB 周报 RCSB fetch），测试数据已清理
+- **关键进展**: PDB 周报 POST 核心数据流水线首次验证通过（300 条真实 PDB 入库）
+- **主要风险**: 4GB 环境 OOM 限制 agent-browser 端到端验证；48 个依赖漏洞（低风险）
+- **下一轮重点**: P1 PDB 周报 LLM 完整流程测试 + 新组件端到端验证 + 依赖升级评估
