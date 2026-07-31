@@ -86,6 +86,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { DbSetupWizard } from '@/components/db-setup-wizard';
+import { SearchPathStats } from '@/components/search-path-stats';
 
 /* ──────────────────────────────────────────────────────────────────────── */
 /*  Types                                                                    */
@@ -1163,6 +1164,7 @@ export function SettingsRunPanel({
   const [litWindowDays, setLitWindowDays] = useState(3);
   const [litMaxPathA, setLitMaxPathA] = useState(300);
   const [litMaxPathB, setLitMaxPathB] = useState(50);
+  const [litMaxPathC, setLitMaxPathC] = useState(200);
   const [litMaxPapers, setLitMaxPapers] = useState(20);
   const [litSkipWikiFiles, setLitSkipWikiFiles] = useState(false);
   const [litExistingReports, setLitExistingReports] = useState<Array<{ date: string; paperCount: number; hasLLMDigest: boolean }>>([]);
@@ -1504,6 +1506,7 @@ export function SettingsRunPanel({
       windowDays: litWindowDays,
       maxPathA: litMaxPathA,
       maxPathB: litMaxPathB,
+      maxPathC: litMaxPathC,
       maxPapers: litMaxPapers,
       skipWikiFiles: litSkipWikiFiles,
       llm: llmBody(),
@@ -1650,7 +1653,7 @@ export function SettingsRunPanel({
         ts: new Date().toISOString(),
         module: 'literature',
         status: 'success',
-        summary: `${d.date}: 候选 ${d.totalCandidates} (Path A=${d.pathACount}, Path B=${d.pathBCount}) → 最终入选 ${d.finalCount} 篇 [${Object.entries(d.methodStats || {}).map(([m, c]: [string, any]) => `${m}:${c}`).join(', ')}]`,
+        summary: `${d.date}: 候选 ${d.totalCandidates} (Path A=${d.pathACount}, Path B=${d.pathBCount}, Path C=${d.pathCCount ?? 0}) → 最终入选 ${d.finalCount} 篇 [${Object.entries(d.methodStats || {}).map(([m, c]: [string, any]) => `${m}:${c}`).join(', ')}]`,
         details: d.files?.dailyIndex ? `📁 ${d.files.dailyIndex}\n${d.digest ? `摘要:\n${d.digest.slice(0, 1500)}${d.digest.length > 1500 ? '…' : ''}` : ''}` : '无文件系统输出 (skipWikiFiles)',
         durationMs: d.durationMs,
       }));
@@ -2371,9 +2374,9 @@ export function SettingsRunPanel({
                 index="②"
                 title={t.moduleLitTitle}
                 endpoint="POST /api/literature/daily/run"
-                description={locale === 'zh' ? '双通路 PubMed 检索（Path A：MeSH+方法关键词 / Path B：高 IF 期刊+方法关键词）→ ±N 天窗口 → 方法过滤（冷冻电镜 / X 射线 / NMR / AlphaFold）→ 去重+排序 → 单篇 LLM 摘要 → 可选执行摘要 → 写入 PubMedArticle + daily-reports 索引。' : 'Dual-pathway PubMed search (Path A: MeSH+method keywords / Path B: high-IF journals+method keywords) → ±N day window → method filter (Cryo-EM / X-ray / NMR / AlphaFold) → dedup+sort → per-paper LLM summary → optional executive summary → writes to PubMedArticle + daily-reports index.'}
+                description={locale === 'zh' ? '三通路 PubMed 检索（Path A：MeSH+方法关键词 / Path B：高 IF 期刊+方法关键词 / Path C：方法关键词+MeSH 索引日期前瞻）→ ±N 天窗口 → 方法过滤（冷冻电镜 / X 射线 / NMR / AlphaFold）→ 去重+排序 → 单篇 LLM 摘要 → 可选执行摘要 → 写入 PubMedArticle + daily-reports 索引。' : 'Triple-pathway PubMed search (Path A: MeSH+method keywords / Path B: high-IF journals+method keywords / Path C: method keywords + MeSH-date forward-looking) → ±N day window → method filter (Cryo-EM / X-ray / NMR / AlphaFold) → dedup+sort → per-paper LLM summary → optional executive summary → writes to PubMedArticle + daily-reports index.'}
               >
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 mb-3">
                   <Field label={locale === 'zh' ? '日期' : 'Date'}>
                     <Input type="date" value={litDate} onChange={e => setLitDate(e.target.value)} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
@@ -2385,6 +2388,9 @@ export function SettingsRunPanel({
                   </Field>
                   <Field label={locale === 'zh' ? 'Path B 上限' : 'Path B Max'}>
                     <Input type="number" min={5} max={200} value={litMaxPathB} onChange={e => setLitMaxPathB(parseInt(e.target.value || '50'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
+                  </Field>
+                  <Field label={locale === 'zh' ? 'Path C 上限' : 'Path C Max'}>
+                    <Input type="number" min={10} max={500} value={litMaxPathC} onChange={e => setLitMaxPathC(parseInt(e.target.value || '200'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
                   </Field>
                   <Field label={locale === 'zh' ? '上限' : 'Max Papers'}>
                     <Input type="number" min={1} max={100} value={litMaxPapers} onChange={e => setLitMaxPapers(parseInt(e.target.value || '20'))} className="h-8 px-2 text-xs md:text-xs font-mono" />
@@ -2408,8 +2414,23 @@ export function SettingsRunPanel({
                   running={litStream.state.running}
                   done={litStream.state.done}
                   ok={litStream.state.ok}
-                  emptyHint={locale === 'zh' ? '点击 “执行” 启动 PubMed 双通路检索 + LLM 摘要流水线' : 'Click Run to start PubMed dual-pathway search + LLM summary pipeline'}
+                  emptyHint={locale === 'zh' ? '点击 “执行” 启动 PubMed 三通路检索 + LLM 摘要流水线' : 'Click Run to start PubMed triple-pathway search + LLM summary pipeline'}
                 />
+
+                {/* Search path statistics — shows triple-path PubMed hit breakdown */}
+                {litStream.state.done && litStream.state.result && (
+                  <SearchPathStats
+                    pathACount={litStream.state.result.pathACount ?? 0}
+                    pathBCount={litStream.state.result.pathBCount ?? 0}
+                    pathCCount={litStream.state.result.pathCCount ?? 0}
+                    finalCount={litStream.state.result.finalCount ?? 0}
+                    totalCandidates={litStream.state.result.totalCandidates ?? 0}
+                    methodStats={litStream.state.result.methodStats}
+                    durationMs={litStream.state.result.durationMs}
+                    pubmedSaved={litStream.state.result.pubmedSaved}
+                    locale={locale}
+                  />
+                )}
 
                 {/* LLM digest inline preview (module ②) — shows real LLM output or failure */}
                 {litStream.state.done && litStream.state.result && (

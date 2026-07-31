@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -42,26 +42,15 @@ function saveActivities(items: ActivityItem[]): void {
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 export function useActivityFeed() {
-  const [activities, setActivities] = useState<ActivityItem[]>([]);
-  const initializedRef = useRef(false);
+  // Lazy initializer: read from localStorage on the very first render so we
+  // never need a setState-in-effect hydration step (avoids cascading renders
+  // + the react-hooks/set-state-in-effect lint rule).
+  const [activities, setActivities] = useState<ActivityItem[]>(() => loadActivities());
   const [newItemPulse, setNewItemPulse] = useState(false);
 
-  // Hydrate from localStorage on mount
+  // Persist on every change. The lazy initializer already loaded stored
+  // activities, so the initial effect run writes the same value back (no-op).
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    const stored = loadActivities();
-    setActivities(stored);
-  }, []);
-
-  // Persist on change (skip initial hydration)
-  const isInitial = useRef(true);
-  useEffect(() => {
-    if (!initializedRef.current) return;
-    if (isInitial.current) {
-      isInitial.current = false;
-      return;
-    }
     saveActivities(activities);
   }, [activities]);
 

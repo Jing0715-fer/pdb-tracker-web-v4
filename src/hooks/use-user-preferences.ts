@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -86,25 +86,15 @@ function savePreferences(prefs: UserPreferences): void {
 // ─── Hook ──────────────────────────────────────────────────────────────────
 
 export function useUserPreferences() {
-  const [preferences, setPreferences] = useState<UserPreferences>(DEFAULT_PREFERENCES);
-  const initializedRef = useRef(false);
+  // Lazy initializer: read from localStorage on the very first render so we
+  // never need a setState-in-effect hydration step (which triggers cascading
+  // renders and the react-hooks/set-state-in-effect lint rule).
+  const [preferences, setPreferences] = useState<UserPreferences>(() => loadPreferences());
 
-  // Hydrate from localStorage on mount
+  // Persist on every change. Because the lazy initializer already loaded the
+  // stored value, the first render's state matches localStorage — so the
+  // initial effect run is a no-op write and needs no isInitial guard.
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    const stored = loadPreferences();
-    setPreferences(stored);
-  }, []);
-
-  // Persist on every change (after initial hydration)
-  const isInitial = useRef(true);
-  useEffect(() => {
-    if (!initializedRef.current) return;
-    if (isInitial.current) {
-      isInitial.current = false;
-      return;
-    }
     savePreferences(preferences);
   }, [preferences]);
 

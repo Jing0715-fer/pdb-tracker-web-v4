@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -57,25 +57,14 @@ export function useNotifications() {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   // ── Notification History (persisted to localStorage) ──
-  const [notificationHistory, setNotificationHistory] = useState<NotificationHistoryItem[]>([]);
-  const initializedRef = useRef(false);
+  // Lazy initializer reads from localStorage on first render — no
+  // setState-in-effect hydration step (avoids cascading renders + the
+  // react-hooks/set-state-in-effect lint rule).
+  const [notificationHistory, setNotificationHistory] = useState<NotificationHistoryItem[]>(() => loadHistory());
 
-  // Hydrate history from localStorage on mount
+  // Persist on every change. The lazy initializer already loaded stored
+  // history, so the initial effect run writes the same value back (no-op).
   useEffect(() => {
-    if (initializedRef.current) return;
-    initializedRef.current = true;
-    const stored = loadHistory();
-    setNotificationHistory(stored);
-  }, []);
-
-  // Persist history on change (skip initial hydration)
-  const isInitial = useRef(true);
-  useEffect(() => {
-    if (!initializedRef.current) return;
-    if (isInitial.current) {
-      isInitial.current = false;
-      return;
-    }
     saveHistory(notificationHistory);
   }, [notificationHistory]);
 
