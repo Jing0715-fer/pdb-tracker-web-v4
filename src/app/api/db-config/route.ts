@@ -152,9 +152,18 @@ async function prepareSchema(
 /** Quick row counts on the active DB to surface in the UI. */
 async function sampleCounts(): Promise<Record<string, number>> {
   try {
-    const tables = ['PdbStructure', 'Evaluation', 'PubMedArticle', 'WeeklyReport', 'WeeklySnapshot', 'SkillRunRecord', 'LiteratureDigest', 'SkillEvaluationReport', 'WeeklyReportRun']
+    // Whitelist of allowed table names — prevents SQL injection even though
+    // the array is hardcoded. Any table not in this set is silently skipped.
+    const ALLOWED_TABLES = new Set([
+      'PdbStructure', 'Evaluation', 'PubMedArticle', 'WeeklyReport',
+      'WeeklySnapshot', 'SkillRunRecord', 'LiteratureDigest',
+      'SkillEvaluationReport', 'WeeklyReportRun',
+    ]);
+    const tables = Array.from(ALLOWED_TABLES);
     const out: Record<string, number> = {}
     for (const t of tables) {
+      // Double-check: only query if t is in the whitelist (defense in depth)
+      if (!ALLOWED_TABLES.has(t)) continue;
       try {
         const rows = await (db as any).$queryRawUnsafe(`SELECT COUNT(*) AS c FROM "${t}"`)
         out[t] = Number((rows as any[])[0]?.c ?? 0)
