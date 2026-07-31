@@ -546,9 +546,14 @@ function MethodComparisonRadarChart({ entries, locale }: { entries: PdbEntry[]; 
   const tickColor = getChartTickColor(isDark);
 
   return (
-    <div className="w-full" style={{ height: 280 }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RadarChart data={data} margin={{ top: 10, right: 30, left: 30, bottom: 10 }} outerRadius="65%">
+    <div className="w-full flex flex-col items-center">
+      <RadarChart
+        width={520}
+        height={260}
+        data={data}
+        margin={{ top: 10, right: 30, left: 30, bottom: 10 }}
+        outerRadius="62%"
+      >
           <PolarGrid stroke={axisColor} strokeOpacity={0.4} />
           <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: tickColor }} />
           <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8, fill: tickColor }} tickCount={5} stroke={axisColor} strokeOpacity={0.3} />
@@ -576,8 +581,7 @@ function MethodComparisonRadarChart({ entries, locale }: { entries: PdbEntry[]; 
             }}
           />
           <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
-        </RadarChart>
-      </ResponsiveContainer>
+      </RadarChart>
       {/* Summary stats */}
       <div className="flex items-center justify-center gap-6 mt-1">
         <div className="flex items-center gap-1.5">

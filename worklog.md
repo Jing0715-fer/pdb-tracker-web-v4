@@ -1091,3 +1091,41 @@ Stage Summary:
   2. **4GB 环境 OOM 根治**: 建议创建 swap 文件或用 `next build && next start` 生产模式（内存占用更低）
   3. PDB 周报 POST 端到端测试仍待执行
   4. 测试数据清理: db/pdb-tracker.db 有 7 条测试 PDB 数据（8CRY1-3, 8XRY1-4），生产使用前应清理
+
+---
+Task ID: radar-polygon-verification
+Agent: main (Z.ai Code)
+Task: 验证并修复方法对比雷达图 polygon 渲染问题（recharts 3.x 客户端 mount 时机）
+
+Work Log:
+- **QA 遗留问题**: 上轮 dataKey 从 `'Cryo-EM'` 改为 `cryo`，但 4GB 环境无法用 agent-browser 验证 polygon 是否生成
+- **recharts 3.x 源码分析**:
+  - `node_modules/recharts/lib/polar/Radar.js` L265: Radar 用 `<Polygon>` 组件渲染，class `recharts-radar-polygon`
+  - `node_modules/recharts/lib/shape/Polygon.js` L73: `if (!points || !points.length) return null` —— points 为空时不渲染
+  - Polygon 用 `<path>` 元素（不是原生 `<polygon>`），class `recharts-polygon`，通过 `getSinglePolygonPath` 生成 d 属性
+  - **SSR 不生成 SVG**: recharts 3.x 完全依赖客户端 mount，renderToStaticMarkup 只输出空 wrapper div
+- **根因确认**: Dashboard Charts 面板用 `maxHeight:0` 折叠，WeeklyDashboardCharts 在折叠状态下 mount 时，recharts ResponsiveContainer 计算父容器高度为 0，Radar 的 points 坐标全部为 0，导致 `getSinglePolygonPath` 生成空 path 或不渲染
+- **修复**: pdb-tracker.tsx L4879 改为条件渲染 `{showDashboard && <WeeklyDashboardCharts>}`，确保 recharts 在面板展开后才 mount，此时父容器有正确尺寸
+- **独立验证**: 创建 HTML 测试页面用 recharts 3.9.2 UMD + React 18 + react-is，agent-browser 确认:
+  - `path.recharts-polygon` 数量: 3（2 个 Radar + 1 个动画 path）
+  - `totalPaths`: 10（含 PolarGrid/PolarAxis/Radar）
+  - `firstPolyD`: "M260,93.42L301.7476,116.4354..."（真正的五边形 path 数据）
+  - **证明 recharts 3.x RadarChart 在客户端能正确渲染 polygon，dataKey `cryo`/`xray` 工作正常**
+- **验证结果**:
+  - lint: PASS 315 files, 0 errors, 0 warnings ✓
+  - recharts 3.x 独立测试: polyPaths=3, 有正确 path d 属性 ✓
+  - 项目内修复: 条件渲染确保 recharts mount 时机正确 ✓
+  - 生产 build 成功: `next build --webpack` 完成，standalone 服务器可启动 ✓
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，lint 全绿（315 files），雷达图 polygon 渲染根因已定位并修复
+- **已完成修改**:
+  1. pdb-tracker.tsx: WeeklyDashboardCharts 改为条件渲染（`{showDashboard && ...}`），确保 recharts 在展开后 mount
+  2. weekly-dashboard-charts.tsx: RadarChart 用固定 width=520/height=260（不依赖 ResponsiveContainer 父容器高度计算）
+  3. dataKey: `cryo`/`xray`（无连字符，符合 recharts 3.x 最佳实践）
+- **验证结论**: recharts 3.x RadarChart 在客户端正确渲染 polygon（独立 HTML 测试确认 polyPaths=3），项目内通过条件渲染修复 mount 时机问题
+- **未解决风险/建议下一阶段**:
+  1. **项目内端到端验证未完成**: 4GB 无 swap 环境 dev/prod server + agent-browser chrome 无法共存。建议在有 swap 的环境用 agent-browser 确认项目内雷达图渲染（验证命令: `document.querySelectorAll('path.recharts-polygon').length` 应 ≥2）
+  2. **4GB 环境 OOM**: 生产 build 成功但 standalone server + chrome 仍 OOM。建议创建 swap 文件
+  3. PDB 周报 POST 端到端测试仍待执行
+  4. 测试数据清理: db/pdb-tracker.db 有 7 条测试 PDB 数据

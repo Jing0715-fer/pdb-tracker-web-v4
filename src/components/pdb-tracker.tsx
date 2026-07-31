@@ -4876,7 +4876,11 @@ export default function PdbTracker() {
                 className="overflow-hidden transition-all duration-300 ease-in-out"
                 style={{ maxHeight: showDashboard ? 1200 : 0, opacity: showDashboard ? 1 : 0 }}
               >
-                <WeeklyDashboardCharts entries={entries} snapshots={snapshots} />
+                {/* Only mount charts when expanded so recharts RadarChart has
+                    correct parent dimensions on first render. Mounting inside
+                    a maxHeight:0 container causes recharts to compute 0-size
+                    and skip rendering the Radar polygon (path.recharts-polygon). */}
+                {showDashboard && <WeeklyDashboardCharts entries={entries} snapshots={snapshots} />}
               </div>
             </div>
           )}
