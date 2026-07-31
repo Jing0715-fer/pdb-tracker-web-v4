@@ -1062,3 +1062,32 @@ Stage Summary:
   2. **react-window bun install**: package.json 已移除依赖但未运行 bun install 同步 bun.lock
   3. PDB 周报 POST 端到端测试仍待执行
   4. 4GB 无 swap 环境: dev server 编译首页需 2-3GB RSS，稳定性受限
+
+---
+Task ID: radar-render-fix-and-bun-sync
+Agent: main (Z.ai Code)
+Task: 修复方法对比雷达图 polygon 不渲染问题 + 同步 bun.lock 移除 react-window
+
+Work Log:
+- **QA 遗留问题**: 上轮新增的 MethodComparisonRadarChart 在 DOM 中有 SVG 容器（954×280）和 Legend 图例，但 polygon 数量为 0——五边形雷达图未渲染
+- **根因分析**: recharts 3.x 的 `<Radar dataKey="Cryo-EM">` 中 dataKey 使用带连字符的字符串 `'Cryo-EM'`/`'X-ray'`，recharts 内部对带特殊字符的 dataKey 解析异常，导致 Radar 组件不生成 polygon 路径
+- **修复**: data key 从 `'Cryo-EM'`/`'X-ray'` 改为简单的 `cryo`/`xray`（无连字符），同时保持 `name="Cryo-EM"` 用于 Legend 显示。fillOpacity 从 0.25 提高到 0.3 增强可见性
+- **布局优化**: 父容器改为 `style={{ height: 280 }}` 固定高度 + `ResponsiveContainer width="100%" height="100%"`，与项目其他图表（MethodDistributionChart 等）保持一致的渲染模式
+- **bun install 同步**: 运行 `bun install` 同步 bun.lock，移除 react-window + @types/react-window 两个包（2 packages removed）
+- **验证结果**:
+  - lint: PASS 315 files, 0 errors, 0 warnings ✓
+  - 首页 `GET /` → HTTP 200 (20.2s 编译)，无错误 ✓
+  - bun.lock 已同步（react-window 条目移除）✓
+  - **雷达图 polygon 渲染验证未完成**: 4GB 无 swap 环境下 agent-browser chrome + next dev 反复 OOM kill，无法在浏览器中用 `document.querySelectorAll('polygon')` 确认 polygon 数量 > 0。但代码层面修复符合 recharts 3.x 最佳实践（dataKey 应为简单标识符）
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，lint 全绿（315 files），bun.lock 已同步，雷达图 dataKey 修复完成
+- **已完成修改**:
+  1. 雷达图 dataKey: `'Cryo-EM'`→`cryo`, `'X-ray'`→`xray`（修复 polygon 不渲染根因）
+  2. 布局: 固定高度 280px + ResponsiveContainer 100%（与其他图表一致）
+  3. bun install 同步: 移除 react-window（2 packages removed）
+- **未解决风险/建议下一阶段**:
+  1. **雷达图渲染端到端验证**: 需在有 swap 的环境用 agent-browser 确认 polygon 生成。验证命令: `document.querySelectorAll('svg.recharts-surface:last-child polygon').length` 应 > 0
+  2. **4GB 环境 OOM 根治**: 建议创建 swap 文件或用 `next build && next start` 生产模式（内存占用更低）
+  3. PDB 周报 POST 端到端测试仍待执行
+  4. 测试数据清理: db/pdb-tracker.db 有 7 条测试 PDB 数据（8CRY1-3, 8XRY1-4），生产使用前应清理

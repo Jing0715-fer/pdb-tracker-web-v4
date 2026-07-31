@@ -499,36 +499,36 @@ function MethodComparisonRadarChart({ entries, locale }: { entries: PdbEntry[]; 
     return [
       {
         metric: locale === 'zh' ? '结构数量' : 'Structure Count',
-        'Cryo-EM': cryo.count,
-        'X-ray': xr.count,
+        cryo: cryo.count,
+        xray: xr.count,
         cryoRaw: cryo.rawCount,
         xrayRaw: xr.rawCount,
       },
       {
         metric: locale === 'zh' ? '分辨率质量' : 'Resolution Quality',
-        'Cryo-EM': cryo.resScore,
-        'X-ray': xr.resScore,
+        cryo: cryo.resScore,
+        xray: xr.resScore,
         cryoRaw: cryo.avgRes.toFixed(2) + 'Å',
         xrayRaw: xr.avgRes.toFixed(2) + 'Å',
       },
       {
         metric: locale === 'zh' ? '高IF占比' : 'High-IF Ratio',
-        'Cryo-EM': cryo.highIfPct,
-        'X-ray': xr.highIfPct,
+        cryo: cryo.highIfPct,
+        xray: xr.highIfPct,
         cryoRaw: cryo.highIfPct.toFixed(0) + '%',
         xrayRaw: xr.highIfPct.toFixed(0) + '%',
       },
       {
         metric: locale === 'zh' ? '平均IF' : 'Avg Impact Factor',
-        'Cryo-EM': cryo.ifScore,
-        'X-ray': xr.ifScore,
+        cryo: cryo.ifScore,
+        xray: xr.ifScore,
         cryoRaw: cryo.avgIf.toFixed(1),
         xrayRaw: xr.avgIf.toFixed(1),
       },
       {
         metric: locale === 'zh' ? '高分辨率占比' : 'High-Res Ratio',
-        'Cryo-EM': cryo.highResPct,
-        'X-ray': xr.highResPct,
+        cryo: cryo.highResPct,
+        xray: xr.highResPct,
         cryoRaw: cryo.highResPct.toFixed(0) + '%',
         xrayRaw: xr.highResPct.toFixed(0) + '%',
       },
@@ -546,19 +546,14 @@ function MethodComparisonRadarChart({ entries, locale }: { entries: PdbEntry[]; 
   const tickColor = getChartTickColor(isDark);
 
   return (
-    <div style={{ width: '100%', minHeight: 240, display: 'flex', justifyContent: 'center' }}>
-      <RadarChart
-        width={500}
-        height={240}
-        data={data}
-        margin={{ top: 10, right: 30, left: 30, bottom: 10 }}
-        outerRadius="70%"
-      >
+    <div className="w-full" style={{ height: 280 }}>
+      <ResponsiveContainer width="100%" height="100%">
+        <RadarChart data={data} margin={{ top: 10, right: 30, left: 30, bottom: 10 }} outerRadius="65%">
           <PolarGrid stroke={axisColor} strokeOpacity={0.4} />
-          <PolarAngleAxis dataKey="metric" tick={{ fontSize: 9, fill: tickColor }} />
+          <PolarAngleAxis dataKey="metric" tick={{ fontSize: 10, fill: tickColor }} />
           <PolarRadiusAxis domain={[0, 100]} tick={{ fontSize: 8, fill: tickColor }} tickCount={5} stroke={axisColor} strokeOpacity={0.3} />
-          <Radar name="Cryo-EM" dataKey="Cryo-EM" stroke={METHOD_COLORS['Cryo-EM']} fill={METHOD_COLORS['Cryo-EM']} fillOpacity={0.25} strokeWidth={2} />
-          <Radar name="X-ray" dataKey="X-ray" stroke={METHOD_COLORS['X-ray']} fill={METHOD_COLORS['X-ray']} fillOpacity={0.25} strokeWidth={2} />
+          <Radar name="Cryo-EM" dataKey="cryo" stroke={METHOD_COLORS['Cryo-EM']} fill={METHOD_COLORS['Cryo-EM']} fillOpacity={0.3} strokeWidth={2} />
+          <Radar name="X-ray" dataKey="xray" stroke={METHOD_COLORS['X-ray']} fill={METHOD_COLORS['X-ray']} fillOpacity={0.3} strokeWidth={2} />
           <Tooltip
             content={({ active, payload }: any) => {
               if (!active || !payload || !payload.length) return null;
@@ -580,8 +575,9 @@ function MethodComparisonRadarChart({ entries, locale }: { entries: PdbEntry[]; 
               );
             }}
           />
-          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 8 }} />
-      </RadarChart>
+          <Legend wrapperStyle={{ fontSize: 10, paddingTop: 4 }} />
+        </RadarChart>
+      </ResponsiveContainer>
       {/* Summary stats */}
       <div className="flex items-center justify-center gap-6 mt-1">
         <div className="flex items-center gap-1.5">
