@@ -832,6 +832,26 @@ export default function PdbTracker() {
   };
   const dbErrorMsg = t.dbNotConfigured;
 
+  // Non-intrusive toast notification for fetch errors — replaces the old
+  // full-width error banners that disrupted the page layout. The toast
+  // appears in the corner and auto-dismisses, with action buttons for
+  // retry / open-run-center.
+  useEffect(() => {
+    if (!fetchError || loading || dbWizardOpen) return;
+    const isDb = fetchError === dbErrorMsg;
+    toast.error(isDb ? t.dbNotConfiguredShort : t.dataLoadFailed, {
+      description: fetchError,
+      duration: 6000,
+      action: isDb ? {
+        label: t.openRunCenter,
+        onClick: () => { setFetchError(null); setRunCenterOpen(true); },
+      } : {
+        label: t.retry,
+        onClick: () => { setFetchError(null); fetchSnapshots(); fetchEntries(); },
+      },
+    });
+  }, [fetchError, loading, dbWizardOpen, dbErrorMsg, t, locale]);
+
   // Track whether fallback data is being used
   const [usingFallbackData, setUsingFallbackData] = useState(false);
 
@@ -2348,25 +2368,6 @@ export default function PdbTracker() {
 
   const renderWeeklyContent = () => (
     <>
-      {/* Error banner with retry */}
-      {fetchError && !loading && !dbWizardOpen && (
-        <div className="mx-3 mt-2 px-3 py-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50 dark:bg-red-950/20 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 min-w-0">
-            <RefreshCw className="h-4 w-4 text-red-500 flex-shrink-0" />
-            <span className="text-sm text-red-700 dark:text-red-400 truncate">{fetchError}</span>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleRetryAll}
-            className="h-7 px-2.5 text-[11px] border-red-300 dark:border-red-800 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-950/40 flex-shrink-0"
-          >
-            <RefreshCw className="h-3 w-3 mr-1" />
-            {t.retry}
-          </Button>
-        </div>
-      )}
-
       <WeeklyStatCards snapshot={currentSnapshot} entries={entries} loading={loading} snapshots={snapshots} />
 
       {/* Structure of the Week */}
@@ -4793,37 +4794,6 @@ export default function PdbTracker() {
               </div>
             </div>
           </>
-        )}
-
-        {/* Error Banner — shown when API fetch fails (hidden when DB wizard is open) */}
-        {fetchError && !dbWizardOpen && (
-          <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 dark:bg-rose-900/20 border-b border-rose-200 dark:border-rose-800/40 text-rose-800 dark:text-rose-200 text-xs flex-shrink-0">
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            <span className="font-medium">{fetchError === dbErrorMsg ? t.dbNotConfiguredShort : t.dataLoadFailed}</span>
-            <span className="text-rose-600 dark:text-rose-400">— {fetchError}</span>
-            {fetchError === dbErrorMsg ? (
-              <button
-                onClick={() => { setFetchError(null); setRunCenterOpen(true); }}
-                className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
-              >
-                {t.openRunCenter}
-              </button>
-            ) : (
-              <button
-                onClick={() => { setFetchError(null); fetchSnapshots(); fetchEntries(); }}
-                className="ml-auto px-2 py-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors font-medium"
-              >
-                {t.retry}
-              </button>
-            )}
-            <button
-              onClick={() => setFetchError(null)}
-              className="p-0.5 rounded hover:bg-rose-100 dark:hover:bg-rose-800/40 transition-colors"
-              aria-label={locale === "zh" ? "关闭横幅" : "Dismiss banner"}
-            >
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
         )}
 
         {/* Main Content Area */}
