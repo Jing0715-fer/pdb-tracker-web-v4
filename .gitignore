@@ -55,3 +55,4 @@ server.log
 # Local environment
 .env
 .env.local
+tool-results/

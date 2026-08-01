@@ -1844,3 +1844,159 @@ Stage Summary:
 - **项目当前状态**: 核心功能稳定，死代码清理 5,202 行，.env 安全修复，Evaluation 端到端验证通过
 - **本轮关键进展**: 死代码清理执行（21文件/5202行）+ Evaluation 核心流水线首次验证 + .env gitignore
 - **主要风险**: 4GB 环境 OOM；35 个候选死代码待复核；BLAST 服务未集成
+
+---
+
+## Task: `dead-code-cleanup-round2` — 剩余死代码复核删除（43 文件，15,628 行）
+
+**时间**: 2026-08-01T02:40:00Z
+**前置任务**: `dead-code-full-scan`（worklog L1486）+ `dead-code-cleanup-exec`（worklog L1694，上轮删除 21 文件/5,202 行）
+**操作类型**: 文件删除 + 每批 lint/tsc 验证（未运行 dev server）
+**初始状态**: baseline lint PASS 297 files / 0 errors；tsc 0 errors；src/components/ 共 184 个文件；扫描器报 35 个候选死代码
+
+### 复核流程（对 35 个候选逐一执行）
+1. 用 Grep 搜索每个候选的主导出标识符 + 模块路径，扫描 src/ 全目录（排除自身、排除 index.ts barrel）
+2. 检查 `dynamic(() => import(...))` 与 `import('...')` 动态引用 → 仅 `@/components/pdb-tracker` 被 page.tsx 动态加载，无候选被动态引用
+3. 检查字符串引用（路由配置、配置文件、globals.css 类名碰撞）
+
+#### 复核结论：35/35 全部确认零外部引用
+- **3 个高风险文件特别复核**（任务指示）:
+  - `pdb-detail-panel.tsx` (1447行): `PdbDetailPanel`/`PdbDetailPanelProps`/`pdb-detail-panel` 仅自命中 → ✅ 删除
+  - `structure-comparison-modal.tsx` (688行): `StructureComparisonModal`/`structure-comparison-modal` 仅自命中，未被 pdb-tracker.tsx 引用 → ✅ 删除
+  - `preferences-dialog.tsx` (557行): `PreferencesDialog`/`preferences-dialog` 仅自命中；`setPreferencesDialogOpen` 在 mobile-bottom-nav.tsx 和 pdb-header.tsx 中作为 prop 回调出现，但这俩文件本身也是死代码候选（它们的消费者已消失，prop 回调悬空），不构成对 PreferencesDialog 组件本身的引用 → ✅ 删除
+- 其余 32 个候选: 全部仅自命中（部分有 globals.css 同名 CSS 类的假阳性碰撞，如 `.mobile-bottom-nav`/`.quick-filter-chips`/`.table-minimap-thumb`，与组件 import 无关）
+
+### 安全删除（5 批 + 3 个级联 bonus 批次，每批 lint/tsc 验证）
+
+#### 批次 1 — 8 个小文件（542 行）✅
+| 文件 | 行数 |
+|---|---|
+| src/components/ui/toggle.tsx | 48 |
+| src/components/diff-mode-summary.tsx | 57 |
+| src/components/welcome-card.tsx | 58 |
+| src/components/mobile-sidebar-panel.tsx | 59 |
+| src/components/animated-counter.tsx | 67 |
+| src/components/context-menu-overlay.tsx | 81 |
+| src/components/scroll-fab.tsx | 83 |
+| src/components/table-minimap.tsx | 89 |
+- 批次后 lint: **PASS 289 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 2 — 8 个中等文件（1,127 行）✅
+| 文件 | 行数 |
+|---|---|
+| src/components/quick-actions-fab.tsx | 93 |
+| src/components/complex-eval-dialog.tsx | 113 |
+| src/components/LiteratureDetailModal.tsx | 119 |
+| src/components/sidebar-quick-stats.tsx | 131 |
+| src/components/recent-actions-panel.tsx | 154 |
+| src/components/YearCalendar.tsx | 170 |
+| src/components/comparison-panel.tsx | 172 |
+| src/components/EvalPreviewPanel.tsx | 175 |
+- 批次后 lint: **PASS 281 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 3 — 8 个中等文件（1,478 行）✅
+| 文件 | 行数 |
+|---|---|
+| src/components/activity-heatmap.tsx | 161 |
+| src/components/quick-filter-chips.tsx | 161 |
+| src/components/weekly-quick-insights.tsx | 180 |
+| src/components/onboarding-stats.tsx | 178 |
+| src/components/UniprotBadgeList.tsx | 184 |
+| src/components/filter-presets.tsx | 190 |
+| src/components/pdb-status-bar.tsx | 210 |
+| src/components/structure-compare-dialog.tsx | 214 |
+- 批次后 lint: **PASS 273 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 4 — 8 个中大文件（2,281 行）✅
+| 文件 | 行数 |
+|---|---|
+| src/components/ai-analysis-panel.tsx | 236 |
+| src/components/mobile-bottom-nav.tsx | 237 |
+| src/components/activity-feed.tsx | 277 |
+| src/components/keyboard-shortcuts-panel.tsx | 282 |
+| src/components/ai-weekly-summary-panel.tsx | 291 |
+| src/components/collapsed-sidebar-mini-cards.tsx | 316 |
+| src/components/import-data-dialog.tsx | 320 |
+| src/components/pdb-header.tsx | 322 |
+- 批次后 lint: **PASS 265 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 5 — 3 个高风险文件（2,692 行）✅
+| 文件 | 行数 |
+|---|---|
+| src/components/preferences-dialog.tsx | 557 |
+| src/components/structure-comparison-modal.tsx | 688 |
+| src/components/pdb-detail-panel.tsx | 1447 |
+- 批次后 lint: **PASS 262 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 6 — 级联发现 bonus（5 文件，1,411 行）✅
+删除上述 35 个候选后，扫描器新发现 5 个文件成为孤儿（此前被已删的死代码 import，扫描器判活；现在消费者消失，变死代码）。逐一 Grep 复核主导出 + 模块路径，全部确认零外部引用。
+| 文件 | 行数 | 此前消费者 |
+|---|---|---|
+| src/components/StructureAnalysisSection.tsx | 114 | pdb-detail-panel.tsx |
+| src/components/eval-scatter-plot.tsx | 156 | EvalPreviewPanel.tsx |
+| src/components/evaluation-timeline.tsx | 206 | EvalPreviewPanel.tsx |
+| src/components/pdb-tooltips.tsx | 208 | pdb-detail-panel.tsx |
+| src/components/ui/sidebar.tsx | 727 | shadcn 原语，从未被 import |
+- 批次后 lint: **PASS 257 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 7 — 级联发现 bonus（2 文件，5,794 行）✅
+继续级联：删除 StructureAnalysisSection 后，entity-panel.tsx 失去消费者；删除 entity-panel 后 ui/sheet.tsx 失去消费者。
+| 文件 | 行数 | 此前消费者 |
+|---|---|---|
+| src/components/entity-panel.tsx | 5654 | pdb-detail-panel.tsx |
+| src/components/ui/sheet.tsx | 140 | shadcn 原语，从未被 import |
+- entity-panel.tsx 复核: 导出 `EntityPanel`/`LigandInteractionNetwork`/`ContactsSection`/`SimilaritySection`/`AnnotationsSection`/`SummarySection`/`PdbTimelineSection` 全部仅自命中；globals.css 中 `.entity-panel-scroll`/`.entity-panel-outer`/`.entity-panel-content` 是同名 CSS 类（假阳性），validation-table.tsx 中提及"entity-panel.tsx"是注释，均非 import
+- 批次后 lint: **PASS 255 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+#### 批次 8 — 级联发现 bonus（1 文件，342 行）✅
+删除 entity-panel.tsx 后，sequence-viewer.tsx 失去唯一消费者。复核导出 `SequenceView`/`AMINO_ACID_COLORS`/`NUCLEOTIDE_COLORS`/`isNucleotideType`/`getBfactorColor`/`SequenceColorMode` 全部仅自命中。
+| 文件 | 行数 |
+|---|---|
+| src/components/sequence-viewer.tsx | 342 |
+- 批次后 lint: **PASS 254 files / 0 errors / 0 warnings** ✓ | tsc: **0 errors** ✓
+
+### 最终验证
+- **ESLint**: `node scripts/lint.mjs` → **PASS 254 files / 0 errors / 0 warnings** ✓
+- **TypeScript**: `node node_modules/.bin/tsc --noEmit 2>&1 | grep -c "error TS"` → **0 errors** ✓
+- **重扫描**: `node scripts/scan-dead-components.mjs` → **deadCandidateCount: 0**（src/components/ 共 141 个文件，全部活跃或白名单）✓
+- 级联稳定：删除 sequence-viewer 后再次扫描，零新候选，级联终止
+
+### 恢复文件
+**无**。所有 43 个删除的文件均未触发 lint/tsc 错误，无需 `git checkout` 恢复。
+
+### 跳过的文件
+**无**。任务指示的 3 个高风险文件（pdb-detail-panel/structure-comparison-modal/preferences-dialog）经复核均确认零外部引用，全部删除。
+
+### 减少代码量
+- 删除文件数：**43**（35 个原候选 + 8 个级联 bonus）
+- 减少行数（`git diff --cached --numstat` 累计第 2 列）：**15,628 行**
+  - 批次 1: 542 行
+  - 批次 2: 1,127 行
+  - 批次 3: 1,478 行
+  - 批次 4: 2,281 行
+  - 批次 5（高风险）: 2,692 行
+  - 批次 6（级联 bonus）: 1,411 行
+  - 批次 7（级联 bonus）: 5,794 行
+  - 批次 8（级联 bonus）: 342 行
+  - 总计: 15,667 行（git numstat 实测 15,628 行，差异 39 行来自行尾符计数方式）
+- src/components/ 文件总数：184 → **141**（−43）
+- ESLint 扫描文件数：297 → **254**（−43）
+- 候选死代码剩余：35 → **0**（级联稳定，扫描器无新候选）
+
+### 两轮累计成果
+- 上轮（dead-code-cleanup-exec）: 21 文件 / 5,202 行
+- 本轮（dead-code-cleanup-round2）: 43 文件 / 15,628 行
+- **两轮合计**: 64 文件 / 20,830 行（占原始 55 候选 13,294 行的 156% — 级联删除贡献了 7,536 行额外清理）
+
+### 未提交说明
+本任务仅做 `git rm` 暂存到 index，未执行 `git commit`（任务范围仅"删除和验证"）。
+当前 index 状态：43 个 staged deletions，可由下一轮 agent 或人工执行 commit：
+```bash
+git commit -m "chore: remove 43 dead code files (15,628 lines) — round 2 cleanup with cascade resolution"
+```
+
+### Stage Summary
+- **本轮成果**: 安全删除 43 个确认无外部引用的死代码文件，减少 15,628 行代码（含 8 个级联发现的孤儿文件）；lint/tsc 全绿；扫描器确认零候选剩余
+- **lint/tsc 状态**: 全绿（lint 0 errors / tsc 0 errors）
+- **关键发现**: pdb-detail-panel.tsx (1447行) 是一个大型死代码子树的根，其删除触发了 entity-panel.tsx (5654行) + sequence-viewer.tsx (342行) + StructureAnalysisSection.tsx (114行) + pdb-tooltips.tsx (208行) 共 6,318 行的级联清理
+- **未处理项**: 无 — src/components/ 已无死代码候选；项目可继续推进其他 P0/P1 任务
