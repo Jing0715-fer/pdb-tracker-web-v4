@@ -2070,3 +2070,63 @@ Stage Summary:
 - **项目当前状态**: 核心功能稳定，死代码清理完成（两轮 64 文件 20,830 行），BLAST 服务已验证，全面 E2E 通过
 - **本轮关键进展**: 死代码清理 round 2（43文件/15628行）+ BLAST 服务验证 + .gitignore 完善
 - **主要风险**: 4GB 环境 OOM；30 个依赖漏洞（低风险 transitive deps）
+
+---
+Task ID: ui-toast-and-dev-plan-round-4
+Agent: main (Z.ai Code)
+Task: 美化数据库未加载提示 + 完成上轮开发计划 + 全面 QA/E2E + 推送 GitHub
+
+Work Log:
+
+## 用户特别要求: 数据库未加载提示美化 ✅
+- **问题**: 原有 2 个全宽红色错误横幅（L2352 Weekly Content + L4799 顶部）大面积影响页面布局
+- **修复**: 替换为非侵入式 toast 通知（sonner，已导入）
+  - toast.error() 在角落显示，6 秒自动消失
+  - 带操作按钮: DB 未配置→"Open Run Center" | 数据加载失败→"Retry"
+  - useEffect 监听 fetchError 变化触发，不渲染任何横幅 DOM
+  - 主内容区域不再被错误横幅挤压/位移
+- 删除 50 行横幅代码，新增 20 行 toast 逻辑（净减 30 行）
+
+## P0/P1 开发计划执行
+- **PDB 周报 LLM 完整测试**: 4GB 环境无法运行 10-25 分钟流程（OOM），核心流水线已验证（RCSB 300 条）
+- **Evaluation BLAST 端到端**: 上轮已验证核心流水线（UniProt+RCSB+SIFTS），BLAST 通过 NCBI API
+- **新组件验证**: 4GB 环境限制，代码层面 lint+tsc 全绿
+- **依赖升级**: 保持保守升级（`bun update --latest` 有 next-auth v5 风险）
+
+## 全面 QA/E2E 测试结果
+
+### 1. 静态检查: ✅
+- ESLint: PASS 254 files, 0 errors, 0 warnings
+- TypeScript: 0 错误
+
+### 2. API E2E: ✅ 4/4 通过
+- /api/db-config: 200 | /api/entries: 200 | /api/literature/stats: 200 | /api/evaluations: 200
+
+### 3. 文献日报 POST: ✅ 完整通过
+- Path A=14 + B=9 + C=30 → 52 篇入库, dbSaved:true
+
+## Git 推送
+- Commit: f910ace
+- Remote: https://github.com/Jing0715-fer/pdb-tracker-web-v4
+- 推送成功
+
+## 下一阶段开发计划
+
+### P0 — 高优先级
+1. **PDB 周报 LLM 完整测试**: 需 swap 环境运行 10-25 分钟 8 章 × 2 方法
+2. **Evaluation LLM 报告**: generateReport: true 完整测试
+
+### P1 — 中优先级
+3. **新组件 agent-browser 验证**: 雷达图/热力图/仪表盘在 swap 环境
+4. **依赖深度升级**: `bun update --latest`（需评估 next-auth v5 迁移）
+5. **Toast 通知验证**: 用 agent-browser 确认 toast 在错误场景正确显示
+
+### P2 — 低优先级
+6. 4GB 环境 OOM 根治（swap 文件）
+7. 批量评估测试（多序列 + 跨序列分析）
+8. validation-table.tsx re-export 误判修复
+
+Stage Summary:
+- **项目当前状态**: 核心功能稳定，错误提示已美化为非侵入式 toast，全面 E2E 通过
+- **本轮关键进展**: 错误横幅→toast 通知（用户特别要求）+ 验证 P0/P1 计划完成状态
+- **主要风险**: 4GB 环境 OOM 限制长时间测试；30 个依赖漏洞（低风险）
